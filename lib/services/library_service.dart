@@ -86,12 +86,12 @@ class LibraryService {
               if (metadata.durationMs != null) {
                 duration = Duration(milliseconds: metadata.durationMs!.toInt());
               }
-              if (metadata.sampleRate != null) {
-                sampleRate = metadata.sampleRate!.toInt();
-              }
-              if (metadata.bitDepth != null) {
-                bitDepth = metadata.bitDepth!.toInt();
-              }
+              // if (metadata.sampleRate != null) {
+              //   sampleRate = metadata.sampleRate!.toInt();
+              // }
+              // if (metadata.bitDepth != null) {
+              //   bitDepth = metadata.bitDepth!.toInt();
+              // }
             } catch (e) {
               debugPrint(
                   'LibraryService: metadata error for ${entity.path}: $e');

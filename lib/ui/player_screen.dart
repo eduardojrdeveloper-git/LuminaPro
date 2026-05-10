@@ -266,7 +266,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                       children: [
                         // AirPlay (placeholder)
                         Icon(
-                          CupertinoIcons.airplayaudio,
+                          CupertinoIcons.airplay_audio,
                           color: isDark ? Colors.white54 : Colors.black45,
                           size: 24,
                         ),

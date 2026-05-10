@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import '../services/library_service.dart';
+import '../services/library_service.dart' hide debugPrint;
 
 enum RepeatMode { off, one, all }
 

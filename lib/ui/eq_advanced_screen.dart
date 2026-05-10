@@ -450,7 +450,7 @@ class EqVisualizerPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     // Draw grid lines
     final gridPaint = Paint()
-      ..color = isDark ? Colors.white10 : Colors.black08
+      ..color = isDark ? Colors.white10 : Colors.black.withOpacity(0.08)
       ..strokeWidth = 0.5;
 
     // Horizontal grid (±6, ±12 dB)
