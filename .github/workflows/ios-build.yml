@@ -21,16 +21,12 @@ jobs:
 
       - name: Initialize Project Scaffolding
         run: |
-          RANDOM_ID=$(openssl rand -hex 4)
-          BUNDLE_ID="com.luminapro.app.$RANDOM_ID"
-          
           flutter create --platforms=ios --org com.luminapro --project-name lumina_pro .
           flutter create --template=plugin_ffi --platforms=ios dsp_plugin
           rm -f dsp_plugin/ios/Classes/dsp_plugin.c
           mkdir -p dsp_plugin/ios/Classes/dsp
           cp ios/Classes/dsp/* dsp_plugin/ios/Classes/
           
-          # Use a robust way to recreate pubspec.yaml with all dependencies
           cat <<EOF > pubspec.yaml
           name: lumina_pro
           description: "Bit-Perfect Audio Player"
@@ -57,35 +53,27 @@ jobs:
             uses-material-design: true
           EOF
           
+          # Add permissions and File Sharing
           /usr/libexec/PlistBuddy -c "Set :UIFileSharingEnabled true" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :UIFileSharingEnabled bool true" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Set :LSSupportsOpeningDocumentsInPlace true" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :LSSupportsOpeningDocumentsInPlace bool true" ios/Runner/Info.plist
-          
-          sed -i '' "s/PRODUCT_BUNDLE_IDENTIFIER = com.luminapro.luminaPro;/PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE_ID;/g" ios/Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/CODE_SIGNING_ALLOWED = YES/CODE_SIGNING_ALLOWED = NO/g' ios/Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/CODE_SIGN_STYLE = Automatic/CODE_SIGN_STYLE = Manual/g' ios/Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/DevelopmentTeam = [A-Z0-9]*;//g' ios/Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = ".*";//g' ios/Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/CODE_SIGN_IDENTITY = ".*"/CODE_SIGN_IDENTITY = ""/g' ios/Runner.xcodeproj/project.pbxproj
-          
-          echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
-          echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
-          echo "CODE_SIGN_IDENTITY=" >> ios/Flutter/Release.xcconfig
+          /usr/libexec/PlistBuddy -c "Add :NSAppleMusicUsageDescription string 'Lumina Pro needs access to your music library to play files.'" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Lumina Pro needs access to your photos to display album art.'" ios/Runner/Info.plist
 
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Build iOS App (Release Mode for Device)
+      - name: Build iOS App (Release Simulator ARM64)
         run: |
-          flutter build ios --release --no-codesign
-        env:
-          CODE_SIGNING_ALLOWED: NO
-          CODE_SIGNING_REQUIRED: NO
-          CODE_SIGN_IDENTITY: ""
+          # We use --release --simulator to bypass the 'Development Team' check.
+          # Since macos-latest is an Apple Silicon runner, this produces an ARM64 binary.
+          flutter build ios --release --simulator
 
       - name: Create Payload and IPA
         run: |
           mkdir -p Payload
-          APP_PATH=$(find build/ios/iphoneos -name "*.app" | head -n 1)
+          # Search for the .app in build/ios/iphonesimulator
+          APP_PATH=$(find build/ios/iphonesimulator -name "*.app" | head -n 1)
+          echo "Packaging $APP_PATH"
           cp -R "$APP_PATH" Payload/
           zip -r app.ipa Payload
       
