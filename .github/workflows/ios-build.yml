@@ -32,9 +32,11 @@ jobs:
           mkdir -p dsp_plugin/ios/Classes/dsp
           cp ios/Classes/dsp/* dsp_plugin/ios/Classes/
           
-          # Inject the plugin dependency into pubspec.yaml
-          echo "  dsp_plugin:" >> pubspec.yaml
-          echo "    path: ./dsp_plugin" >> pubspec.yaml
+          # Inject the plugin dependency into pubspec.yaml under dependencies:
+          # We use sed to insert it after the 'dependencies:' line
+          sed -i '' '/dependencies:/a \
+  dsp_plugin: \
+    path: ./dsp_plugin' pubspec.yaml
           
           # Overwrite Info.plist with our custom one (File Sharing enabled)
           cp ios/Runner/Info.plist ios/Runner/Info.plist.bak || true
