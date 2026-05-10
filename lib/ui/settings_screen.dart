@@ -114,8 +114,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         }[mode]!;
                         return _SettingRow(
                           isDark: isDark,
-                          icon: CupertinoIcons.paintpalette,
-                          iconColor: const Color(0xFFFF2D55),
+                          icon: CupertinoIcons.paintpalette_fill,                          iconColor: const Color(0xFFFF2D55),
                           title: 'Appearance',
                           trailing: GestureDetector(
                             onTap: () => _showThemePicker(context),
