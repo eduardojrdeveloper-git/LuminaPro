@@ -39,7 +39,7 @@ class LibraryService {
             Uint8List? coverArt;
 
             try {
-              final metadata = await MetadataGod.readMetadata(entity.path);
+              final metadata = await MetadataGod.readMetadata(file: entity.path);
               if (metadata.title != null) title = metadata.title!;
               if (metadata.artist != null) artist = metadata.artist!;
               if (metadata.album != null) album = metadata.album!;
