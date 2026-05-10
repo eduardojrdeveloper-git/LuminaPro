@@ -16,31 +16,29 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.0' # Use a stable version
+          flutter-version: '3.19.0'
           channel: 'stable'
 
       - name: Initialize Project Scaffolding
         run: |
-          # Create the base Flutter app (won't overwrite our custom lib/ or pubspec.yaml if done carefully)
+          # Create the base Flutter app
           flutter create --platforms=ios --org com.luminapro --project-name lumina_pro .
           
-          # Create a local FFI plugin to handle C++ compilation without modifying Xcode project manually
+          # Create a local FFI plugin
           flutter create --template=plugin_ffi --platforms=ios dsp_plugin
           
-          # Move our custom DSP C++ files into the plugin's iOS classes folder
+          # Move custom DSP C++ files
           rm -f dsp_plugin/ios/Classes/dsp_plugin.c
           mkdir -p dsp_plugin/ios/Classes/dsp
           cp ios/Classes/dsp/* dsp_plugin/ios/Classes/
           
-          # Inject the plugin dependency into pubspec.yaml under dependencies:
-          # We use sed to insert it after the 'dependencies:' line
+          # Inject the plugin dependency into pubspec.yaml
+          # Using a simpler sed command to avoid YAML multi-line issues
           sed -i '' '/dependencies:/a \
-  dsp_plugin: \
-    path: ./dsp_plugin' pubspec.yaml
+            \  dsp_plugin: \
+            \    path: ./dsp_plugin' pubspec.yaml
           
-          # Overwrite Info.plist with our custom one (File Sharing enabled)
-          cp ios/Runner/Info.plist ios/Runner/Info.plist.bak || true
-          # Use Set if exists, otherwise Add
+          # Overwrite Info.plist keys
           /usr/libexec/PlistBuddy -c "Set :UIFileSharingEnabled true" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :UIFileSharingEnabled bool true" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Set :LSSupportsOpeningDocumentsInPlace true" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :LSSupportsOpeningDocumentsInPlace bool true" ios/Runner/Info.plist
 
@@ -53,7 +51,6 @@ jobs:
       - name: Create Payload and IPA
         run: |
           mkdir -p Payload
-          # The built app is in build/ios/iphoneos/Runner.app
           mv build/ios/iphoneos/Runner.app Payload/
           zip -r app.ipa Payload
       
