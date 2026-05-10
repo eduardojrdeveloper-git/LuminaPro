@@ -1,20 +1,21 @@
 name: lumina_pro
-description: "Bit-Perfect Audio Player with Equalizer APO support."
+description: "Bit-Perfect Audio Player"
 publish_to: 'none'
 version: 1.0.0+1
-
 environment:
   sdk: '>=3.0.0 <4.0.0'
-
 dependencies:
   flutter:
     sdk: flutter
   ffi: ^2.1.0
-
+  path_provider: ^2.1.2
+  just_audio: ^0.9.36
+  audio_session: ^0.1.18
+  path: ^1.9.0
+  # We will add dsp_plugin via the workflow as before
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^2.0.0
-
 flutter:
   uses-material-design: true
