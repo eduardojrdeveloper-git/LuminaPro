@@ -17,17 +17,19 @@ class PlayerScreen extends StatelessWidget {
         children: [
           Spacer(),
           // Album Art with Shadow
-          Container(
-            width: double.infinity,
+          AspectRatio(
             aspectRatio: 1,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 10))
-              ],
-              image: DecorationImage(
-                image: NetworkImage('https://via.placeholder.com/400'),
-                fit: BoxFit.cover,
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 10))
+                ],
+                image: DecorationImage(
+                  image: NetworkImage('https://via.placeholder.com/400'),
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
           ),

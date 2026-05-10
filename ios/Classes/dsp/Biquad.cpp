@@ -16,7 +16,6 @@ void Biquad::setParameters(FilterType type, double fs, double fc, double Q, doub
     double alpha = sin(w0) / (2.0 * Q);
     double A = pow(10.0, gainDB / 40.0);
 
-    double a0 = 1.0;
     double b0_t = 1.0, b1_t = 0.0, b2_t = 0.0, a0_t = 1.0, a1_t = 0.0, a2_t = 0.0;
 
     switch (type) {

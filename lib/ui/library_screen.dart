@@ -60,14 +60,16 @@ class LibraryScreen extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
+            AspectRatio(
               aspectRatio: 1,
-              decoration: BoxDecoration(
-                color: Colors.grey[900],
-                borderRadius: BorderRadius.circular(8),
-                image: DecorationImage(
-                  image: NetworkImage('https://via.placeholder.com/200'),
-                  fit: BoxFit.cover,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey[900],
+                  borderRadius: BorderRadius.circular(8),
+                  image: DecorationImage(
+                    image: NetworkImage('https://via.placeholder.com/200'),
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
             ),
