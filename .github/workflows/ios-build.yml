@@ -40,6 +40,7 @@ jobs:
             ffi: ^2.1.0
             path_provider: ^2.1.2
             just_audio: ^0.9.36
+            just_audio_background: ^0.0.1-beta.13
             audio_session: ^0.1.18
             path: ^1.9.0
             metadata_god: ^0.5.0
@@ -57,6 +58,8 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :LSSupportsOpeningDocumentsInPlace true" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :LSSupportsOpeningDocumentsInPlace bool true" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Add :NSAppleMusicUsageDescription string 'Lumina Pro needs access to your music library.'" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Lumina Pro needs access to display album art.'" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" ios/Runner/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" ios/Runner/Info.plist || true
 
       - name: Install Dependencies
         run: flutter pub get
