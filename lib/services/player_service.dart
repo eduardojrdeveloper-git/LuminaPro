@@ -1,4 +1,5 @@
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:flutter/foundation.dart';
 import '../services/library_service.dart';
 
@@ -10,15 +11,44 @@ class PlayerService {
   final AudioPlayer player = AudioPlayer();
   final ValueNotifier<AudioFile?> currentSong = ValueNotifier<AudioFile?>(null);
   
-  // Expose player state
+  ConcatenatingAudioSource _playlist = ConcatenatingAudioSource(children: []);
+  List<AudioFile> _queue = [];
+
   Stream<Duration> get positionStream => player.positionStream;
   Stream<Duration?> get durationStream => player.durationStream;
   Stream<bool> get playingStream => player.playingStream;
 
+  PlayerService._init() {
+    player.currentIndexStream.listen((index) {
+      if (index != null && index < _queue.length) {
+        currentSong.value = _queue[index];
+      }
+    });
+  }
+
   Future<void> playSong(AudioFile song) async {
-    currentSong.value = song;
+    await playQueue([song], initialIndex: 0);
+  }
+
+  Future<void> playQueue(List<AudioFile> songs, {int initialIndex = 0}) async {
+    _queue = List.from(songs);
+    final audioSources = songs.map((song) {
+      return AudioSource.uri(
+        Uri.file(song.path),
+        tag: MediaItem(
+          id: song.path,
+          album: song.album,
+          title: song.title,
+          artist: song.artist,
+          artUri: Uri.file(song.path), // Basic fallback if possible
+        ),
+      );
+    }).toList();
+
+    _playlist = ConcatenatingAudioSource(children: audioSources);
+    
     try {
-      await player.setAudioSource(AudioSource.uri(Uri.file(song.path)));
+      await player.setAudioSource(_playlist, initialIndex: initialIndex, initialPosition: Duration.zero);
       player.play();
     } catch (e) {
       print("Error playing audio: $e");
@@ -36,4 +66,13 @@ class PlayerService {
   void seek(Duration position) {
     player.seek(position);
   }
+
+  void skipToNext() {
+    player.seekToNext();
+  }
+
+  void skipToPrevious() {
+    player.seekToPrevious();
+  }
 }
+

@@ -112,7 +112,11 @@ class PlayerScreen extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  Icon(Icons.skip_previous, size: 48, color: Colors.white),
+                  IconButton(
+                    iconSize: 48,
+                    icon: Icon(Icons.skip_previous, color: Colors.white),
+                    onPressed: playerService.skipToPrevious,
+                  ),
                   StreamBuilder<bool>(
                     stream: playerService.playingStream,
                     builder: (context, snapshot) {
@@ -125,7 +129,11 @@ class PlayerScreen extends StatelessWidget {
                       );
                     },
                   ),
-                  Icon(Icons.skip_next, size: 48, color: Colors.white),
+                  IconButton(
+                    iconSize: 48,
+                    icon: Icon(Icons.skip_next, color: Colors.white),
+                    onPressed: playerService.skipToNext,
+                  ),
                 ],
               ),
               Spacer(),

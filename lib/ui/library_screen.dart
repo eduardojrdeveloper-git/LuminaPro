@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../services/library_service.dart';
 import '../services/player_service.dart';
+import 'detail_screen.dart';
 
 class LibraryScreen extends StatefulWidget {
   @override
@@ -88,7 +89,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           title: Text(song.title, style: TextStyle(fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle: Text('${song.artist} • ${song.album}', style: TextStyle(color: Colors.grey, fontSize: 13), maxLines: 1),
           onTap: () {
-            PlayerService().playSong(song);
+            PlayerService().playQueue(_songs, initialIndex: index);
           },
         );
       },
@@ -138,7 +139,16 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           title: Text(groupName, style: TextStyle(fontWeight: FontWeight.bold)),
           subtitle: Text('${groupSongs.length} songs', style: TextStyle(color: Colors.grey)),
           onTap: () {
-             // Future: Navigate to album/artist detail screen
+             Navigator.push(
+               context,
+               MaterialPageRoute(
+                 builder: (context) => DetailScreen(
+                   title: groupName,
+                   songs: groupSongs,
+                   coverArt: groupCover,
+                 ),
+               ),
+             );
           },
         );
       },
@@ -157,3 +167,4 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     );
   }
 }
+
