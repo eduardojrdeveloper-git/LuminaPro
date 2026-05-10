@@ -8,29 +8,17 @@ class EqAdvancedScreen extends StatefulWidget {
 }
 
 class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
-  double preamp = 0.0;
-  List<Map<String, dynamic>> bands = [
-    {'fc': 31.0, 'gain': 0.0, 'q': 1.41, 'type': 'PK'},
-    {'fc': 250.0, 'gain': 0.0, 'q': 1.41, 'type': 'LSC'},
-    {'fc': 1000.0, 'gain': 0.0, 'q': 1.41, 'type': 'PK'},
-    {'fc': 8000.0, 'gain': 0.0, 'q': 1.41, 'type': 'HSC'},
-  ];
-
-  final List<String> filterTypes = ['PK', 'LSC', 'HSC', 'LP', 'HP'];
-
-  void _applyEQ() {
-    PlayerService().updateEQ(bands);
-  }
-
-  void _applyPreamp() {
-    PlayerService().updatePreamp(preamp);
-  }
+  late List<Map<String, dynamic>> bands;
+  final List<String> filterTypes = ['Preamp', 'PK', 'LSC', 'HSC', 'LP', 'HP'];
 
   @override
   void initState() {
     super.initState();
-    _applyEQ();
-    _applyPreamp();
+    bands = PlayerService().eqBands;
+  }
+
+  void _applyEQ() {
+    PlayerService().applyCurrentEQ();
   }
 
   @override
@@ -57,22 +45,8 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: CustomPaint(
-              painter: EqVisualizerPainter(bands, preamp, isDark),
+              painter: EqVisualizerPainter(bands, isDark),
               child: Container(),
-            ),
-          ),
-          
-          // Preamp Control
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Row(
-              children: [
-                SizedBox(width: 80, child: Text('Preamp: ${preamp.toStringAsFixed(1)} dB', style: TextStyle(fontSize: 12, color: isDark ? Colors.white70 : Colors.black87, fontWeight: FontWeight.bold))),
-                Expanded(child: Slider(value: preamp, min: -20, max: 20, onChanged: (v) {
-                  setState(() => preamp = v);
-                  _applyPreamp();
-                }, activeColor: Colors.cyanAccent)),
-              ],
             ),
           ),
           
@@ -91,7 +65,7 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
                 setState(() => bands.add({'fc': 1000.0, 'gain': 0.0, 'q': 1.41, 'type': 'PK'}));
                 _applyEQ();
               },
-              child: Text('Add New Band'),
+              child: Text('Add New Filter'),
               style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 50), backgroundColor: Colors.pinkAccent, foregroundColor: Colors.white),
             ),
           )
@@ -102,6 +76,8 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
 
   Widget _buildBandItem(int index, bool isDark) {
     var band = bands[index];
+    bool isPreamp = band['type'] == 'Preamp';
+
     return Card(
       margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       color: isDark ? Color(0xFF2C2C2E) : Colors.white,
@@ -115,7 +91,7 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
               children: [
                 Row(
                   children: [
-                    Text('Band ${index + 1} ', style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+                    Text('Filter ${index + 1} ', style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
                     DropdownButton<String>(
                       value: band['type'],
                       dropdownColor: isDark ? Colors.grey[850] : Colors.white,
@@ -127,7 +103,16 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
                       }).toList(),
                       onChanged: (String? newValue) {
                         if (newValue != null) {
-                          setState(() => band['type'] = newValue);
+                          setState(() {
+                            band['type'] = newValue;
+                            if (newValue == 'Preamp') {
+                              band['fc'] = 0.0;
+                              band['q'] = 0.0;
+                            } else if (band['fc'] == 0.0) {
+                              band['fc'] = 1000.0;
+                              band['q'] = 1.41;
+                            }
+                          });
                           _applyEQ();
                         }
                       },
@@ -140,19 +125,21 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
                 }),
               ],
             ),
-            _buildSlider('Freq: ${band['fc'].toInt()} Hz', band['fc'], 20, 20000, (v) {
-              setState(() => band['fc'] = v);
-              _applyEQ();
-            }, isDark),
+            if (!isPreamp)
+              _buildSlider('Freq: ${band['fc'].toInt()} Hz', (band['fc'] as num).toDouble(), 20, 20000, (v) {
+                setState(() => band['fc'] = v);
+                _applyEQ();
+              }, isDark),
             if (band['type'] != 'LP' && band['type'] != 'HP') 
-              _buildSlider('Gain: ${band['gain'].toStringAsFixed(1)} dB', band['gain'], -20, 20, (v) {
+              _buildSlider('Gain: ${(band['gain'] as num).toStringAsFixed(1)} dB', (band['gain'] as num).toDouble(), -20, 20, (v) {
                 setState(() => band['gain'] = v);
                 _applyEQ();
               }, isDark),
-            _buildSlider('Q: ${band['q'].toStringAsFixed(2)}', band['q'], 0.1, 10, (v) {
-              setState(() => band['q'] = v);
-              _applyEQ();
-            }, isDark),
+            if (!isPreamp)
+              _buildSlider('Q: ${(band['q'] as num).toStringAsFixed(2)}', (band['q'] as num).toDouble(), 0.1, 10, (v) {
+                setState(() => band['q'] = v);
+                _applyEQ();
+              }, isDark),
           ],
         ),
       ),
@@ -169,16 +156,19 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
   }
 
   void _exportApoProfile() {
-    String content = "Preamp: ${preamp.toStringAsFixed(1)} dB\n";
+    String content = "";
     for (var b in bands) {
-      // Basic APO format mapping
-      String apoType = "ON PK";
-      if (b['type'] == 'LSC') apoType = "ON LSC";
-      else if (b['type'] == 'HSC') apoType = "ON HSC";
-      else if (b['type'] == 'LP') apoType = "ON LP";
-      else if (b['type'] == 'HP') apoType = "ON HP";
-      
-      content += "Filter: $apoType Fc ${b['fc'].toInt()} Hz Gain ${b['gain'].toStringAsFixed(1)} dB Q ${b['q'].toStringAsFixed(2)}\n";
+      if (b['type'] == 'Preamp') {
+        content += "Preamp: ${(b['gain'] as num).toStringAsFixed(1)} dB\n";
+      } else {
+        String apoType = "ON PK";
+        if (b['type'] == 'LSC') apoType = "ON LSC";
+        else if (b['type'] == 'HSC') apoType = "ON HSC";
+        else if (b['type'] == 'LP') apoType = "ON LP";
+        else if (b['type'] == 'HP') apoType = "ON HP";
+        
+        content += "Filter: $apoType Fc ${(b['fc'] as num).toInt()} Hz Gain ${(b['gain'] as num).toStringAsFixed(1)} dB Q ${(b['q'] as num).toStringAsFixed(2)}\n";
+      }
     }
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('APO Profile Generated')));
     print(content);
@@ -187,10 +177,9 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
 
 class EqVisualizerPainter extends CustomPainter {
   final List<Map<String, dynamic>> bands;
-  final double preamp;
   final bool isDark;
 
-  EqVisualizerPainter(this.bands, this.preamp, this.isDark);
+  EqVisualizerPainter(this.bands, this.isDark);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -216,16 +205,23 @@ class EqVisualizerPainter extends CustomPainter {
     double logMin = log(minFreq);
     double logMax = log(maxFreq);
 
+    double preamp = 0.0;
+    for (var b in bands) {
+      if (b['type'] == 'Preamp') preamp += (b['gain'] as num).toDouble();
+    }
+
     for (double x = 0; x <= size.width; x++) {
       double logf = logMin + (x / size.width) * (logMax - logMin);
       double freq = exp(logf);
 
-      double totalGainDb = preamp; // Start with preamp offset
+      double totalGainDb = preamp;
       for (var band in bands) {
-        double fc = band['fc'];
-        double gain = band['gain'];
-        double q = band['q'];
         String type = band['type'] ?? 'PK';
+        if (type == 'Preamp') continue;
+
+        double fc = (band['fc'] as num).toDouble();
+        double gain = (band['gain'] as num).toDouble();
+        double q = (band['q'] as num).toDouble();
 
         if (fc <= 0) continue;
         
@@ -233,10 +229,10 @@ class EqVisualizerPainter extends CustomPainter {
         double w0 = freq / fc;
         if (type == 'PK') {
           double a = pow(10.0, gain / 40.0).toDouble();
-          double num = 1.0 + pow(w0 - 1.0 / w0, 2) * pow(q, 2) * pow(a, 2);
-          double den = 1.0 + pow(w0 - 1.0 / w0, 2) * pow(q, 2) / pow(a, 2);
-          if (den != 0) {
-            double db = 10 * log10(num / den);
+          double numVal = 1.0 + pow(w0 - 1.0 / w0, 2) * pow(q, 2) * pow(a, 2);
+          double denVal = 1.0 + pow(w0 - 1.0 / w0, 2) * pow(q, 2) / pow(a, 2);
+          if (denVal != 0) {
+            double db = 10 * log10(numVal / denVal);
             if (gain < 0) db = -db;
             totalGainDb += db;
           }
@@ -287,4 +283,3 @@ class EqVisualizerPainter extends CustomPainter {
     return true; // Always repaint
   }
 }
-

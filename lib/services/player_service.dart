@@ -11,7 +11,33 @@ class PlayerService {
   static const EventChannel _positionEventChannel = EventChannel('com.luminapro/audio_position');
   static const EventChannel _stateEventChannel = EventChannel('com.luminapro/audio_state');
 
+  List<Map<String, dynamic>> eqBands = [
+    {'fc': 1000.0, 'gain': -6.0, 'q': 1.41, 'type': 'Preamp'},
+    {'fc': 31.0, 'gain': 0.0, 'q': 1.41, 'type': 'PK'},
+    {'fc': 250.0, 'gain': 0.0, 'q': 1.41, 'type': 'LSC'},
+    {'fc': 8000.0, 'gain': 0.0, 'q': 1.41, 'type': 'HSC'},
+  ];
+
   PlayerService._internal() {
+    _channel.setMethodCallHandler((call) async {
+      switch (call.method) {
+        case 'nextTrack':
+          skipToNext();
+          break;
+        case 'previousTrack':
+          skipToPrevious();
+          break;
+        case 'playPause':
+          playPause();
+          break;
+        case 'seek':
+          if (call.arguments != null && call.arguments['position'] != null) {
+            _positionNotifier.value = Duration(milliseconds: call.arguments['position']);
+          }
+          break;
+      }
+    });
+
     _positionEventChannel.receiveBroadcastStream().listen((event) {
       if (event is Map) {
         final posMs = event['position'] as int?;
@@ -67,6 +93,7 @@ class PlayerService {
         'artist': song.artist,
       });
       _playingNotifier.value = true;
+      await applyCurrentEQ();
     } catch (e) {
       print("Error invoking native play: $e");
     }
@@ -125,5 +152,19 @@ class PlayerService {
     } catch (e) {
       print("Error invoking native updatePreamp: $e");
     }
+  }
+
+  Future<void> applyCurrentEQ() async {
+    double preamp = 0.0;
+    List<Map<String, dynamic>> hardwareBands = [];
+    for (var b in eqBands) {
+      if (b['type'] == 'Preamp') {
+        preamp += (b['gain'] as num).toDouble();
+      } else {
+        hardwareBands.add(b);
+      }
+    }
+    await updatePreamp(preamp);
+    await updateEQ(hardwareBands);
   }
 }
