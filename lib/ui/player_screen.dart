@@ -204,6 +204,9 @@ class PlayerScreen extends StatelessWidget {
                                     min: 0,
                                     max: max > 0 ? max : 1,
                                     onChanged: (v) {
+                                       // Visual update only while dragging (if we had local state for it)
+                                    },
+                                    onChangeEnd: (v) {
                                       playerService.seek(Duration(milliseconds: v.toInt()));
                                     },
                                     activeColor: isDark ? Colors.white : Colors.black87,

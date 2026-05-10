@@ -115,24 +115,33 @@ class PlayerService {
 
   Future<void> seek(Duration position) async {
     try {
-      await _channel.invokeMethod('seek', {'position': position.inMilliseconds});
       _positionNotifier.value = position;
+      await _channel.invokeMethod('seek', {'position': position.inMilliseconds});
     } catch (e) {
       print("Error invoking native seek: $e");
     }
   }
 
   void skipToNext() {
-    if (_currentIndex < _queue.length - 1) {
+    if (_queue.isNotEmpty && _currentIndex < _queue.length - 1) {
       _currentIndex++;
       _playCurrent();
+    } else {
+      // Loop or stop
+      seek(Duration.zero);
+      playPause();
     }
   }
 
   void skipToPrevious() {
-    if (_currentIndex > 0) {
-      _currentIndex--;
-      _playCurrent();
+    if (_queue.isNotEmpty && _currentIndex > 0) {
+      // If position > 3 seconds, just restart song
+      if (_positionNotifier.value.inSeconds > 3) {
+         seek(Duration.zero);
+      } else {
+        _currentIndex--;
+        _playCurrent();
+      }
     } else {
       seek(Duration.zero);
     }

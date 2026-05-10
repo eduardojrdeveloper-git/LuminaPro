@@ -42,12 +42,15 @@ jobs:
               var stateChannel: FlutterEventChannel?
               var positionSink: FlutterEventSink?
               var stateSink: FlutterEventSink?
+              var methodChannel: FlutterMethodChannel?
               
               var currentTimer: Timer?
               var audioFile: AVAudioFile?
               
               var currentTitle: String = "Unknown"
               var currentArtist: String = "Unknown"
+              var currentPath: String = ""
+              var isSeeking = false
               
               override func application(
                   _ application: UIApplication,
@@ -55,7 +58,7 @@ jobs:
               ) -> Bool {
                   let controller = window?.rootViewController as! FlutterViewController
                   
-                  let methodChannel = FlutterMethodChannel(name: "com.luminapro/audio", binaryMessenger: controller.binaryMessenger)
+                  methodChannel = FlutterMethodChannel(name: "com.luminapro/audio", binaryMessenger: controller.binaryMessenger)
                   positionChannel = FlutterEventChannel(name: "com.luminapro/audio_position", binaryMessenger: controller.binaryMessenger)
                   stateChannel = FlutterEventChannel(name: "com.luminapro/audio_state", binaryMessenger: controller.binaryMessenger)
                   
@@ -65,13 +68,14 @@ jobs:
                   setupAudioEngine()
                   setupRemoteCommandCenter()
                   
-                  methodChannel.setMethodCallHandler({ [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
+                  methodChannel?.setMethodCallHandler({ [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
                       guard let self = self else { return }
                       switch call.method {
                       case "play":
                           if let args = call.arguments as? [String: Any], let path = args["path"] as? String {
                               self.currentTitle = args["title"] as? String ?? "Unknown"
                               self.currentArtist = args["artist"] as? String ?? "Unknown"
+                              self.currentPath = path
                               self.playAudio(path: path)
                               result(nil)
                           } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
@@ -133,10 +137,12 @@ jobs:
                   
                   commandCenter.playCommand.addTarget { [weak self] event in
                       self?.resumeAudio()
+                      self?.methodChannel?.invokeMethod("playPause", arguments: nil)
                       return .success
                   }
                   commandCenter.pauseCommand.addTarget { [weak self] event in
                       self?.pauseAudio()
+                      self?.methodChannel?.invokeMethod("playPause", arguments: nil)
                       return .success
                   }
                   commandCenter.togglePlayPauseCommand.addTarget { [weak self] event in
@@ -145,8 +151,36 @@ jobs:
                       } else {
                           self?.resumeAudio()
                       }
+                      self?.methodChannel?.invokeMethod("playPause", arguments: nil)
                       return .success
                   }
+                  commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
+                      if let event = event as? MPChangePlaybackPositionCommandEvent {
+                          self?.seekAudio(toMs: Int(event.positionTime * 1000))
+                          self?.methodChannel?.invokeMethod("seek", arguments: ["position": Int(event.positionTime * 1000)])
+                          return .success
+                      }
+                      return .commandFailed
+                  }
+                  commandCenter.nextTrackCommand.addTarget { [weak self] event in
+                      self?.methodChannel?.invokeMethod("nextTrack", arguments: nil)
+                      return .success
+                  }
+                  commandCenter.previousTrackCommand.addTarget { [weak self] event in
+                      self?.methodChannel?.invokeMethod("previousTrack", arguments: nil)
+                      return .success
+                  }
+              }
+              
+              func extractArtwork(from path: String) -> MPMediaItemArtwork? {
+                  let url = URL(fileURLWithPath: path)
+                  let asset = AVAsset(url: url)
+                  for metadata in asset.commonMetadata {
+                      if metadata.commonKey == .commonKeyArtwork, let data = metadata.value as? Data, let image = UIImage(data: data) {
+                          return MPMediaItemArtwork(boundsSize: image.size) { _ in return image }
+                      }
+                  }
+                  return nil
               }
               
               func updateNowPlaying(isPause: Bool = false) {
@@ -168,6 +202,10 @@ jobs:
                   
                   nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPause ? 0.0 : 1.0
                   
+                  if let artwork = extractArtwork(from: currentPath) {
+                      nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+                  }
+                  
                   MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
               }
               
@@ -175,10 +213,16 @@ jobs:
                   let url = URL(fileURLWithPath: path)
                   do {
                       audioFile = try AVAudioFile(forReading: url)
+                      isSeeking = true
                       playerNode.stop()
-                      playerNode.scheduleFile(audioFile!, at: nil) {
-                          DispatchQueue.main.async {
-                              self.stateSink?(["finished": true])
+                      isSeeking = false
+                      
+                      playerNode.scheduleFile(audioFile!, at: nil) { [weak self] in
+                          guard let self = self else { return }
+                          if !self.isSeeking {
+                              DispatchQueue.main.async {
+                                  self.stateSink?(["finished": true])
+                              }
                           }
                       }
                       playerNode.play()
@@ -215,16 +259,21 @@ jobs:
                   let newFramePosition = AVAudioFramePosition(Double(toMs) / 1000.0 * sampleRate)
                   
                   let wasPlaying = playerNode.isPlaying
+                  isSeeking = true
                   playerNode.stop()
                   
                   let framesToPlay = AVAudioFrameCount(audioFile.length - newFramePosition)
                   if framesToPlay > 0 {
-                      playerNode.scheduleSegment(audioFile, startingFrame: newFramePosition, frameCount: framesToPlay, at: nil) {
-                          DispatchQueue.main.async {
-                              self.stateSink?(["finished": true])
+                      playerNode.scheduleSegment(audioFile, startingFrame: newFramePosition, frameCount: framesToPlay, at: nil) { [weak self] in
+                          guard let self = self else { return }
+                          if !self.isSeeking {
+                              DispatchQueue.main.async {
+                                  self.stateSink?(["finished": true])
+                              }
                           }
                       }
                   }
+                  isSeeking = false
                   
                   if wasPlaying {
                       playerNode.play()
