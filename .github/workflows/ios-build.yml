@@ -53,27 +53,24 @@ jobs:
             uses-material-design: true
           EOF
           
-          # Add permissions and File Sharing
           /usr/libexec/PlistBuddy -c "Set :UIFileSharingEnabled true" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :UIFileSharingEnabled bool true" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Set :LSSupportsOpeningDocumentsInPlace true" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :LSSupportsOpeningDocumentsInPlace bool true" ios/Runner/Info.plist
-          /usr/libexec/PlistBuddy -c "Add :NSAppleMusicUsageDescription string 'Lumina Pro needs access to your music library to play files.'" ios/Runner/Info.plist
-          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Lumina Pro needs access to your photos to display album art.'" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSAppleMusicUsageDescription string 'Lumina Pro needs access to your music library.'" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Lumina Pro needs access to display album art.'" ios/Runner/Info.plist
 
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Build iOS App (Release Simulator ARM64)
+      - name: Build iOS App (Debug Simulator ARM64)
         run: |
-          # We use --release --simulator to bypass the 'Development Team' check.
-          # Since macos-latest is an Apple Silicon runner, this produces an ARM64 binary.
-          flutter build ios --release --simulator
+          # Simulator only supports --debug mode. 
+          # On Apple Silicon runner (macos-latest), this generates an ARM64 binary.
+          flutter build ios --debug --simulator
 
       - name: Create Payload and IPA
         run: |
           mkdir -p Payload
-          # Search for the .app in build/ios/iphonesimulator
           APP_PATH=$(find build/ios/iphonesimulator -name "*.app" | head -n 1)
-          echo "Packaging $APP_PATH"
           cp -R "$APP_PATH" Payload/
           zip -r app.ipa Payload
       
