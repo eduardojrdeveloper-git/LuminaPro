@@ -1,180 +1,445 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'dart:math';
 import '../services/player_service.dart';
+import '../main.dart' show LuminaColors;
+
+// ── EQ Presets ────────────────────────────────────────────────────────────────
+class EqPreset {
+  final String name;
+  final List<Map<String, dynamic>> bands;
+
+  const EqPreset(this.name, this.bands);
+}
+
+final List<EqPreset> kEqPresets = [
+  EqPreset('Flat', [
+    {'fc': 1000.0, 'gain': 0.0, 'q': 1.41, 'type': 'Preamp'},
+  ]),
+  EqPreset('Bass Boost', [
+    {'fc': 1000.0, 'gain': -2.0, 'q': 1.41, 'type': 'Preamp'},
+    {'fc': 60.0, 'gain': 6.0, 'q': 0.7, 'type': 'PK'},
+    {'fc': 200.0, 'gain': 3.0, 'q': 1.0, 'type': 'PK'},
+  ]),
+  EqPreset('Vocal', [
+    {'fc': 1000.0, 'gain': -2.0, 'q': 1.41, 'type': 'Preamp'},
+    {'fc': 1000.0, 'gain': 4.0, 'q': 1.5, 'type': 'PK'},
+    {'fc': 3000.0, 'gain': 3.0, 'q': 1.2, 'type': 'PK'},
+    {'fc': 100.0, 'gain': -3.0, 'q': 0.8, 'type': 'HSC'},
+  ]),
+  EqPreset('Treble Boost', [
+    {'fc': 1000.0, 'gain': -2.0, 'q': 1.41, 'type': 'Preamp'},
+    {'fc': 8000.0, 'gain': 5.0, 'q': 1.0, 'type': 'PK'},
+    {'fc': 16000.0, 'gain': 3.0, 'q': 0.7, 'type': 'HSC'},
+  ]),
+  EqPreset('Headphone', [
+    {'fc': 1000.0, 'gain': -3.0, 'q': 1.41, 'type': 'Preamp'},
+    {'fc': 40.0, 'gain': 4.0, 'q': 0.5, 'type': 'PK'},
+    {'fc': 1000.0, 'gain': -2.0, 'q': 2.0, 'type': 'PK'},
+    {'fc': 10000.0, 'gain': 4.0, 'q': 0.7, 'type': 'HSC'},
+  ]),
+];
 
 class EqAdvancedScreen extends StatefulWidget {
+  const EqAdvancedScreen({super.key});
+
   @override
-  _EqAdvancedScreenState createState() => _EqAdvancedScreenState();
+  State<EqAdvancedScreen> createState() => _EqAdvancedScreenState();
 }
 
 class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
   late List<Map<String, dynamic>> bands;
   final List<String> filterTypes = ['Preamp', 'PK', 'LSC', 'HSC', 'LP', 'HP'];
+  String? _activePreset;
 
   @override
   void initState() {
     super.initState();
-    bands = PlayerService().eqBands;
+    bands = List.from(PlayerService().eqBands.map((b) => Map<String, dynamic>.from(b)));
   }
 
   void _applyEQ() {
+    PlayerService().eqBands = bands;
     PlayerService().applyCurrentEQ();
+  }
+
+  void _applyPreset(EqPreset preset) {
+    setState(() {
+      _activePreset = preset.name;
+      bands = List.from(preset.bands.map((b) => Map<String, dynamic>.from(b)));
+    });
+    _applyEQ();
+  }
+
+  void _exportApoProfile() {
+    final sb = StringBuffer();
+    for (var b in bands) {
+      if (b['type'] == 'Preamp') {
+        sb.writeln('Preamp: ${(b['gain'] as num).toStringAsFixed(1)} dB');
+      } else {
+        final apoType = {
+          'PK': 'PK',
+          'LSC': 'LSC',
+          'HSC': 'HSC',
+          'LP': 'LP',
+          'HP': 'HP',
+        }[b['type']] ?? 'PK';
+        sb.writeln(
+            'Filter: ON $apoType Fc ${(b['fc'] as num).toInt()} Hz Gain ${(b['gain'] as num).toStringAsFixed(1)} dB Q ${(b['q'] as num).toStringAsFixed(2)}');
+      }
+    }
+    // Copy to clipboard as well
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('APO profile ready — check console'),
+        backgroundColor: LuminaColors.accent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+    debugPrint(sb.toString());
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Parametric EQ', style: TextStyle(color: isDark ? Colors.white : Colors.black)),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        title: Text(
+          'Parametric EQ',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black,
+          ),
+        ),
+        leading: GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: const Icon(CupertinoIcons.back, color: LuminaColors.accent),
+        ),
         actions: [
-          IconButton(icon: Icon(Icons.save, color: isDark ? Colors.white : Colors.black), onPressed: _exportApoProfile),
+          GestureDetector(
+            onTap: _exportApoProfile,
+            child: const Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: Icon(CupertinoIcons.share, color: LuminaColors.accent),
+            ),
+          ),
         ],
       ),
       body: Column(
         children: [
-          // Graphic Visualization
+          // EQ Curve Visualization
           Container(
-            height: 200,
-            margin: EdgeInsets.all(16),
+            height: 180,
+            margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             decoration: BoxDecoration(
-              color: isDark ? Color(0xFF1C1C1E) : Colors.grey[200],
-              borderRadius: BorderRadius.circular(12),
+              color: isDark ? LuminaColors.bg1 : LuminaColors.lightBg1,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isDark
+                    ? LuminaColors.bg3.withOpacity(0.5)
+                    : LuminaColors.lightBg3,
+                width: 0.5,
+              ),
             ),
-            child: CustomPaint(
-              painter: EqVisualizerPainter(bands, isDark),
-              child: Container(),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: CustomPaint(
+                painter: EqVisualizerPainter(bands, isDark),
+                child: Container(),
+              ),
             ),
           ),
-          
+
+          // Presets Horizontal Scroll
+          SizedBox(
+            height: 52,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              itemCount: kEqPresets.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) {
+                final preset = kEqPresets[i];
+                final isActive = _activePreset == preset.name;
+                return GestureDetector(
+                  onTap: () => _applyPreset(preset),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isActive
+                          ? LuminaColors.accent
+                          : (isDark ? LuminaColors.bg2 : LuminaColors.lightBg2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isActive
+                            ? LuminaColors.accent
+                            : (isDark
+                                ? LuminaColors.bg3
+                                : LuminaColors.lightBg3),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Text(
+                      preset.name,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isActive
+                            ? Colors.white
+                            : (isDark
+                                ? LuminaColors.labelSecondary
+                                : Colors.black54),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // Band List
           Expanded(
             child: ListView.builder(
+              padding: const EdgeInsets.only(bottom: 8),
               itemCount: bands.length,
-              itemBuilder: (context, index) {
-                return _buildBandItem(index, isDark);
-              },
+              itemBuilder: (_, i) => _buildBandCard(i, isDark),
             ),
           ),
+
+          // Add Filter Button
           Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: ElevatedButton(
-              onPressed: () {
-                setState(() => bands.add({'fc': 1000.0, 'gain': 0.0, 'q': 1.41, 'type': 'PK'}));
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _activePreset = null;
+                  bands.add({'fc': 1000.0, 'gain': 0.0, 'q': 1.41, 'type': 'PK'});
+                });
                 _applyEQ();
               },
-              child: Text('Add New Filter'),
-              style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 50), backgroundColor: Colors.pinkAccent, foregroundColor: Colors.white),
+              child: Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  color: LuminaColors.accent,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(CupertinoIcons.add, color: Colors.white, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'Add Filter Band',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          )
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildBandItem(int index, bool isDark) {
-    var band = bands[index];
-    bool isPreamp = band['type'] == 'Preamp';
+  Widget _buildBandCard(int index, bool isDark) {
+    final band = bands[index];
+    final isPreamp = band['type'] == 'Preamp';
 
-    return Card(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: isDark ? Color(0xFF2C2C2E) : Colors.white,
-      elevation: isDark ? 0 : 2,
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+      decoration: BoxDecoration(
+        color: isDark ? LuminaColors.bg1 : LuminaColors.lightBg1,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark
+              ? LuminaColors.bg3.withOpacity(0.5)
+              : LuminaColors.lightBg3,
+          width: 0.5,
+        ),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(12.0),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
         child: Column(
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Text('Filter ${index + 1} ', style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
-                    DropdownButton<String>(
+                // Filter Type Picker
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: LuminaColors.accent.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
                       value: band['type'],
-                      dropdownColor: isDark ? Colors.grey[850] : Colors.white,
-                      items: filterTypes.map((String type) {
-                        return DropdownMenuItem<String>(
-                          value: type,
-                          child: Text(type, style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 12)),
-                        );
-                      }).toList(),
-                      onChanged: (String? newValue) {
-                        if (newValue != null) {
-                          setState(() {
-                            band['type'] = newValue;
-                            if (newValue == 'Preamp') {
-                              band['fc'] = 0.0;
-                              band['q'] = 0.0;
-                            } else if (band['fc'] == 0.0) {
-                              band['fc'] = 1000.0;
-                              band['q'] = 1.41;
-                            }
-                          });
-                          _applyEQ();
-                        }
+                      isDense: true,
+                      dropdownColor:
+                          isDark ? LuminaColors.bg2 : Colors.white,
+                      style: const TextStyle(
+                        color: LuminaColors.accent,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                      items: filterTypes
+                          .map((t) => DropdownMenuItem(
+                                value: t,
+                                child: Text(t),
+                              ))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v == null) return;
+                        setState(() {
+                          _activePreset = null;
+                          band['type'] = v;
+                          if (v == 'Preamp') {
+                            band['fc'] = 0.0;
+                            band['q'] = 0.0;
+                          } else if ((band['fc'] as num) == 0.0) {
+                            band['fc'] = 1000.0;
+                            band['q'] = 1.41;
+                          }
+                        });
+                        _applyEQ();
                       },
                     ),
-                  ],
+                  ),
                 ),
-                IconButton(icon: Icon(Icons.delete, color: Colors.red), onPressed: () {
-                  setState(() => bands.removeAt(index));
-                  _applyEQ();
-                }),
+                const Spacer(),
+                Text(
+                  'Filter ${index + 1}',
+                  style: const TextStyle(
+                      color: LuminaColors.labelSecondary, fontSize: 12),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _activePreset = null;
+                      bands.removeAt(index);
+                    });
+                    _applyEQ();
+                  },
+                  child: const Icon(CupertinoIcons.trash,
+                      color: LuminaColors.destructive, size: 18),
+                ),
               ],
             ),
+            const SizedBox(height: 8),
             if (!isPreamp)
-              _buildSlider('Freq: ${band['fc'].toInt()} Hz', (band['fc'] as num).toDouble(), 20, 20000, (v) {
-                setState(() => band['fc'] = v);
-                _applyEQ();
-              }, isDark),
-            if (band['type'] != 'LP' && band['type'] != 'HP') 
-              _buildSlider('Gain: ${(band['gain'] as num).toStringAsFixed(1)} dB', (band['gain'] as num).toDouble(), -20, 20, (v) {
-                setState(() => band['gain'] = v);
-                _applyEQ();
-              }, isDark),
+              _buildSliderRow(
+                isDark: isDark,
+                label: 'Freq',
+                value: (band['fc'] as num).toDouble(),
+                displayStr: '${(band['fc'] as num).toInt()} Hz',
+                min: 20,
+                max: 20000,
+                onChanged: (v) {
+                  setState(() {
+                    _activePreset = null;
+                    band['fc'] = v;
+                  });
+                  _applyEQ();
+                },
+              ),
+            if (band['type'] != 'LP' && band['type'] != 'HP')
+              _buildSliderRow(
+                isDark: isDark,
+                label: 'Gain',
+                value: (band['gain'] as num).toDouble(),
+                displayStr: '${(band['gain'] as num).toStringAsFixed(1)} dB',
+                min: -20,
+                max: 20,
+                onChanged: (v) {
+                  setState(() {
+                    _activePreset = null;
+                    band['gain'] = v;
+                  });
+                  _applyEQ();
+                },
+              ),
             if (!isPreamp)
-              _buildSlider('Q: ${(band['q'] as num).toStringAsFixed(2)}', (band['q'] as num).toDouble(), 0.1, 10, (v) {
-                setState(() => band['q'] = v);
-                _applyEQ();
-              }, isDark),
+              _buildSliderRow(
+                isDark: isDark,
+                label: 'Q',
+                value: (band['q'] as num).toDouble(),
+                displayStr: (band['q'] as num).toStringAsFixed(2),
+                min: 0.1,
+                max: 10,
+                onChanged: (v) {
+                  setState(() {
+                    _activePreset = null;
+                    band['q'] = v;
+                  });
+                  _applyEQ();
+                },
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSlider(String label, double value, double min, double max, ValueChanged<double> onChange, bool isDark) {
+  Widget _buildSliderRow({
+    required bool isDark,
+    required String label,
+    required double value,
+    required String displayStr,
+    required double min,
+    required double max,
+    required ValueChanged<double> onChanged,
+  }) {
     return Row(
       children: [
-        SizedBox(width: 100, child: Text(label, style: TextStyle(fontSize: 12, color: isDark ? Colors.white70 : Colors.black87))),
-        Expanded(child: Slider(value: value, min: min, max: max, onChanged: onChange, activeColor: Colors.pinkAccent)),
+        SizedBox(
+          width: 36,
+          child: Text(
+            label,
+            style: const TextStyle(
+                fontSize: 11,
+                color: LuminaColors.labelSecondary,
+                fontWeight: FontWeight.w600),
+          ),
+        ),
+        Expanded(
+          child: Slider(
+            value: value.clamp(min, max),
+            min: min,
+            max: max,
+            onChanged: onChanged,
+            activeColor: LuminaColors.accent,
+            inactiveColor: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3,
+          ),
+        ),
+        SizedBox(
+          width: 72,
+          child: Text(
+            displayStr,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: 12,
+              color: isDark ? Colors.white70 : Colors.black54,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
       ],
     );
   }
-
-  void _exportApoProfile() {
-    String content = "";
-    for (var b in bands) {
-      if (b['type'] == 'Preamp') {
-        content += "Preamp: ${(b['gain'] as num).toStringAsFixed(1)} dB\n";
-      } else {
-        String apoType = "ON PK";
-        if (b['type'] == 'LSC') apoType = "ON LSC";
-        else if (b['type'] == 'HSC') apoType = "ON HSC";
-        else if (b['type'] == 'LP') apoType = "ON LP";
-        else if (b['type'] == 'HP') apoType = "ON HP";
-        
-        content += "Filter: $apoType Fc ${(b['fc'] as num).toInt()} Hz Gain ${(b['gain'] as num).toStringAsFixed(1)} dB Q ${(b['q'] as num).toStringAsFixed(2)}\n";
-      }
-    }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('APO Profile Generated')));
-    print(content);
-  }
 }
 
+// ── EQ Visualizer ─────────────────────────────────────────────────────────────
 class EqVisualizerPainter extends CustomPainter {
   final List<Map<String, dynamic>> bands;
   final bool isDark;
@@ -183,103 +448,122 @@ class EqVisualizerPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Draw grid lines
     final gridPaint = Paint()
-      ..color = isDark ? Colors.white12 : Colors.black12
-      ..strokeWidth = 1.0;
+      ..color = isDark ? Colors.white10 : Colors.black08
+      ..strokeWidth = 0.5;
 
-    // Draw center zero line
-    canvas.drawLine(Offset(0, size.height / 2), Offset(size.width, size.height / 2), gridPaint);
+    // Horizontal grid (±6, ±12 dB)
+    for (final db in [-12.0, -6.0, 0.0, 6.0, 12.0]) {
+      final y = _dbToY(db, size);
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
 
-    final curvePaint = Paint()
-      ..color = Colors.pinkAccent
-      ..strokeWidth = 3.0
-      ..style = PaintingStyle.stroke;
+    // Zero line (brighter)
+    final zeroLinePaint = Paint()
+      ..color = isDark ? Colors.white24 : Colors.black26
+      ..strokeWidth = 1;
+    canvas.drawLine(
+        Offset(0, size.height / 2), Offset(size.width, size.height / 2), zeroLinePaint);
 
-    final path = Path();
-    bool first = true;
-
-    // Calculate approx frequency response curve
-    // X-axis: log scale from 20Hz to 20kHz
-    double minFreq = 20.0;
-    double maxFreq = 20000.0;
-    double logMin = log(minFreq);
-    double logMax = log(maxFreq);
-
+    // Gradient fill under curve
     double preamp = 0.0;
     for (var b in bands) {
       if (b['type'] == 'Preamp') preamp += (b['gain'] as num).toDouble();
     }
 
+    final path = Path();
+    final fillPath = Path();
+    bool first = true;
+    const minFreq = 20.0;
+    const maxFreq = 20000.0;
+    final logMin = log(minFreq);
+    final logMax = log(maxFreq);
+
     for (double x = 0; x <= size.width; x++) {
-      double logf = logMin + (x / size.width) * (logMax - logMin);
-      double freq = exp(logf);
+      final logf = logMin + (x / size.width) * (logMax - logMin);
+      final freq = exp(logf);
+      double totalDb = preamp;
 
-      double totalGainDb = preamp;
       for (var band in bands) {
-        String type = band['type'] ?? 'PK';
+        final type = band['type'] as String? ?? 'PK';
         if (type == 'Preamp') continue;
-
-        double fc = (band['fc'] as num).toDouble();
-        double gain = (band['gain'] as num).toDouble();
-        double q = (band['q'] as num).toDouble();
-
+        final fc = (band['fc'] as num).toDouble();
+        final gain = (band['gain'] as num).toDouble();
+        final q = (band['q'] as num).toDouble();
         if (fc <= 0) continue;
-        
-        // Approximate visualization magnitude response formulas (not mathematically exact to APO/biquads, just for UI feedback)
-        double w0 = freq / fc;
-        if (type == 'PK') {
-          double a = pow(10.0, gain / 40.0).toDouble();
-          double numVal = 1.0 + pow(w0 - 1.0 / w0, 2) * pow(q, 2) * pow(a, 2);
-          double denVal = 1.0 + pow(w0 - 1.0 / w0, 2) * pow(q, 2) / pow(a, 2);
-          if (denVal != 0) {
-            double db = 10 * log10(numVal / denVal);
-            if (gain < 0) db = -db;
-            totalGainDb += db;
-          }
-        } else if (type == 'LSC') {
-           // Basic shelf approximation
-           if (freq < fc) {
-              totalGainDb += gain * (1 - (freq/fc)); // Smooth out
-           }
-        } else if (type == 'HSC') {
-           if (freq > fc) {
-              totalGainDb += gain * (1 - (fc/freq)); // Smooth out
-           }
-        } else if (type == 'LP') {
-           if (freq > fc) {
-               totalGainDb -= 12.0 * log2(freq/fc); // Approximate 12dB/octave rolloff
-           }
-        } else if (type == 'HP') {
-           if (freq < fc) {
-               totalGainDb -= 12.0 * log2(fc/freq); // Approximate 12dB/octave rolloff
-           }
+
+        final w0 = freq / fc;
+        switch (type) {
+          case 'PK':
+            final a = pow(10.0, gain / 40.0).toDouble();
+            final num_ = 1.0 + pow(w0 - 1.0 / w0, 2) * pow(q, 2) * pow(a, 2);
+            final den_ = 1.0 + pow(w0 - 1.0 / w0, 2) * pow(q, 2) / pow(a, 2);
+            if (den_ > 0) {
+              final db = 10 * _log10(num_ / den_);
+              totalDb += gain < 0 ? -db : db;
+            }
+            break;
+          case 'LSC':
+            if (freq < fc) totalDb += gain * (1 - freq / fc);
+            break;
+          case 'HSC':
+            if (freq > fc) totalDb += gain * (1 - fc / freq);
+            break;
+          case 'LP':
+            if (freq > fc) totalDb -= 12.0 * _log2(freq / fc);
+            break;
+          case 'HP':
+            if (freq < fc) totalDb -= 12.0 * _log2(fc / freq);
+            break;
         }
       }
 
-      // Map gain to Y axis. +/- 24dB max range.
-      double dbRange = 24.0;
-      double y = size.height / 2 - (totalGainDb / dbRange) * (size.height / 2);
-      
-      // Clamp Y
-      y = max(0, min(size.height, y));
-
+      final y = _dbToY(totalDb, size);
       if (first) {
         path.moveTo(x, y);
+        fillPath.moveTo(x, size.height);
+        fillPath.lineTo(x, y);
         first = false;
       } else {
         path.lineTo(x, y);
+        fillPath.lineTo(x, y);
       }
     }
+    fillPath.lineTo(size.width, size.height);
+    fillPath.close();
 
+    // Fill gradient
+    final gradient = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        LuminaColors.accent.withOpacity(0.25),
+        LuminaColors.accent.withOpacity(0.0),
+      ],
+    );
+    final fillPaint = Paint()
+      ..shader = gradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+    canvas.drawPath(fillPath, fillPaint);
+
+    // Curve line
+    final curvePaint = Paint()
+      ..color = LuminaColors.accent
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke
+      ..strokeJoin = StrokeJoin.round;
     canvas.drawPath(path, curvePaint);
   }
 
-  // math helpers
-  double log10(num x) => log(x) / ln10;
-  double log2(num x) => log(x) / ln2;
+  double _dbToY(double db, Size size) {
+    const dbRange = 18.0;
+    return (size.height / 2) - (db / dbRange) * (size.height / 2);
+  }
+
+  double _log10(num x) => log(x) / ln10;
+  double _log2(num x) => log(x) / ln2;
 
   @override
-  bool shouldRepaint(covariant EqVisualizerPainter oldDelegate) {
-    return true; // Always repaint
-  }
+  bool shouldRepaint(covariant EqVisualizerPainter old) =>
+      old.bands != bands || old.isDark != isDark;
 }

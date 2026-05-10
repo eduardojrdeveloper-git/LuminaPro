@@ -11,7 +11,9 @@ dependencies:
   path_provider: ^2.1.2
   path: ^1.9.0
   metadata_god: ^0.5.0
-  # We will add dsp_plugin via the workflow as before
+  google_fonts: ^6.2.1
+  share_plus: ^9.0.0
+  # dsp_plugin is injected by the GitHub Actions workflow
 dev_dependencies:
   flutter_test:
     sdk: flutter

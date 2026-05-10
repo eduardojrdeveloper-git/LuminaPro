@@ -16,8 +16,9 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.0'
+          flutter-version: '3.22.0'
           channel: 'stable'
+          cache: true
 
       - name: Initialize Project Scaffolding
         run: |
@@ -51,6 +52,11 @@ jobs:
               var currentArtist: String = "Unknown"
               var currentPath: String = ""
               var isSeeking = false
+              
+              // FIX: Track seek offset so position reports are correct after playerNode.stop()
+              // playerNode.playerTime.sampleTime resets to 0 after each stop/play cycle.
+              // seekOffsetMs is the base position we seeked to; elapsed is added on top.
+              var seekOffsetMs: Int = 0
               
               override func application(
                   _ application: UIApplication,
@@ -156,8 +162,10 @@ jobs:
                   }
                   commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
                       if let event = event as? MPChangePlaybackPositionCommandEvent {
-                          self?.seekAudio(toMs: Int(event.positionTime * 1000))
-                          self?.methodChannel?.invokeMethod("seek", arguments: ["position": Int(event.positionTime * 1000)])
+                          let posMs = Int(event.positionTime * 1000)
+                          self?.seekAudio(toMs: posMs)
+                          // Notify Flutter of the lock-screen-initiated seek
+                          self?.methodChannel?.invokeMethod("seek", arguments: ["position": posMs])
                           return .success
                       }
                       return .commandFailed
@@ -176,7 +184,9 @@ jobs:
                   let url = URL(fileURLWithPath: path)
                   let asset = AVAsset(url: url)
                   for metadata in asset.commonMetadata {
-                      if metadata.commonKey == .commonKeyArtwork, let data = metadata.value as? Data, let image = UIImage(data: data) {
+                      if metadata.commonKey == .commonKeyArtwork,
+                         let data = metadata.value as? Data,
+                         let image = UIImage(data: data) {
                           return MPMediaItemArtwork(boundsSize: image.size) { _ in return image }
                       }
                   }
@@ -187,19 +197,22 @@ jobs:
                   guard let audioFile = audioFile else { return }
                   var nowPlayingInfo = [String: Any]()
                   
-                  nowPlayingInfo[MPMediaItemPropertyTitle] = currentTitle
+                  nowPlayingInfo[MPMediaItemPropertyTitle]  = currentTitle
                   nowPlayingInfo[MPMediaItemPropertyArtist] = currentArtist
                   
                   let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
                   nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = duration
                   
-                  if let nodeTime = playerNode.lastRenderTime, let playerTime = playerNode.playerTime(forNodeTime: nodeTime) {
-                      let elapsed = Double(playerTime.sampleTime) / playerTime.sampleRate
-                      nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = elapsed
-                  } else {
-                      nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = 0.0
+                  // FIX: Use seekOffsetMs + elapsed-since-last-play for correct scrubber position.
+                  // playerTime.sampleTime resets to 0 after each playerNode.stop(), so we add the
+                  // seekOffsetMs that was recorded at the time of the last seek/play operation.
+                  var elapsedSeconds: Double = Double(seekOffsetMs) / 1000.0
+                  if let nodeTime = playerNode.lastRenderTime,
+                     let playerTime = playerNode.playerTime(forNodeTime: nodeTime) {
+                      let elapsedSincePlay = Double(playerTime.sampleTime) / playerTime.sampleRate
+                      elapsedSeconds += max(0, elapsedSincePlay)
                   }
-                  
+                  nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = elapsedSeconds
                   nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPause ? 0.0 : 1.0
                   
                   if let artwork = extractArtwork(from: currentPath) {
@@ -213,6 +226,8 @@ jobs:
                   let url = URL(fileURLWithPath: path)
                   do {
                       audioFile = try AVAudioFile(forReading: url)
+                      // Reset seek offset when starting a new track
+                      seekOffsetMs = 0
                       isSeeking = true
                       playerNode.stop()
                       isSeeking = false
@@ -241,12 +256,20 @@ jobs:
               func pauseAudio() {
                   playerNode.pause()
                   stopTimer()
+                  // FIX: snapshot current position into seekOffsetMs before pausing,
+                  // so that when we resume and later call updateNowPlaying the offset is correct.
+                  if let nodeTime = playerNode.lastRenderTime,
+                     let playerTime = playerNode.playerTime(forNodeTime: nodeTime) {
+                      let elapsedMs = Int(Double(playerTime.sampleTime) / playerTime.sampleRate * 1000)
+                      seekOffsetMs += elapsedMs
+                  }
                   stateSink?(["playing": false])
                   updateNowPlaying(isPause: true)
               }
               
               func resumeAudio() {
                   guard !playerNode.isPlaying else { return }
+                  // seekOffsetMs already holds the correct position from the last pause/seek
                   playerNode.play()
                   startTimer()
                   stateSink?(["playing": true])
@@ -261,6 +284,11 @@ jobs:
                   let wasPlaying = playerNode.isPlaying
                   isSeeking = true
                   playerNode.stop()
+                  
+                  // FIX: Record the new seek target as the offset.
+                  // All subsequent playerTime.sampleTime readings start from 0 and
+                  // will be added ON TOP of this offset.
+                  seekOffsetMs = toMs
                   
                   let framesToPlay = AVAudioFrameCount(audioFile.length - newFramePosition)
                   if framesToPlay > 0 {
@@ -278,24 +306,26 @@ jobs:
                   if wasPlaying {
                       playerNode.play()
                   }
+                  // Emit exact position to Flutter
                   positionSink?(["position": toMs])
+                  // Update lock screen scrubber immediately after seek
                   updateNowPlaying(isPause: !wasPlaying)
               }
               
               func updateEQ(bands: [[String: Any]]) {
                   for (i, b) in bands.enumerated() {
                       if i < eqNode.bands.count {
-                          if let fc = b["fc"] as? Double { eqNode.bands[i].frequency = Float(fc) }
-                          if let gain = b["gain"] as? Double { eqNode.bands[i].gain = Float(gain) }
-                          if let q = b["q"] as? Double { eqNode.bands[i].bandwidth = Float(q) }
+                          if let fc   = b["fc"]   as? Double { eqNode.bands[i].frequency = Float(fc) }
+                          if let gain = b["gain"] as? Double { eqNode.bands[i].gain      = Float(gain) }
+                          if let q    = b["q"]    as? Double { eqNode.bands[i].bandwidth = Float(q) }
                           
                           if let type = b["type"] as? String {
                               switch type {
                               case "LSC": eqNode.bands[i].filterType = .lowShelf
                               case "HSC": eqNode.bands[i].filterType = .highShelf
-                              case "LP": eqNode.bands[i].filterType = .lowPass
-                              case "HP": eqNode.bands[i].filterType = .highPass
-                              default: eqNode.bands[i].filterType = .parametric
+                              case "LP":  eqNode.bands[i].filterType = .lowPass
+                              case "HP":  eqNode.bands[i].filterType = .highPass
+                              default:    eqNode.bands[i].filterType = .parametric
                               }
                           }
                       }
@@ -305,8 +335,12 @@ jobs:
               func startTimer() {
                   currentTimer?.invalidate()
                   currentTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
-                      guard let self = self, let nodeTime = self.playerNode.lastRenderTime, let playerTime = self.playerNode.playerTime(forNodeTime: nodeTime) else { return }
-                      let posMs = Int((Double(playerTime.sampleTime) / playerTime.sampleRate) * 1000)
+                      guard let self = self,
+                            let nodeTime = self.playerNode.lastRenderTime,
+                            let playerTime = self.playerNode.playerTime(forNodeTime: nodeTime) else { return }
+                      // FIX: Report position = seekOffset + elapsed since last play
+                      let elapsedMs = Int(Double(playerTime.sampleTime) / playerTime.sampleRate * 1000)
+                      let posMs = self.seekOffsetMs + elapsedMs
                       self.positionSink?(["position": posMs])
                   }
               }
@@ -358,6 +392,8 @@ jobs:
             path_provider: ^2.1.2
             path: ^1.9.0
             metadata_god: ^0.5.0
+            google_fonts: ^6.2.1
+            share_plus: ^9.0.0
             dsp_plugin:
               path: ./dsp_plugin
           dev_dependencies:
