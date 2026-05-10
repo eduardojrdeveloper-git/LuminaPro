@@ -118,4 +118,12 @@ class PlayerService {
       print("Error invoking native updateEQ: $e");
     }
   }
+
+  Future<void> updatePreamp(double gain) async {
+    try {
+      await _channel.invokeMethod('updatePreamp', {'gain': gain});
+    } catch (e) {
+      print("Error invoking native updatePreamp: $e");
+    }
+  }
 }

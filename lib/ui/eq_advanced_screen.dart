@@ -8,21 +8,29 @@ class EqAdvancedScreen extends StatefulWidget {
 }
 
 class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
+  double preamp = 0.0;
   List<Map<String, dynamic>> bands = [
     {'fc': 31.0, 'gain': 0.0, 'q': 1.41, 'type': 'PK'},
-    {'fc': 250.0, 'gain': 0.0, 'q': 1.41, 'type': 'PK'},
+    {'fc': 250.0, 'gain': 0.0, 'q': 1.41, 'type': 'LSC'},
     {'fc': 1000.0, 'gain': 0.0, 'q': 1.41, 'type': 'PK'},
-    {'fc': 8000.0, 'gain': 0.0, 'q': 1.41, 'type': 'PK'},
+    {'fc': 8000.0, 'gain': 0.0, 'q': 1.41, 'type': 'HSC'},
   ];
+
+  final List<String> filterTypes = ['PK', 'LSC', 'HSC', 'LP', 'HP'];
 
   void _applyEQ() {
     PlayerService().updateEQ(bands);
+  }
+
+  void _applyPreamp() {
+    PlayerService().updatePreamp(preamp);
   }
 
   @override
   void initState() {
     super.initState();
     _applyEQ();
+    _applyPreamp();
   }
 
   @override
@@ -49,10 +57,25 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: CustomPaint(
-              painter: EqVisualizerPainter(bands, isDark),
+              painter: EqVisualizerPainter(bands, preamp, isDark),
               child: Container(),
             ),
           ),
+          
+          // Preamp Control
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Row(
+              children: [
+                SizedBox(width: 80, child: Text('Preamp: ${preamp.toStringAsFixed(1)} dB', style: TextStyle(fontSize: 12, color: isDark ? Colors.white70 : Colors.black87, fontWeight: FontWeight.bold))),
+                Expanded(child: Slider(value: preamp, min: -20, max: 20, onChanged: (v) {
+                  setState(() => preamp = v);
+                  _applyPreamp();
+                }, activeColor: Colors.cyanAccent)),
+              ],
+            ),
+          ),
+          
           Expanded(
             child: ListView.builder(
               itemCount: bands.length,
@@ -90,7 +113,27 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Band ${index + 1} (${band['type']})', style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+                Row(
+                  children: [
+                    Text('Band ${index + 1} ', style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+                    DropdownButton<String>(
+                      value: band['type'],
+                      dropdownColor: isDark ? Colors.grey[850] : Colors.white,
+                      items: filterTypes.map((String type) {
+                        return DropdownMenuItem<String>(
+                          value: type,
+                          child: Text(type, style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 12)),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        if (newValue != null) {
+                          setState(() => band['type'] = newValue);
+                          _applyEQ();
+                        }
+                      },
+                    ),
+                  ],
+                ),
                 IconButton(icon: Icon(Icons.delete, color: Colors.red), onPressed: () {
                   setState(() => bands.removeAt(index));
                   _applyEQ();
@@ -101,10 +144,11 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
               setState(() => band['fc'] = v);
               _applyEQ();
             }, isDark),
-            _buildSlider('Gain: ${band['gain'].toStringAsFixed(1)} dB', band['gain'], -20, 20, (v) {
-              setState(() => band['gain'] = v);
-              _applyEQ();
-            }, isDark),
+            if (band['type'] != 'LP' && band['type'] != 'HP') 
+              _buildSlider('Gain: ${band['gain'].toStringAsFixed(1)} dB', band['gain'], -20, 20, (v) {
+                setState(() => band['gain'] = v);
+                _applyEQ();
+              }, isDark),
             _buildSlider('Q: ${band['q'].toStringAsFixed(2)}', band['q'], 0.1, 10, (v) {
               setState(() => band['q'] = v);
               _applyEQ();
@@ -125,9 +169,16 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
   }
 
   void _exportApoProfile() {
-    String content = "Preamp: -6.0 dB\n";
+    String content = "Preamp: ${preamp.toStringAsFixed(1)} dB\n";
     for (var b in bands) {
-      content += "Filter: ON ${b['type']} Fc ${b['fc'].toInt()} Hz Gain ${b['gain'].toStringAsFixed(1)} dB Q ${b['q'].toStringAsFixed(2)}\n";
+      // Basic APO format mapping
+      String apoType = "ON PK";
+      if (b['type'] == 'LSC') apoType = "ON LSC";
+      else if (b['type'] == 'HSC') apoType = "ON HSC";
+      else if (b['type'] == 'LP') apoType = "ON LP";
+      else if (b['type'] == 'HP') apoType = "ON HP";
+      
+      content += "Filter: $apoType Fc ${b['fc'].toInt()} Hz Gain ${b['gain'].toStringAsFixed(1)} dB Q ${b['q'].toStringAsFixed(2)}\n";
     }
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('APO Profile Generated')));
     print(content);
@@ -136,9 +187,10 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
 
 class EqVisualizerPainter extends CustomPainter {
   final List<Map<String, dynamic>> bands;
+  final double preamp;
   final bool isDark;
 
-  EqVisualizerPainter(this.bands, this.isDark);
+  EqVisualizerPainter(this.bands, this.preamp, this.isDark);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -168,22 +220,43 @@ class EqVisualizerPainter extends CustomPainter {
       double logf = logMin + (x / size.width) * (logMax - logMin);
       double freq = exp(logf);
 
-      double totalGainDb = 0.0;
+      double totalGainDb = preamp; // Start with preamp offset
       for (var band in bands) {
         double fc = band['fc'];
         double gain = band['gain'];
         double q = band['q'];
+        String type = band['type'] ?? 'PK';
 
-        // Simple bell filter approx magnitude response (non-phase-accurate, visual only)
-        double w0 = freq / fc;
-        double a = pow(10.0, gain / 40.0).toDouble();
-        double num = 1.0 + pow(w0 - 1.0 / w0, 2) * pow(q, 2) * pow(a, 2);
-        double den = 1.0 + pow(w0 - 1.0 / w0, 2) * pow(q, 2) / pow(a, 2);
+        if (fc <= 0) continue;
         
-        if (gain != 0 && fc > 0 && den != 0) {
-           double db = 10 * log10(num / den);
-           if (gain < 0) db = -db; // Invert for negative gain
-           totalGainDb += db;
+        // Approximate visualization magnitude response formulas (not mathematically exact to APO/biquads, just for UI feedback)
+        double w0 = freq / fc;
+        if (type == 'PK') {
+          double a = pow(10.0, gain / 40.0).toDouble();
+          double num = 1.0 + pow(w0 - 1.0 / w0, 2) * pow(q, 2) * pow(a, 2);
+          double den = 1.0 + pow(w0 - 1.0 / w0, 2) * pow(q, 2) / pow(a, 2);
+          if (den != 0) {
+            double db = 10 * log10(num / den);
+            if (gain < 0) db = -db;
+            totalGainDb += db;
+          }
+        } else if (type == 'LSC') {
+           // Basic shelf approximation
+           if (freq < fc) {
+              totalGainDb += gain * (1 - (freq/fc)); // Smooth out
+           }
+        } else if (type == 'HSC') {
+           if (freq > fc) {
+              totalGainDb += gain * (1 - (fc/freq)); // Smooth out
+           }
+        } else if (type == 'LP') {
+           if (freq > fc) {
+               totalGainDb -= 12.0 * log2(freq/fc); // Approximate 12dB/octave rolloff
+           }
+        } else if (type == 'HP') {
+           if (freq < fc) {
+               totalGainDb -= 12.0 * log2(fc/freq); // Approximate 12dB/octave rolloff
+           }
         }
       }
 
@@ -205,12 +278,13 @@ class EqVisualizerPainter extends CustomPainter {
     canvas.drawPath(path, curvePaint);
   }
 
-  // log10 helper
+  // math helpers
   double log10(num x) => log(x) / ln10;
+  double log2(num x) => log(x) / ln2;
 
   @override
   bool shouldRepaint(covariant EqVisualizerPainter oldDelegate) {
-    return true; // Simple approach, always repaint when bands change
+    return true; // Always repaint
   }
 }
 

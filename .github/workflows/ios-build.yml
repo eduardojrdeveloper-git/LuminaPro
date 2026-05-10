@@ -31,6 +31,7 @@ jobs:
           import UIKit
           import Flutter
           import AVFoundation
+          import MediaPlayer
 
           @main
           @objc class AppDelegate: FlutterAppDelegate {
@@ -44,6 +45,9 @@ jobs:
               
               var currentTimer: Timer?
               var audioFile: AVAudioFile?
+              
+              var currentTitle: String = "Unknown"
+              var currentArtist: String = "Unknown"
               
               override func application(
                   _ application: UIApplication,
@@ -59,12 +63,15 @@ jobs:
                   stateChannel?.setStreamHandler(StateStreamHandler(appDelegate: self))
                   
                   setupAudioEngine()
+                  setupRemoteCommandCenter()
                   
                   methodChannel.setMethodCallHandler({ [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
                       guard let self = self else { return }
                       switch call.method {
                       case "play":
                           if let args = call.arguments as? [String: Any], let path = args["path"] as? String {
+                              self.currentTitle = args["title"] as? String ?? "Unknown"
+                              self.currentArtist = args["artist"] as? String ?? "Unknown"
                               self.playAudio(path: path)
                               result(nil)
                           } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
@@ -82,6 +89,11 @@ jobs:
                       case "updateEQ":
                           if let args = call.arguments as? [String: Any], let bands = args["bands"] as? [[String: Any]] {
                               self.updateEQ(bands: bands)
+                              result(nil)
+                          } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
+                      case "updatePreamp":
+                          if let args = call.arguments as? [String: Any], let db = args["gain"] as? Double {
+                              self.engine.mainMixerNode.outputVolume = Float(pow(10.0, db / 20.0))
                               result(nil)
                           } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
                       default:
@@ -116,6 +128,49 @@ jobs:
                   }
               }
               
+              func setupRemoteCommandCenter() {
+                  let commandCenter = MPRemoteCommandCenter.shared()
+                  
+                  commandCenter.playCommand.addTarget { [weak self] event in
+                      self?.resumeAudio()
+                      return .success
+                  }
+                  commandCenter.pauseCommand.addTarget { [weak self] event in
+                      self?.pauseAudio()
+                      return .success
+                  }
+                  commandCenter.togglePlayPauseCommand.addTarget { [weak self] event in
+                      if self?.playerNode.isPlaying == true {
+                          self?.pauseAudio()
+                      } else {
+                          self?.resumeAudio()
+                      }
+                      return .success
+                  }
+              }
+              
+              func updateNowPlaying(isPause: Bool = false) {
+                  guard let audioFile = audioFile else { return }
+                  var nowPlayingInfo = [String: Any]()
+                  
+                  nowPlayingInfo[MPMediaItemPropertyTitle] = currentTitle
+                  nowPlayingInfo[MPMediaItemPropertyArtist] = currentArtist
+                  
+                  let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
+                  nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = duration
+                  
+                  if let nodeTime = playerNode.lastRenderTime, let playerTime = playerNode.playerTime(forNodeTime: nodeTime) {
+                      let elapsed = Double(playerTime.sampleTime) / playerTime.sampleRate
+                      nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = elapsed
+                  } else {
+                      nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = 0.0
+                  }
+                  
+                  nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPause ? 0.0 : 1.0
+                  
+                  MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+              }
+              
               func playAudio(path: String) {
                   let url = URL(fileURLWithPath: path)
                   do {
@@ -132,6 +187,7 @@ jobs:
                       positionSink?(["duration": Int(duration * 1000)])
                       stateSink?(["playing": true])
                       
+                      updateNowPlaying()
                       startTimer()
                   } catch {
                       print("Error playing file: \(error)")
@@ -142,6 +198,7 @@ jobs:
                   playerNode.pause()
                   stopTimer()
                   stateSink?(["playing": false])
+                  updateNowPlaying(isPause: true)
               }
               
               func resumeAudio() {
@@ -149,6 +206,7 @@ jobs:
                   playerNode.play()
                   startTimer()
                   stateSink?(["playing": true])
+                  updateNowPlaying()
               }
               
               func seekAudio(toMs: Int) {
@@ -172,6 +230,7 @@ jobs:
                       playerNode.play()
                   }
                   positionSink?(["position": toMs])
+                  updateNowPlaying(isPause: !wasPlaying)
               }
               
               func updateEQ(bands: [[String: Any]]) {
@@ -180,6 +239,16 @@ jobs:
                           if let fc = b["fc"] as? Double { eqNode.bands[i].frequency = Float(fc) }
                           if let gain = b["gain"] as? Double { eqNode.bands[i].gain = Float(gain) }
                           if let q = b["q"] as? Double { eqNode.bands[i].bandwidth = Float(q) }
+                          
+                          if let type = b["type"] as? String {
+                              switch type {
+                              case "LSC": eqNode.bands[i].filterType = .lowShelf
+                              case "HSC": eqNode.bands[i].filterType = .highShelf
+                              case "LP": eqNode.bands[i].filterType = .lowPass
+                              case "HP": eqNode.bands[i].filterType = .highPass
+                              default: eqNode.bands[i].filterType = .parametric
+                              }
+                          }
                       }
                   }
               }
