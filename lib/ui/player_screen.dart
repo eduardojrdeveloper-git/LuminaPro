@@ -4,14 +4,6 @@ import '../services/player_service.dart';
 import '../services/library_service.dart';
 
 class PlayerScreen extends StatelessWidget {
-  String _formatDuration(Duration? d) {
-    if (d == null) return "0:00";
-    String twoDigits(int n) => n.toString().padLeft(2, "0");
-    String twoDigitMinutes = twoDigits(d.inMinutes.remainder(60));
-    String twoDigitSeconds = twoDigits(d.inSeconds.remainder(60));
-    return "${d.inHours > 0 ? '${d.inHours}:' : ''}$twoDigitMinutes:$twoDigitSeconds";
-  }
-
   void _showMoreMenu(BuildContext context, AudioFile song) {
     showModalBottomSheet(
       context: context,
@@ -57,8 +49,6 @@ class PlayerScreen extends StatelessWidget {
                 title: Text('Equalizer (PEQ)'),
                 onTap: () {
                   Navigator.pop(context);
-                  // Not perfectly architectural, but works for quick access if they implement navigation from here
-                  // We'll leave it as a UI placeholder or direct them to settings tab
                 },
               ),
               ListTile(
@@ -179,56 +169,7 @@ class PlayerScreen extends StatelessWidget {
                     SizedBox(height: 32),
                     
                     // Progress bar
-                    StreamBuilder<Duration>(
-                      stream: playerService.positionStream,
-                      builder: (context, snapshot) {
-                        final position = snapshot.data ?? Duration.zero;
-                        return StreamBuilder<Duration?>(
-                          stream: playerService.durationStream,
-                          builder: (context, durationSnapshot) {
-                            final duration = durationSnapshot.data ?? Duration.zero;
-                            double max = duration.inMilliseconds.toDouble();
-                            double val = position.inMilliseconds.toDouble();
-                            if (val > max) val = max;
-
-                            return Column(
-                              children: [
-                                SliderTheme(
-                                  data: SliderTheme.of(context).copyWith(
-                                    trackHeight: 4.0,
-                                    thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6.0),
-                                    overlayShape: RoundSliderOverlayShape(overlayRadius: 14.0),
-                                  ),
-                                  child: Slider(
-                                    value: val,
-                                    min: 0,
-                                    max: max > 0 ? max : 1,
-                                    onChanged: (v) {
-                                       // Visual update only while dragging (if we had local state for it)
-                                    },
-                                    onChangeEnd: (v) {
-                                      playerService.seek(Duration(milliseconds: v.toInt()));
-                                    },
-                                    activeColor: isDark ? Colors.white : Colors.black87,
-                                    inactiveColor: isDark ? Colors.white24 : Colors.black12,
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(_formatDuration(position), style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 12)),
-                                      Text('-${_formatDuration(duration - position)}', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 12)),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        );
-                      },
-                    ),
+                    ProgressBar(playerService: playerService, isDark: isDark),
                     SizedBox(height: 24),
                     
                     // Controls
@@ -274,6 +215,91 @@ class PlayerScreen extends StatelessWidget {
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+}
+
+class ProgressBar extends StatefulWidget {
+  final PlayerService playerService;
+  final bool isDark;
+
+  const ProgressBar({Key? key, required this.playerService, required this.isDark}) : super(key: key);
+
+  @override
+  _ProgressBarState createState() => _ProgressBarState();
+}
+
+class _ProgressBarState extends State<ProgressBar> {
+  double? _dragValue;
+
+  String _formatDuration(Duration d) {
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String twoDigitMinutes = twoDigits(d.inMinutes.remainder(60));
+    String twoDigitSeconds = twoDigits(d.inSeconds.remainder(60));
+    return "${d.inHours > 0 ? '${d.inHours}:' : ''}$twoDigitMinutes:$twoDigitSeconds";
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<Duration?>(
+      stream: widget.playerService.durationStream,
+      builder: (context, durationSnapshot) {
+        final duration = durationSnapshot.data ?? Duration.zero;
+        double max = duration.inMilliseconds.toDouble();
+        if (max <= 0) max = 1;
+
+        return StreamBuilder<Duration>(
+          stream: widget.playerService.positionStream,
+          builder: (context, positionSnapshot) {
+            final position = positionSnapshot.data ?? Duration.zero;
+            double val = _dragValue ?? position.inMilliseconds.toDouble();
+            if (val > max) val = max;
+            if (val < 0) val = 0;
+
+            final displayDuration = Duration(milliseconds: val.toInt());
+
+            return Column(
+              children: [
+                SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 4.0,
+                    thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6.0),
+                    overlayShape: RoundSliderOverlayShape(overlayRadius: 14.0),
+                  ),
+                  child: Slider(
+                    value: val,
+                    min: 0,
+                    max: max,
+                    onChanged: (v) {
+                      setState(() {
+                        _dragValue = v;
+                      });
+                    },
+                    onChangeEnd: (v) {
+                      widget.playerService.seek(Duration(milliseconds: v.toInt()));
+                      setState(() {
+                        _dragValue = null;
+                      });
+                    },
+                    activeColor: widget.isDark ? Colors.white : Colors.black87,
+                    inactiveColor: widget.isDark ? Colors.white24 : Colors.black12,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(_formatDuration(displayDuration), style: TextStyle(color: widget.isDark ? Colors.white70 : Colors.black54, fontSize: 12)),
+                      Text('-${_formatDuration(duration - displayDuration)}', style: TextStyle(color: widget.isDark ? Colors.white70 : Colors.black54, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
