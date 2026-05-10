@@ -21,7 +21,6 @@ class SettingsScreen extends StatelessWidget {
               _buildSettingItem(Icons.equalizer, 'Parametric EQ (PEQ)', () {
                 Navigator.push(context, MaterialPageRoute(builder: (c) => EqAdvancedScreen()));
               }),
-              _buildSettingItem(Icons.high_quality, 'Bit-Perfect Mode', () {}, trailing: Switch(value: true, onChanged: (v) {})),
               _buildSectionHeader('INTERFACE'),
               _buildSettingItem(Icons.palette, 'Theme', () {}),
               _buildSectionHeader('ABOUT'),

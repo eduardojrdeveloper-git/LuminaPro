@@ -46,6 +46,7 @@ jobs:
             just_audio: ^0.9.36
             audio_session: ^0.1.18
             path: ^1.9.0
+            audiotags: ^1.2.0
             dsp_plugin:
               path: ./dsp_plugin
           dev_dependencies:
