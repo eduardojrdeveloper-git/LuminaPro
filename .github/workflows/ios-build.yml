@@ -42,7 +42,7 @@ jobs:
             just_audio: ^0.9.36
             audio_session: ^0.1.18
             path: ^1.9.0
-            audiotags: ^1.2.0
+            metadata_god: ^0.5.0
             dsp_plugin:
               path: ./dsp_plugin
           dev_dependencies:
@@ -63,8 +63,6 @@ jobs:
 
       - name: Build iOS App (Debug Simulator ARM64)
         run: |
-          # Simulator only supports --debug mode. 
-          # On Apple Silicon runner (macos-latest), this generates an ARM64 binary.
           flutter build ios --debug --simulator
 
       - name: Create Payload and IPA

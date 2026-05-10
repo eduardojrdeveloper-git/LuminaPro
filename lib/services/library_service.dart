@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-import 'package:audiotags/audiotags.dart';
+import 'package:metadata_god/metadata_god.dart';
 
 class AudioFile {
   final String path;
@@ -24,6 +24,7 @@ class LibraryService {
   static Future<List<AudioFile>> scanMusic() async {
     List<AudioFile> songs = [];
     try {
+      MetadataGod.initialize();
       final directory = await getApplicationDocumentsDirectory();
       final List<FileSystemEntity> entities = directory.listSync(recursive: true);
 
@@ -38,17 +39,15 @@ class LibraryService {
             Uint8List? coverArt;
 
             try {
-              Tag? tag = await AudioTags.read(entity.path);
-              if (tag != null) {
-                if (tag.title != null && tag.title!.isNotEmpty) title = tag.title!;
-                if (tag.trackArtist != null && tag.trackArtist!.isNotEmpty) artist = tag.trackArtist!;
-                if (tag.album != null && tag.album!.isNotEmpty) album = tag.album!;
-                if (tag.pictures.isNotEmpty) {
-                  coverArt = tag.pictures.first.bytes;
-                }
+              final metadata = await MetadataGod.readMetadata(entity.path);
+              if (metadata.title != null) title = metadata.title!;
+              if (metadata.artist != null) artist = metadata.artist!;
+              if (metadata.album != null) album = metadata.album!;
+              if (metadata.picture != null) {
+                coverArt = metadata.picture!.data;
               }
             } catch (e) {
-              print("No tags found or error reading tags: $e");
+              print("Error reading metadata for ${entity.path}: $e");
             }
 
             // Fallback: If tags are missing, try extracting from folder structure
