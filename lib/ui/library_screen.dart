@@ -32,12 +32,14 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
-        title: Text('Library', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 28)),
+        title: Text('Library', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 28, color: isDark ? Colors.white : Colors.black)),
         actions: [
           IconButton(icon: Icon(Icons.refresh, color: Colors.pinkAccent), onPressed: _refreshLibrary)
         ],
@@ -69,16 +71,18 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   Widget _buildSongsList() {
     if (_songs.isEmpty) return _buildEmptyState();
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return ListView.separated(
       itemCount: _songs.length,
-      separatorBuilder: (_, __) => Divider(color: Colors.grey[900], indent: 70),
+      separatorBuilder: (_, __) => Divider(color: isDark ? Colors.grey[900] : Colors.grey[300], indent: 70),
       itemBuilder: (context, index) {
         final song = _songs[index];
         return ListTile(
           leading: Container(
             width: 50, height: 50,
             decoration: BoxDecoration(
-              color: Colors.grey[900],
+              color: isDark ? Colors.grey[900] : Colors.grey[200],
               borderRadius: BorderRadius.circular(4),
               image: song.coverArt != null
                   ? DecorationImage(image: MemoryImage(song.coverArt!), fit: BoxFit.cover)
@@ -86,7 +90,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
             ),
             child: song.coverArt == null ? Icon(Icons.music_note, color: Colors.grey) : null,
           ),
-          title: Text(song.title, style: TextStyle(fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+          title: Text(song.title, style: TextStyle(fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle: Text('${song.artist} • ${song.album}', style: TextStyle(color: Colors.grey, fontSize: 13), maxLines: 1),
           onTap: () {
             PlayerService().playQueue(_songs, initialIndex: index);
@@ -98,6 +102,8 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
   Widget _buildGroupedList({required String Function(AudioFile) groupBy, required IconData icon}) {
     if (_songs.isEmpty) return _buildEmptyState();
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Group songs
     Map<String, List<AudioFile>> grouped = {};
@@ -111,7 +117,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
     return ListView.separated(
       itemCount: keys.length,
-      separatorBuilder: (_, __) => Divider(color: Colors.grey[900], indent: 70),
+      separatorBuilder: (_, __) => Divider(color: isDark ? Colors.grey[900] : Colors.grey[300], indent: 70),
       itemBuilder: (context, index) {
         String groupName = keys[index];
         List<AudioFile> groupSongs = grouped[groupName]!;
@@ -128,7 +134,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           leading: Container(
             width: 50, height: 50,
             decoration: BoxDecoration(
-              color: Colors.grey[900],
+              color: isDark ? Colors.grey[900] : Colors.grey[200],
               shape: BoxShape.circle,
               image: groupCover != null
                   ? DecorationImage(image: MemoryImage(groupCover), fit: BoxFit.cover)
@@ -136,7 +142,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
             ),
             child: groupCover == null ? Icon(icon, color: Colors.grey) : null,
           ),
-          title: Text(groupName, style: TextStyle(fontWeight: FontWeight.bold)),
+          title: Text(groupName, style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
           subtitle: Text('${groupSongs.length} songs', style: TextStyle(color: Colors.grey)),
           onTap: () {
              Navigator.push(

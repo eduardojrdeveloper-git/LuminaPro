@@ -14,6 +14,7 @@ class PlayerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final playerService = PlayerService();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return ValueListenableBuilder<AudioFile?>(
       valueListenable: playerService.currentSong,
@@ -28,7 +29,9 @@ class PlayerScreen extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Colors.grey[900]!, Colors.black],
+              colors: isDark 
+                  ? [Colors.grey[900]!, Colors.black]
+                  : [Colors.pink[50]!, Colors.white],
             ),
           ),
           child: Column(
@@ -42,12 +45,12 @@ class PlayerScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
-                      BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 10))
+                      BoxShadow(color: isDark ? Colors.black54 : Colors.grey[300]!, blurRadius: 20, offset: Offset(0, 10))
                     ],
                     image: song.coverArt != null
                         ? DecorationImage(image: MemoryImage(song.coverArt!), fit: BoxFit.cover)
                         : null,
-                    color: song.coverArt == null ? Colors.grey[850] : null,
+                    color: song.coverArt == null ? (isDark ? Colors.grey[850] : Colors.grey[200]) : null,
                   ),
                   child: song.coverArt == null ? Icon(Icons.music_note, size: 100, color: Colors.grey) : null,
                 ),
@@ -60,12 +63,12 @@ class PlayerScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(song.title, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(song.title, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis),
                         Text(song.artist, style: TextStyle(fontSize: 20, color: Colors.pinkAccent), maxLines: 1, overflow: TextOverflow.ellipsis),
                       ],
                     ),
                   ),
-                  Icon(Icons.more_horiz, color: Colors.white),
+                  Icon(Icons.more_horiz, color: isDark ? Colors.white : Colors.black87),
                 ],
               ),
               SizedBox(height: 30),
@@ -91,14 +94,14 @@ class PlayerScreen extends StatelessWidget {
                             onChanged: (v) {
                               playerService.seek(Duration(milliseconds: v.toInt()));
                             },
-                            activeColor: Colors.white,
-                            inactiveColor: Colors.white24,
+                            activeColor: isDark ? Colors.white : Colors.black87,
+                            inactiveColor: isDark ? Colors.white24 : Colors.black12,
                           ),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(_formatDuration(position), style: TextStyle(color: Colors.white54, fontSize: 12)),
-                              Text('-${_formatDuration(duration - position)}', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                              Text(_formatDuration(position), style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 12)),
+                              Text('-${_formatDuration(duration - position)}', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 12)),
                             ],
                           ),
                         ],
@@ -114,7 +117,7 @@ class PlayerScreen extends StatelessWidget {
                 children: [
                   IconButton(
                     iconSize: 48,
-                    icon: Icon(Icons.skip_previous, color: Colors.white),
+                    icon: Icon(Icons.skip_previous, color: isDark ? Colors.white : Colors.black87),
                     onPressed: playerService.skipToPrevious,
                   ),
                   StreamBuilder<bool>(
@@ -124,14 +127,14 @@ class PlayerScreen extends StatelessWidget {
                       return IconButton(
                         iconSize: 72,
                         icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill),
-                        color: Colors.white,
+                        color: isDark ? Colors.white : Colors.black87,
                         onPressed: playerService.playPause,
                       );
                     },
                   ),
                   IconButton(
                     iconSize: 48,
-                    icon: Icon(Icons.skip_next, color: Colors.white),
+                    icon: Icon(Icons.skip_next, color: isDark ? Colors.white : Colors.black87),
                     onPressed: playerService.skipToNext,
                   ),
                 ],

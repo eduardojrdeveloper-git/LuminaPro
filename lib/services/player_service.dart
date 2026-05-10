@@ -6,19 +6,8 @@ import '../services/library_service.dart';
 class PlayerService {
   static final PlayerService _instance = PlayerService._internal();
   factory PlayerService() => _instance;
-  PlayerService._internal();
-
-  final AudioPlayer player = AudioPlayer();
-  final ValueNotifier<AudioFile?> currentSong = ValueNotifier<AudioFile?>(null);
   
-  ConcatenatingAudioSource _playlist = ConcatenatingAudioSource(children: []);
-  List<AudioFile> _queue = [];
-
-  Stream<Duration> get positionStream => player.positionStream;
-  Stream<Duration?> get durationStream => player.durationStream;
-  Stream<bool> get playingStream => player.playingStream;
-
-  PlayerService._init() {
+  PlayerService._internal() {
     player.currentIndexStream.listen((index) {
       if (index != null && index < _queue.length) {
         currentSong.value = _queue[index];
@@ -26,12 +15,18 @@ class PlayerService {
     });
   }
 
+  final AudioPlayer player = AudioPlayer();
+  final ValueNotifier<AudioFile?> currentSong = ValueNotifier<AudioFile?>(null);
+
   Future<void> playSong(AudioFile song) async {
     await playQueue([song], initialIndex: 0);
   }
 
   Future<void> playQueue(List<AudioFile> songs, {int initialIndex = 0}) async {
     _queue = List.from(songs);
+    if (_queue.isNotEmpty && initialIndex < _queue.length) {
+      currentSong.value = _queue[initialIndex];
+    }
     final audioSources = songs.map((song) {
       return AudioSource.uri(
         Uri.file(song.path),
