@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
+import '../services/player_service.dart';
 
 class EqAdvancedScreen extends StatefulWidget {
   @override
@@ -13,6 +14,16 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
     {'fc': 1000.0, 'gain': 0.0, 'q': 1.41, 'type': 'PK'},
     {'fc': 8000.0, 'gain': 0.0, 'q': 1.41, 'type': 'PK'},
   ];
+
+  void _applyEQ() {
+    PlayerService().updateEQ(bands);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _applyEQ();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +64,10 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: ElevatedButton(
-              onPressed: () => setState(() => bands.add({'fc': 1000.0, 'gain': 0.0, 'q': 1.41, 'type': 'PK'})),
+              onPressed: () {
+                setState(() => bands.add({'fc': 1000.0, 'gain': 0.0, 'q': 1.41, 'type': 'PK'}));
+                _applyEQ();
+              },
               child: Text('Add New Band'),
               style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 50), backgroundColor: Colors.pinkAccent, foregroundColor: Colors.white),
             ),
@@ -77,12 +91,24 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('Band ${index + 1} (${band['type']})', style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
-                IconButton(icon: Icon(Icons.delete, color: Colors.red), onPressed: () => setState(() => bands.removeAt(index))),
+                IconButton(icon: Icon(Icons.delete, color: Colors.red), onPressed: () {
+                  setState(() => bands.removeAt(index));
+                  _applyEQ();
+                }),
               ],
             ),
-            _buildSlider('Freq: ${band['fc'].toInt()} Hz', band['fc'], 20, 20000, (v) => setState(() => band['fc'] = v), isDark),
-            _buildSlider('Gain: ${band['gain'].toStringAsFixed(1)} dB', band['gain'], -20, 20, (v) => setState(() => band['gain'] = v), isDark),
-            _buildSlider('Q: ${band['q'].toStringAsFixed(2)}', band['q'], 0.1, 10, (v) => setState(() => band['q'] = v), isDark),
+            _buildSlider('Freq: ${band['fc'].toInt()} Hz', band['fc'], 20, 20000, (v) {
+              setState(() => band['fc'] = v);
+              _applyEQ();
+            }, isDark),
+            _buildSlider('Gain: ${band['gain'].toStringAsFixed(1)} dB', band['gain'], -20, 20, (v) {
+              setState(() => band['gain'] = v);
+              _applyEQ();
+            }, isDark),
+            _buildSlider('Q: ${band['q'].toStringAsFixed(2)}', band['q'], 0.1, 10, (v) {
+              setState(() => band['q'] = v);
+              _applyEQ();
+            }, isDark),
           ],
         ),
       ),

@@ -25,7 +25,206 @@ jobs:
           flutter create --template=plugin_ffi --platforms=ios dsp_plugin
           rm -f dsp_plugin/ios/Classes/dsp_plugin.c
           mkdir -p dsp_plugin/ios/Classes/dsp
-          cp ios/Classes/dsp/* dsp_plugin/ios/Classes/
+          cp ios/Classes/dsp/* dsp_plugin/ios/Classes/ || true
+          
+          cat << 'SWIFT_EOF' > ios/Runner/AppDelegate.swift
+          import UIKit
+          import Flutter
+          import AVFoundation
+
+          @main
+          @objc class AppDelegate: FlutterAppDelegate {
+              var engine = AVAudioEngine()
+              var playerNode = AVAudioPlayerNode()
+              var eqNode = AVAudioUnitEQ(numberOfBands: 10)
+              var positionChannel: FlutterEventChannel?
+              var stateChannel: FlutterEventChannel?
+              var positionSink: FlutterEventSink?
+              var stateSink: FlutterEventSink?
+              
+              var currentTimer: Timer?
+              var audioFile: AVAudioFile?
+              
+              override func application(
+                  _ application: UIApplication,
+                  didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+              ) -> Bool {
+                  let controller = window?.rootViewController as! FlutterViewController
+                  
+                  let methodChannel = FlutterMethodChannel(name: "com.luminapro/audio", binaryMessenger: controller.binaryMessenger)
+                  positionChannel = FlutterEventChannel(name: "com.luminapro/audio_position", binaryMessenger: controller.binaryMessenger)
+                  stateChannel = FlutterEventChannel(name: "com.luminapro/audio_state", binaryMessenger: controller.binaryMessenger)
+                  
+                  positionChannel?.setStreamHandler(PositionStreamHandler(appDelegate: self))
+                  stateChannel?.setStreamHandler(StateStreamHandler(appDelegate: self))
+                  
+                  setupAudioEngine()
+                  
+                  methodChannel.setMethodCallHandler({ [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
+                      guard let self = self else { return }
+                      switch call.method {
+                      case "play":
+                          if let args = call.arguments as? [String: Any], let path = args["path"] as? String {
+                              self.playAudio(path: path)
+                              result(nil)
+                          } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
+                      case "pause":
+                          self.pauseAudio()
+                          result(nil)
+                      case "resume":
+                          self.resumeAudio()
+                          result(nil)
+                      case "seek":
+                          if let args = call.arguments as? [String: Any], let pos = args["position"] as? Int {
+                              self.seekAudio(toMs: pos)
+                              result(nil)
+                          } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
+                      case "updateEQ":
+                          if let args = call.arguments as? [String: Any], let bands = args["bands"] as? [[String: Any]] {
+                              self.updateEQ(bands: bands)
+                              result(nil)
+                          } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
+                      default:
+                          result(FlutterMethodNotImplemented)
+                      }
+                  })
+                  
+                  GeneratedPluginRegistrant.register(with: self)
+                  return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+              }
+              
+              func setupAudioEngine() {
+                  engine.attach(playerNode)
+                  engine.attach(eqNode)
+                  
+                  for i in 0..<eqNode.bands.count {
+                      eqNode.bands[i].filterType = .parametric
+                      eqNode.bands[i].bypass = false
+                      eqNode.bands[i].frequency = 1000.0
+                      eqNode.bands[i].gain = 0.0
+                  }
+                  
+                  engine.connect(playerNode, to: eqNode, format: nil)
+                  engine.connect(eqNode, to: engine.mainMixerNode, format: nil)
+                  
+                  do {
+                      try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, policy: .longFormAudio)
+                      try AVAudioSession.sharedInstance().setActive(true)
+                      try engine.start()
+                  } catch {
+                      print("Audio Engine setup error: \(error)")
+                  }
+              }
+              
+              func playAudio(path: String) {
+                  let url = URL(fileURLWithPath: path)
+                  do {
+                      audioFile = try AVAudioFile(forReading: url)
+                      playerNode.stop()
+                      playerNode.scheduleFile(audioFile!, at: nil) {
+                          DispatchQueue.main.async {
+                              self.stateSink?(["finished": true])
+                          }
+                      }
+                      playerNode.play()
+                      
+                      let duration = Double(audioFile!.length) / audioFile!.processingFormat.sampleRate
+                      positionSink?(["duration": Int(duration * 1000)])
+                      stateSink?(["playing": true])
+                      
+                      startTimer()
+                  } catch {
+                      print("Error playing file: \(error)")
+                  }
+              }
+              
+              func pauseAudio() {
+                  playerNode.pause()
+                  stopTimer()
+                  stateSink?(["playing": false])
+              }
+              
+              func resumeAudio() {
+                  guard !playerNode.isPlaying else { return }
+                  playerNode.play()
+                  startTimer()
+                  stateSink?(["playing": true])
+              }
+              
+              func seekAudio(toMs: Int) {
+                  guard let audioFile = audioFile else { return }
+                  let sampleRate = audioFile.processingFormat.sampleRate
+                  let newFramePosition = AVAudioFramePosition(Double(toMs) / 1000.0 * sampleRate)
+                  
+                  let wasPlaying = playerNode.isPlaying
+                  playerNode.stop()
+                  
+                  let framesToPlay = AVAudioFrameCount(audioFile.length - newFramePosition)
+                  if framesToPlay > 0 {
+                      playerNode.scheduleSegment(audioFile, startingFrame: newFramePosition, frameCount: framesToPlay, at: nil) {
+                          DispatchQueue.main.async {
+                              self.stateSink?(["finished": true])
+                          }
+                      }
+                  }
+                  
+                  if wasPlaying {
+                      playerNode.play()
+                  }
+                  positionSink?(["position": toMs])
+              }
+              
+              func updateEQ(bands: [[String: Any]]) {
+                  for (i, b) in bands.enumerated() {
+                      if i < eqNode.bands.count {
+                          if let fc = b["fc"] as? Double { eqNode.bands[i].frequency = Float(fc) }
+                          if let gain = b["gain"] as? Double { eqNode.bands[i].gain = Float(gain) }
+                          if let q = b["q"] as? Double { eqNode.bands[i].bandwidth = Float(q) }
+                      }
+                  }
+              }
+              
+              func startTimer() {
+                  currentTimer?.invalidate()
+                  currentTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
+                      guard let self = self, let nodeTime = self.playerNode.lastRenderTime, let playerTime = self.playerNode.playerTime(forNodeTime: nodeTime) else { return }
+                      let posMs = Int((Double(playerTime.sampleTime) / playerTime.sampleRate) * 1000)
+                      self.positionSink?(["position": posMs])
+                  }
+              }
+              
+              func stopTimer() {
+                  currentTimer?.invalidate()
+                  currentTimer = nil
+              }
+          }
+
+          class PositionStreamHandler: NSObject, FlutterStreamHandler {
+              weak var appDelegate: AppDelegate?
+              init(appDelegate: AppDelegate) { self.appDelegate = appDelegate }
+              func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+                  appDelegate?.positionSink = events
+                  return nil
+              }
+              func onCancel(withArguments arguments: Any?) -> FlutterError? {
+                  appDelegate?.positionSink = nil
+                  return nil
+              }
+          }
+
+          class StateStreamHandler: NSObject, FlutterStreamHandler {
+              weak var appDelegate: AppDelegate?
+              init(appDelegate: AppDelegate) { self.appDelegate = appDelegate }
+              func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+                  appDelegate?.stateSink = events
+                  return nil
+              }
+              func onCancel(withArguments arguments: Any?) -> FlutterError? {
+                  appDelegate?.stateSink = nil
+                  return nil
+              }
+          }
+          SWIFT_EOF
           
           cat <<EOF > pubspec.yaml
           name: lumina_pro
@@ -39,9 +238,6 @@ jobs:
               sdk: flutter
             ffi: ^2.1.0
             path_provider: ^2.1.2
-            just_audio: ^0.9.36
-            just_audio_background: ^0.0.1-beta.13
-            audio_session: ^0.1.18
             path: ^1.9.0
             metadata_god: ^0.5.0
             dsp_plugin:

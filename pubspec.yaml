@@ -9,9 +9,8 @@ dependencies:
     sdk: flutter
   ffi: ^2.1.0
   path_provider: ^2.1.2
-  just_audio: ^0.9.36
-  audio_session: ^0.1.18
   path: ^1.9.0
+  metadata_god: ^0.5.0
   # We will add dsp_plugin via the workflow as before
 dev_dependencies:
   flutter_test:
