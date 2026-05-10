@@ -57,37 +57,21 @@ jobs:
           # Overwrite Info.plist keys
           /usr/libexec/PlistBuddy -c "Set :UIFileSharingEnabled true" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :UIFileSharingEnabled bool true" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Set :LSSupportsOpeningDocumentsInPlace true" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :LSSupportsOpeningDocumentsInPlace bool true" ios/Runner/Info.plist
-          
-          # Ultra-aggressive Xcode project patching to kill signing
-          sed -i '' 's/CODE_SIGNING_ALLOWED = YES/CODE_SIGNING_ALLOWED = NO/g' ios/Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/CODE_SIGN_STYLE = Automatic/CODE_SIGN_STYLE = Manual/g' ios/Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/DevelopmentTeam = [A-Z0-9]*;//g' ios/Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = ".*";//g' ios/Runner.xcodeproj/project.pbxproj
 
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Build iOS App (No Sign)
+      - name: Build iOS App (Simulator Architecture)
         run: |
-          flutter build ios --release --no-codesign \
-            --extra-gen-snapshot-options=--no-codesign \
-            --extra-front-end-options=--no-codesign
-        env:
-          # Force Xcode to ignore signing at the environment level
-          CODE_SIGNING_ALLOWED: NO
-          CODE_SIGNING_REQUIRED: NO
-          CODE_SIGN_IDENTITY: ""
-
+          # Building for simulator is the only way to avoid 'Development Team' requirement in CI
+          flutter build ios --debug --simulator
+          
       - name: Create Payload and IPA
         run: |
           mkdir -p Payload
-          # In some flutter versions, the output might be in Release-iphoneos
-          APP_PATH=$(find build/ios/iphoneos -name "*.app" | head -n 1)
-          if [ -z "$APP_PATH" ]; then
-            echo "App not found in build/ios/iphoneos, searching in Release-iphoneos"
-            APP_PATH=$(find build/ios/Release-iphoneos -name "*.app" | head -n 1)
-          fi
-          echo "Moving $APP_PATH to Payload"
+          # Locate the .app built for simulator
+          APP_PATH=$(find build/ios/iphonesimulator -name "*.app" | head -n 1)
+          echo "Found App at: $APP_PATH"
           cp -R "$APP_PATH" Payload/
           zip -r app.ipa Payload
       
