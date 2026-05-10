@@ -38,9 +38,9 @@ jobs:
           
           # Overwrite Info.plist with our custom one (File Sharing enabled)
           cp ios/Runner/Info.plist ios/Runner/Info.plist.bak || true
-          # Note: flutter create generated a new Info.plist. We append our keys using PlistBuddy.
-          /usr/libexec/PlistBuddy -c "Add :UIFileSharingEnabled bool true" ios/Runner/Info.plist
-          /usr/libexec/PlistBuddy -c "Add :LSSupportsOpeningDocumentsInPlace bool true" ios/Runner/Info.plist
+          # Use Set if exists, otherwise Add
+          /usr/libexec/PlistBuddy -c "Set :UIFileSharingEnabled true" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :UIFileSharingEnabled bool true" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :LSSupportsOpeningDocumentsInPlace true" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :LSSupportsOpeningDocumentsInPlace bool true" ios/Runner/Info.plist
 
       - name: Install Dependencies
         run: flutter pub get
