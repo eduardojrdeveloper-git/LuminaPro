@@ -21,6 +21,11 @@ jobs:
 
       - name: Initialize Project Scaffolding
         run: |
+          # Use a unique bundle identifier to satisfy Xcode's requirement for non-simulator builds
+          RANDOM_ID=$(openssl rand -hex 4)
+          BUNDLE_ID="com.luminapro.app.$RANDOM_ID"
+          echo "Using Bundle ID: $BUNDLE_ID"
+
           flutter create --platforms=ios --org com.luminapro --project-name lumina_pro .
           flutter create --template=plugin_ffi --platforms=ios dsp_plugin
           rm -f dsp_plugin/ios/Classes/dsp_plugin.c
@@ -51,18 +56,28 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :UIFileSharingEnabled true" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :UIFileSharingEnabled bool true" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Set :LSSupportsOpeningDocumentsInPlace true" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :LSSupportsOpeningDocumentsInPlace bool true" ios/Runner/Info.plist
           
-          # Patch Xcode to allow building without a team
+          # Force the Bundle ID in the project file
+          sed -i '' "s/PRODUCT_BUNDLE_IDENTIFIER = com.luminapro.luminaPro;/PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE_ID;/g" ios/Runner.xcodeproj/project.pbxproj
+
+          # Deep patch Xcode to completely ignore signing and teams
           sed -i '' 's/CODE_SIGNING_ALLOWED = YES/CODE_SIGNING_ALLOWED = NO/g' ios/Runner.xcodeproj/project.pbxproj
           sed -i '' 's/CODE_SIGN_STYLE = Automatic/CODE_SIGN_STYLE = Manual/g' ios/Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/DevelopmentTeam = [A-Z0-9]*;//g' ios/Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = ".*";//g' ios/Runner.xcodeproj/project.pbxproj
+          
+          # Additional configurations to suppress the Team error
+          echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Generated.xcconfig
+          echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Generated.xcconfig
+          echo "CODE_SIGN_IDENTITY=" >> ios/Flutter/Generated.xcconfig
+          echo "COMPILER_INDEX_STORE_ENABLE=NO" >> ios/Flutter/Generated.xcconfig
 
       - name: Install Dependencies
         run: flutter pub get
 
       - name: Build iOS App (Release Mode for Device)
         run: |
-          # We MUST build for 'ios' (device) in 'release' mode for it to work on a real iPhone.
-          # We use --no-codesign and pass flags to Xcode to bypass the Team requirement.
-          flutter build ios --release --no-codesign --extra-gen-snapshot-options=--no-codesign
+          # Use xcode-excl-build-settings to pass raw parameters to xcodebuild via flutter
+          flutter build ios --release --no-codesign
         env:
           CODE_SIGNING_ALLOWED: NO
           CODE_SIGNING_REQUIRED: NO
@@ -71,9 +86,13 @@ jobs:
       - name: Create Payload and IPA
         run: |
           mkdir -p Payload
-          # Find the Release .app folder
+          # Search for the .app in build/ios/iphoneos
           APP_PATH=$(find build/ios/iphoneos -name "*.app" | head -n 1)
-          echo "Found Release App at: $APP_PATH"
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: Release .app not found."
+            exit 1
+          fi
+          echo "Packaging $APP_PATH"
           cp -R "$APP_PATH" Payload/
           zip -r app.ipa Payload
       
