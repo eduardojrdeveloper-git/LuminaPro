@@ -262,19 +262,10 @@ jobs:
           flutter pub get
           cd ios
           pod install || true
-          cat << 'EOF' >> Podfile
           
-          post_install do |installer|
-            installer.pods_project.targets.each do |target|
-              target.build_configurations.each do |config|
-                config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
-                config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
-                config.build_settings['CODE_SIGN_IDENTITY'] = ''
-                config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ''
-              end
-            end
-          end
-          EOF
+          # Inject code-signing bypass inside the existing Flutter post_install block
+          awk '/post_install do \|installer\|/{print; print "  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings[\"CODE_SIGNING_ALLOWED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGNING_REQUIRED\"] = \"NO\"\n      config.build_settings[\"CODE_SIGN_IDENTITY\"] = \"\"\n      config.build_settings[\"EXPANDED_CODE_SIGN_IDENTITY\"] = \"\"\n    end\n  end"; next}1' Podfile > Podfile.tmp && mv Podfile.tmp Podfile
+          
           pod install
 
       - name: Disable Code Signing in Runner
