@@ -1,0 +1,49 @@
+Run cd ios
+  cd ios
+  xcodebuild build -workspace Runner.xcworkspace -scheme Runner -configuration Release -sdk iphoneos CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO || true
+  cd ..
+  flutter build ios --release --no-codesign
+  shell: /bin/bash -e {0}
+  env:
+    FLUTTER_ROOT: /Users/runner/hostedtoolcache/flutter/stable-3.22.0-arm64/flutter
+    PUB_CACHE: /Users/runner/.pub-cache
+Command line invocation:
+    /Applications/Xcode_16.4.app/Contents/Developer/usr/bin/xcodebuild build -workspace Runner.xcworkspace -scheme Runner -configuration Release -sdk iphoneos CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+
+Build settings from command line:
+    CODE_SIGN_IDENTITY = 
+    CODE_SIGNING_ALLOWED = NO
+    CODE_SIGNING_REQUIRED = NO
+    SDKROOT = iphoneos18.5
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS, id:dvtdevice-DVTiPhonePlaceholder-iphoneos:placeholder, name:Any iOS Device }
+{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:064675ae21722b83bafb6ec1707b4bbb7d65dd1e, name:My Mac }
+{ platform:iOS Simulator, id:dvtdevice-DVTiOSDeviceSimulatorPlaceholder-iphonesimulator:placeholder, name:Any iOS Simulator Device }
+note: Using codesigning identity override: 
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (9 targets)
+    Target 'Runner' in project 'Runner'
+        ➜ Implicit dependency on target 'Pods-Runner' in project 'Pods' via file 'Pods_Runner.framework' in build phase 'Link Binary'
+        ➜ Implicit dependency on target 'dsp_plugin' in project 'Pods' via options '-framework dsp_plugin' in build setting 'OTHER_LDFLAGS'
+        ➜ Implicit dependency on target 'metadata_god' in project 'Pods' via options '-framework metadata_god' in build setting 'OTHER_LDFLAGS'
+        ➜ Implicit dependency on target 'path_provider_foundation' in project 'Pods' via options '-framework path_provider_foundation' in build setting 'OTHER_LDFLAGS'
+        ➜ Implicit dependency on target 'share_plus' in project 'Pods' via options '-framework share_plus' in build setting 'OTHER_LDFLAGS'
+    Target 'Pods-Runner' in project 'Pods'
+        ➜ Explicit dependency on target 'Flutter' in project 'Pods'
+        ➜ Explicit dependency on target 'dsp_plugin' in project 'Pods'
+        ➜ Explicit dependency on target 'metadata_god' in project 'Pods'
+        ➜ Explicit dependency on target 'path_provider_foundation' in project 'Pods'
+        ➜ Explicit dependency on target 'share_plus' in project 'Pods'
+    Target 'share_plus' in project 'Pods'

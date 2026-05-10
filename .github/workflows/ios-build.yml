@@ -415,6 +415,10 @@ jobs:
         run: |
           flutter pub get
           cd ios
+          # Ensure platform is set to 12.0 in Podfile
+          sed -i '' "s/# platform :ios, '12.0'/platform :ios, '12.0'/g" Podfile || true
+          sed -i '' "s/platform :ios, '11.0'/platform :ios, '12.0'/g" Podfile || true
+          
           pod install || true
           
           # Inject code-signing bypass inside the existing Flutter post_install block
