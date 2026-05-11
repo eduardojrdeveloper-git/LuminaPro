@@ -216,7 +216,7 @@ class _MainNavigationState extends State<MainNavigation>
                         index: 2,
                         current: _currentIndex,
                         icon: CupertinoIcons.settings,
-                        activeIcon: CupertinoIcons.settings_solid,
+                        activeIcon: CupertinoIcons.settings_filled,
                         label: 'Settings',
                         onTap: () => setState(() => _currentIndex = 2),
                         isDark: isDark,

@@ -246,7 +246,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Icon(CupertinoIcons.airplay_audio, color: LuminaColors.labelSecondary, size: 22),
+                            const Icon(CupertinoIcons.hifispeaker, color: LuminaColors.labelSecondary, size: 22),
                             GestureDetector(
                               onTap: () => _showQueue(context),
                               child: const Icon(CupertinoIcons.list_bullet, color: LuminaColors.labelSecondary, size: 22),
