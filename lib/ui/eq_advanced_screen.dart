@@ -120,6 +120,50 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
     });
   }
 
+  Future<void> _showEditPopup(int index, String field, double initialValue, {double min = 0, double max = 20000}) async {
+    final TextEditingController ctrl = TextEditingController(text: initialValue.toStringAsFixed(1));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    await showCupertinoDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => CupertinoAlertDialog(
+        title: Text('Edit $field'),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: CupertinoTextField(
+            controller: ctrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            autofocus: true,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: isDark ? Colors.white : Colors.black),
+            placeholder: 'Value ($min - $max)',
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () {
+              final val = double.tryParse(ctrl.text);
+              if (val != null) {
+                setState(() {
+                  _bands[index][field == 'Frequency' ? 'fc' : (field == 'Gain' ? 'gain' : 'q')] = val.clamp(min, max);
+                  _onBandChanged();
+                });
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -326,12 +370,15 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
               ),
               const Spacer(),
               if (!isPreamp)
-                Text(
-                  '${band['fc'].toInt()} Hz',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: isDark ? Colors.white70 : Colors.black54,
+                GestureDetector(
+                  onTap: () => _showEditPopup(index, 'Frequency', band['fc'], min: 20, max: 20000),
+                  child: Text(
+                    '${band['fc'].toInt()} Hz',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: LuminaColors.accent,
+                    ),
                   ),
                 ),
               const SizedBox(width: 12),
@@ -348,21 +395,21 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
           ),
           const SizedBox(height: 10),
           if (!isPreamp)
-            _buildSliderRow('Frequency', band['fc'], 20, 20000, isDark,
+            _buildSliderRow(index, 'Frequency', band['fc'], 20, 20000, isDark,
                 (v) {
               setState(() {
                 band['fc'] = v;
                 _onBandChanged();
               });
             }),
-          _buildSliderRow('Gain', band['gain'], -20, 20, isDark, (v) {
+          _buildSliderRow(index, 'Gain', band['gain'], -20, 20, isDark, (v) {
             setState(() {
               band['gain'] = v;
               _onBandChanged();
             });
           }, unit: 'dB'),
           if (!isPreamp)
-            _buildSliderRow('Q Factor', band['q'], 0.1, 10, isDark, (v) {
+            _buildSliderRow(index, 'Q Factor', band['q'], 0.1, 10, isDark, (v) {
               setState(() {
                 band['q'] = v;
                 _onBandChanged();
@@ -373,7 +420,7 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
     );
   }
 
-  Widget _buildSliderRow(String label, double value, double min, double max,
+  Widget _buildSliderRow(int index, String label, double value, double min, double max,
       bool isDark, ValueChanged<double> onChanged,
       {String unit = ''}) {
     return Padding(
@@ -388,13 +435,16 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                       color: LuminaColors.labelSecondary)),
-              Text(
-                '${value.toStringAsFixed(1)} $unit',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : Colors.black,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+              GestureDetector(
+                onTap: () => _showEditPopup(index, label, value, min: min, max: max),
+                child: Text(
+                  '${value.toStringAsFixed(1)} $unit',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: LuminaColors.accent,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
             ],

@@ -137,99 +137,116 @@ class _LibraryScreenState extends State<LibraryScreen>
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          // ── Large Title Nav Bar ──────────────────────────────────────────
-          CupertinoSliverNavigationBar(
-            largeTitle: Text(
-              'Library',
-              style: TextStyle(
-                color: isDark ? Colors.white : Colors.black,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.5,
-              ),
-            ),
-            backgroundColor:
-                Theme.of(context).scaffoldBackgroundColor.withOpacity(0.85),
-            border: null,
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: _showSortMenu,
-                  child: const Icon(CupertinoIcons.sort_down,
-                      color: LuminaColors.accent, size: 22),
-                ),
-                const SizedBox(width: 4),
-                CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: _refreshLibrary,
-                  child: const Icon(CupertinoIcons.arrow_2_circlepath,
-                      color: LuminaColors.accent, size: 22),
-                ),
-              ],
-            ),
-          ),
-          // ── Search + Tabs ────────────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: Column(
-              children: [
-                // Always-visible search bar (Apple Music style)
-                Padding(
-                  padding:
-                      const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                  child: CupertinoSearchTextField(
-                    controller: _searchCtrl,
-                    focusNode: _searchFocus,
-                    placeholder: 'Artists, Songs, Lyrics, and More',
-                    style: TextStyle(
-                        color: isDark ? Colors.white : Colors.black,
-                        fontSize: 16),
-                    backgroundColor: isDark
-                        ? LuminaColors.bg2.withOpacity(0.9)
-                        : LuminaColors.lightBg2.withOpacity(0.9),
-                  ),
-                ),
-                // Segmented control
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  child: CupertinoSlidingSegmentedControl<int>(
-                    groupValue: _tabController.index,
-                    thumbColor: isDark ? LuminaColors.bg3 : Colors.white,
-                    backgroundColor:
-                        isDark ? LuminaColors.bg2 : LuminaColors.lightBg2,
-                    children: {
-                      0: _segLabel('Songs', _tabController.index == 0, isDark),
-                      1: _segLabel(
-                          'Artists', _tabController.index == 1, isDark),
-                      2: _segLabel('Albums', _tabController.index == 2, isDark),
-                    },
-                    onValueChanged: (v) {
-                      if (v != null) setState(() => _tabController.index = v);
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-        body: _isLoading
-            ? const Center(child: CupertinoActivityIndicator(radius: 14))
-            : Padding(
-                padding: const EdgeInsets.only(bottom: 100),
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildSongsList(),
-                    _buildGroupedList(
-                        groupBy: (s) => s.artist,
-                        icon: CupertinoIcons.person_fill),
-                    _buildAlbumsView(),
-                  ],
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(), // Dismiss keyboard on background tap
+        child: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            // ── Large Title Nav Bar ──────────────────────────────────────────
+            CupertinoSliverNavigationBar(
+              largeTitle: Text(
+                'Library',
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
                 ),
               ),
+              backgroundColor:
+                  Theme.of(context).scaffoldBackgroundColor.withOpacity(0.85),
+              border: null,
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: _showSortMenu,
+                    child: const Icon(CupertinoIcons.sort_down,
+                        color: LuminaColors.accent, size: 22),
+                  ),
+                  const SizedBox(width: 4),
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: _refreshLibrary,
+                    child: const Icon(CupertinoIcons.arrow_2_circlepath,
+                        color: LuminaColors.accent, size: 22),
+                  ),
+                ],
+              ),
+            ),
+            // ── Search + Tabs ────────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  // Search Bar
+                  Padding(
+                    padding:
+                        const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                    child: CupertinoSearchTextField(
+                      controller: _searchCtrl,
+                      focusNode: _searchFocus,
+                      onTap: () {
+                        // Ensure keyboard is requested if focus isn't immediate
+                        if (!_searchFocus.hasFocus) {
+                          _searchFocus.requestFocus();
+                        }
+                      },
+                      placeholder: 'Artists, Songs, Lyrics, and More',
+                      style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black,
+                          fontSize: 16),
+                      backgroundColor: isDark
+                          ? LuminaColors.bg2.withOpacity(0.9)
+                          : LuminaColors.lightBg2.withOpacity(0.9),
+                    ),
+                  ),
+                  // Segmented control
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    child: CupertinoSlidingSegmentedControl<int>(
+                      groupValue: _tabController.index,
+                      thumbColor: isDark ? LuminaColors.bg3 : Colors.white,
+                      backgroundColor:
+                          isDark ? LuminaColors.bg2 : LuminaColors.lightBg2,
+                      children: {
+                        0: _segLabel('Songs', _tabController.index == 0, isDark),
+                        1: _segLabel(
+                            'Artists', _tabController.index == 1, isDark),
+                        2: _segLabel('Albums', _tabController.index == 2, isDark),
+                      },
+                      onValueChanged: (v) {
+                        if (v != null) setState(() => _tabController.index = v);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          body: _isLoading
+              ? const Center(child: CupertinoActivityIndicator(radius: 14))
+              : NotificationListener<ScrollNotification>(
+                  onNotification: (notification) {
+                    if (notification is ScrollStartNotification) {
+                      _searchFocus.unfocus(); // Dismiss keyboard on scroll
+                    }
+                    return false;
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 100),
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildSongsList(),
+                        _buildGroupedList(
+                            groupBy: (s) => s.artist,
+                            icon: CupertinoIcons.person_fill),
+                        _buildAlbumsView(),
+                      ],
+                    ),
+                  ),
+                ),
+        ),
       ),
     );
   }
