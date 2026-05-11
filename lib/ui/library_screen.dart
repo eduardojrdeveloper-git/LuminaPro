@@ -3,7 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../services/library_service.dart';
 import '../services/player_service.dart';
-import '../main.dart' show LuminaColors;
+import '../main.dart' show LuminaColors, MainNavigation, MainNavigationState;
 import 'detail_screen.dart';
 
 enum SortMode { title, artist, album }
@@ -138,10 +138,9 @@ class _LibraryScreenState extends State<LibraryScreen>
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: GestureDetector(
-        onTap: () => FocusScope.of(context).unfocus(), // Dismiss keyboard on background tap
+        onTap: () => FocusScope.of(context).unfocus(),
         child: NestedScrollView(
           headerSliverBuilder: (context, innerBoxIsScrolled) => [
-            // ── Large Title Nav Bar ──────────────────────────────────────────
             CupertinoSliverNavigationBar(
               largeTitle: Text(
                 'Library',
@@ -173,45 +172,33 @@ class _LibraryScreenState extends State<LibraryScreen>
                 ],
               ),
             ),
-            // ── Search + Tabs ────────────────────────────────────────────────
             SliverToBoxAdapter(
               child: Column(
                 children: [
-                  // Search Bar
                   Padding(
-                    padding:
-                        const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                     child: CupertinoSearchTextField(
                       controller: _searchCtrl,
                       focusNode: _searchFocus,
                       onTap: () {
-                        // Ensure keyboard is requested if focus isn't immediate
-                        if (!_searchFocus.hasFocus) {
-                          _searchFocus.requestFocus();
-                        }
+                        if (!_searchFocus.hasFocus) _searchFocus.requestFocus();
                       },
                       placeholder: 'Artists, Songs, Lyrics, and More',
-                      style: TextStyle(
-                          color: isDark ? Colors.white : Colors.black,
-                          fontSize: 16),
+                      style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 16),
                       backgroundColor: isDark
                           ? LuminaColors.bg2.withOpacity(0.9)
                           : LuminaColors.lightBg2.withOpacity(0.9),
                     ),
                   ),
-                  // Segmented control
                   Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     child: CupertinoSlidingSegmentedControl<int>(
                       groupValue: _tabController.index,
                       thumbColor: isDark ? LuminaColors.bg3 : Colors.white,
-                      backgroundColor:
-                          isDark ? LuminaColors.bg2 : LuminaColors.lightBg2,
+                      backgroundColor: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2,
                       children: {
                         0: _segLabel('Songs', _tabController.index == 0, isDark),
-                        1: _segLabel(
-                            'Artists', _tabController.index == 1, isDark),
+                        1: _segLabel('Artists', _tabController.index == 1, isDark),
                         2: _segLabel('Albums', _tabController.index == 2, isDark),
                       },
                       onValueChanged: (v) {
@@ -227,23 +214,16 @@ class _LibraryScreenState extends State<LibraryScreen>
               ? const Center(child: CupertinoActivityIndicator(radius: 14))
               : NotificationListener<ScrollNotification>(
                   onNotification: (notification) {
-                    if (notification is ScrollStartNotification) {
-                      _searchFocus.unfocus(); // Dismiss keyboard on scroll
-                    }
+                    if (notification is ScrollStartNotification) _searchFocus.unfocus();
                     return false;
                   },
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 100),
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildSongsList(),
-                        _buildGroupedList(
-                            groupBy: (s) => s.artist,
-                            icon: CupertinoIcons.person_fill),
-                        _buildAlbumsView(),
-                      ],
-                    ),
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildSongsList(),
+                      _buildGroupedList(groupBy: (s) => s.artist, icon: CupertinoIcons.person_fill),
+                      _buildAlbumsView(),
+                    ],
                   ),
                 ),
         ),
@@ -259,9 +239,7 @@ class _LibraryScreenState extends State<LibraryScreen>
         style: TextStyle(
           fontSize: 13,
           fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-          color: isActive
-              ? (isDark ? Colors.white : Colors.black)
-              : LuminaColors.labelSecondary,
+          color: isActive ? (isDark ? Colors.white : Colors.black) : LuminaColors.labelSecondary,
         ),
       ),
     );
@@ -273,153 +251,63 @@ class _LibraryScreenState extends State<LibraryScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return ListView.builder(
-      padding: EdgeInsets.zero,
-      itemCount: songs.length + 1, // +1 for shuffle hero
+      padding: const EdgeInsets.only(bottom: 120), // Essential to scroll past MiniPlayer
+      itemCount: songs.length + 1,
       itemBuilder: (context, index) {
-        // ── Shuffle Hero Button ──────────────────────────────────────────
-        if (index == 0) {
-          return _ShuffleHeroButton(songs: songs);
-        }
+        if (index == 0) return _ShuffleHeroButton(songs: songs);
         final song = songs[index - 1];
-        final isPlaying =
-            PlayerService().currentSong.value?.path == song.path;
+        final isPlaying = PlayerService().currentSong.value?.path == song.path;
         return Column(
           children: [
-            _SongRow(
-              song: song,
-              isPlaying: isPlaying,
-              isDark: isDark,
-              onTap: () => PlayerService()
-                  .playQueue(_displayedSongs, initialIndex: index - 1),
-              onMore: () => _showSongMenu(context, song, index - 1),
-            ),
-            if (index < songs.length)
-              Divider(
-                color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3,
-                indent: 76,
-                height: 1,
-              ),
+            _SongRow(song: song, isPlaying: isPlaying, isDark: isDark, onTap: () => PlayerService().playQueue(_displayedSongs, initialIndex: index - 1), onMore: () => _showSongMenu(context, song, index - 1)),
+            if (index < songs.length) Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 76, height: 1),
           ],
         );
       },
     );
   }
 
+  // ... (Other helper methods remain identical)
   void _showSongMenu(BuildContext context, AudioFile song, int index) {
     showCupertinoModalPopup(
       context: context,
       builder: (_) => CupertinoActionSheet(
-        title: Text(song.title,
-            style: const TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(song.title, style: const TextStyle(fontWeight: FontWeight.w600)),
         message: Text(song.artist),
         actions: [
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.pop(context);
-              PlayerService()
-                  .playQueue(_displayedSongs, initialIndex: index);
-            },
-            child: const Text('Play Now'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Add to Playlist'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Love'),
-          ),
-          CupertinoActionSheetAction(
-            isDestructiveAction: true,
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Delete from Library'),
-          ),
+          CupertinoActionSheetAction(onPressed: () { Navigator.pop(context); PlayerService().playQueue(_displayedSongs, initialIndex: index); }, child: const Text('Play Now')),
+          CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Add to Playlist')),
+          CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Love')),
+          CupertinoActionSheetAction(isDestructiveAction: true, onPressed: () => Navigator.pop(context), child: const Text('Delete from Library')),
         ],
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
+        cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
       ),
     );
   }
 
-  Widget _buildGroupedList(
-      {required String Function(AudioFile) groupBy,
-      required IconData icon}) {
+  Widget _buildGroupedList({required String Function(AudioFile) groupBy, required IconData icon}) {
     final songs = _displayedSongs;
     if (songs.isEmpty) return _buildEmptyState();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     final Map<String, List<AudioFile>> grouped = {};
-    for (var song in songs) {
-      final key = groupBy(song);
-      grouped.putIfAbsent(key, () => []).add(song);
-    }
+    for (var song in songs) { final key = groupBy(song); grouped.putIfAbsent(key, () => []).add(song); }
     final keys = grouped.keys.toList()..sort();
-
     return ListView.separated(
-      padding: EdgeInsets.zero,
+      padding: const EdgeInsets.only(bottom: 120),
       itemCount: keys.length,
-      separatorBuilder: (_, __) => Divider(
-        color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3,
-        indent: 76,
-        height: 1,
-      ),
+      separatorBuilder: (_, __) => Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 76, height: 1),
       itemBuilder: (context, index) {
         final groupName = keys[index];
         final groupSongs = grouped[groupName]!;
         Uint8List? cover;
-        for (var s in groupSongs) {
-          if (s.coverArt != null) {
-            cover = s.coverArt;
-            break;
-          }
-        }
-
+        for (var s in groupSongs) { if (s.coverArt != null) { cover = s.coverArt; break; } }
         return ListTile(
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-          leading: ClipOval(
-            child: SizedBox(
-              width: 48,
-              height: 48,
-              child: cover != null
-                  ? Image.memory(cover, fit: BoxFit.cover)
-                  : Container(
-                      color:
-                          isDark ? LuminaColors.bg2 : LuminaColors.lightBg2,
-                      child: Icon(icon,
-                          color: LuminaColors.labelSecondary, size: 22),
-                    ),
-            ),
-          ),
-          title: Text(
-            groupName,
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 16,
-              color: isDark ? Colors.white : Colors.black87,
-              letterSpacing: -0.2,
-            ),
-          ),
-          subtitle: Text(
-            '${groupSongs.length} songs',
-            style: const TextStyle(
-                color: LuminaColors.labelSecondary, fontSize: 13),
-          ),
-          trailing: const Icon(CupertinoIcons.chevron_right,
-              color: LuminaColors.labelTertiary, size: 14),
-          onTap: () {
-            Navigator.push(
-              context,
-              CupertinoPageRoute(
-                builder: (_) => DetailScreen(
-                    title: groupName,
-                    songs: groupSongs,
-                    coverArt: cover),
-              ),
-            );
-          },
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+          leading: ClipOval(child: SizedBox(width: 48, height: 48, child: cover != null ? Image.memory(cover, fit: BoxFit.cover) : Container(color: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2, child: Icon(icon, color: LuminaColors.labelSecondary, size: 22)))),
+          title: Text(groupName, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: isDark ? Colors.white : Colors.black87, letterSpacing: -0.2)),
+          subtitle: Text('${groupSongs.length} songs', style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 13)),
+          trailing: const Icon(CupertinoIcons.chevron_right, color: LuminaColors.labelTertiary, size: 14),
+          onTap: () { Navigator.push(context, CupertinoPageRoute(builder: (_) => DetailScreen(title: groupName, songs: groupSongs, coverArt: cover))); },
         );
       },
     );
@@ -429,95 +317,27 @@ class _LibraryScreenState extends State<LibraryScreen>
     final songs = _displayedSongs;
     if (songs.isEmpty) return _buildEmptyState();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     final Map<String, List<AudioFile>> grouped = {};
-    for (var song in songs) {
-      grouped.putIfAbsent(song.album, () => []).add(song);
-    }
+    for (var song in songs) { grouped.putIfAbsent(song.album, () => []).add(song); }
     final keys = grouped.keys.toList()..sort();
-
     return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 20,
-        childAspectRatio: 0.78,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 130),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 16, mainAxisSpacing: 20, childAspectRatio: 0.78),
       itemCount: keys.length,
       itemBuilder: (context, index) {
         final albumName = keys[index];
         final albumSongs = grouped[albumName]!;
         Uint8List? cover;
-        for (var s in albumSongs) {
-          if (s.coverArt != null) {
-            cover = s.coverArt;
-            break;
-          }
-        }
+        for (var s in albumSongs) { if (s.coverArt != null) { cover = s.coverArt; break; } }
         return GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              CupertinoPageRoute(
-                builder: (_) => DetailScreen(
-                    title: albumName,
-                    songs: albumSongs,
-                    coverArt: cover),
-              ),
-            );
-          },
+          onTap: () { Navigator.push(context, CupertinoPageRoute(builder: (_) => DetailScreen(title: albumName, songs: albumSongs, coverArt: cover))); },
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(isDark ? 0.4 : 0.18),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: cover != null
-                        ? Image.memory(cover,
-                            fit: BoxFit.cover, width: double.infinity)
-                        : Container(
-                            color: isDark
-                                ? LuminaColors.bg2
-                                : LuminaColors.lightBg2,
-                            child: const Center(
-                                child: Icon(CupertinoIcons.music_albums,
-                                    color: LuminaColors.labelSecondary,
-                                    size: 40)),
-                          ),
-                  ),
-                ),
-              ),
+              Expanded(child: Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.4 : 0.18), blurRadius: 16, offset: const Offset(0, 6))]), child: ClipRRect(borderRadius: BorderRadius.circular(10), child: cover != null ? Image.memory(cover, fit: BoxFit.cover, width: double.infinity) : Container(color: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2, child: const Center(child: Icon(CupertinoIcons.music_albums, color: LuminaColors.labelSecondary, size: 40)))))),
               const SizedBox(height: 8),
-              Text(
-                albumName,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : Colors.black87,
-                  letterSpacing: -0.2,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                albumSongs.first.artist,
-                style: const TextStyle(
-                    fontSize: 12, color: LuminaColors.labelSecondary),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              Text(albumName, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87, letterSpacing: -0.2), maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(albumSongs.first.artist, style: const TextStyle(fontSize: 12, color: LuminaColors.labelSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
             ],
           ),
         );
@@ -526,67 +346,17 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(CupertinoIcons.music_note_list,
-              size: 64, color: LuminaColors.labelTertiary),
-          const SizedBox(height: 16),
-          const Text('No Music Found',
-              style: TextStyle(
-                  color: LuminaColors.labelSecondary,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          const Text('Transfer songs via the Files app.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: LuminaColors.labelTertiary, fontSize: 14)),
-        ],
-      ),
-    );
+    return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(CupertinoIcons.music_note_list, size: 64, color: LuminaColors.labelTertiary), const SizedBox(height: 16), const Text('No Music Found', style: TextStyle(color: LuminaColors.labelSecondary, fontSize: 17, fontWeight: FontWeight.w600)), const SizedBox(height: 8), const Text('Transfer songs via the Files app.', textAlign: TextAlign.center, style: TextStyle(color: LuminaColors.labelTertiary, fontSize: 14))]));
   }
 }
 
-// ── Shuffle Hero Button ───────────────────────────────────────────────────────
 class _ShuffleHeroButton extends StatelessWidget {
   final List<AudioFile> songs;
   const _ShuffleHeroButton({required this.songs});
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: _ActionButton(
-              icon: CupertinoIcons.play_fill,
-              label: 'Play',
-              filled: true,
-              isDark: isDark,
-              onTap: () => PlayerService().playQueue(songs, initialIndex: 0),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _ActionButton(
-              icon: CupertinoIcons.shuffle,
-              label: 'Shuffle',
-              filled: false,
-              isDark: isDark,
-              onTap: () {
-                final ps = PlayerService();
-                ps.playQueue(songs, initialIndex: 0);
-                if (!ps.shuffle) ps.toggleShuffle();
-              },
-            ),
-          ),
-        ],
-      ),
-    );
+    return Padding(padding: const EdgeInsets.fromLTRB(20, 12, 20, 8), child: Row(children: [Expanded(child: _ActionButton(icon: CupertinoIcons.play_fill, label: 'Play', filled: true, isDark: isDark, onTap: () => PlayerService().playQueue(songs, initialIndex: 0))), const SizedBox(width: 12), Expanded(child: _ActionButton(icon: CupertinoIcons.shuffle, label: 'Shuffle', filled: false, isDark: isDark, onTap: () { final ps = PlayerService(); ps.playQueue(songs, initialIndex: 0); if (!ps.shuffle) ps.toggleShuffle(); } ))]));
   }
 }
 
@@ -596,142 +366,22 @@ class _ActionButton extends StatelessWidget {
   final bool filled;
   final bool isDark;
   final VoidCallback onTap;
-
-  const _ActionButton({
-    required this.icon,
-    required this.label,
-    required this.filled,
-    required this.isDark,
-    required this.onTap,
-  });
-
+  const _ActionButton({required this.icon, required this.label, required this.filled, required this.isDark, required this.onTap});
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 44,
-        decoration: BoxDecoration(
-          color: filled
-              ? LuminaColors.accent
-              : (isDark ? LuminaColors.bg2 : LuminaColors.lightBg2),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon,
-                size: 15,
-                color: filled
-                    ? Colors.white
-                    : (isDark ? Colors.white : Colors.black87)),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-                color: filled
-                    ? Colors.white
-                    : (isDark ? Colors.white : Colors.black87),
-                letterSpacing: -0.3,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return GestureDetector(onTap: onTap, child: Container(height: 44, decoration: BoxDecoration(color: filled ? LuminaColors.accent : (isDark ? LuminaColors.bg2 : LuminaColors.lightBg2), borderRadius: BorderRadius.circular(12)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 15, color: filled ? Colors.white : (isDark ? Colors.white : Colors.black87)), const SizedBox(width: 6), Text(label, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: filled ? Colors.white : (isDark ? Colors.white : Colors.black87), letterSpacing: -0.3))])));
   }
 }
 
-// ── Song Row ─────────────────────────────────────────────────────────────────
 class _SongRow extends StatelessWidget {
   final AudioFile song;
   final bool isPlaying;
   final bool isDark;
   final VoidCallback onTap;
   final VoidCallback onMore;
-
-  const _SongRow({
-    required this.song,
-    required this.isPlaying,
-    required this.isDark,
-    required this.onTap,
-    required this.onMore,
-  });
-
+  const _SongRow({required this.song, required this.isPlaying, required this.isDark, required this.onTap, required this.onMore});
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        child: Row(
-          children: [
-            // Artwork
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: SizedBox(
-                width: 48,
-                height: 48,
-                child: song.coverArt != null
-                    ? Image.memory(song.coverArt!, fit: BoxFit.cover)
-                    : Container(
-                        color: isDark
-                            ? LuminaColors.bg2
-                            : LuminaColors.lightBg2,
-                        child: const Icon(CupertinoIcons.music_note,
-                            color: LuminaColors.labelSecondary, size: 20),
-                      ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    song.title,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 16,
-                      color: isPlaying
-                          ? LuminaColors.accent
-                          : (isDark ? Colors.white : Colors.black87),
-                      letterSpacing: -0.2,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    song.artist,
-                    style: const TextStyle(
-                        color: LuminaColors.labelSecondary, fontSize: 14),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            // More button
-            GestureDetector(
-              onTap: onMore,
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 12),
-                child: Icon(
-                  CupertinoIcons.ellipsis,
-                  color: LuminaColors.labelSecondary,
-                  size: 20,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return GestureDetector(onTap: onTap, behavior: HitTestBehavior.opaque, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), child: Row(children: [ClipRRect(borderRadius: BorderRadius.circular(6), child: SizedBox(width: 48, height: 48, child: song.coverArt != null ? Image.memory(song.coverArt!, fit: BoxFit.cover) : Container(color: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2, child: const Icon(CupertinoIcons.music_note, color: LuminaColors.labelSecondary, size: 20)))), const SizedBox(width: 14), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(song.title, style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16, color: isPlaying ? LuminaColors.accent : (isDark ? Colors.white : Colors.black87), letterSpacing: -0.2), maxLines: 1, overflow: TextOverflow.ellipsis), const SizedBox(height: 2), Text(song.artist, style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis)])), GestureDetector(onTap: onMore, behavior: HitTestBehavior.opaque, child: const Padding(padding: EdgeInsets.only(left: 12), child: Icon(CupertinoIcons.ellipsis, color: LuminaColors.labelSecondary, size: 20)))])));
   }
 }

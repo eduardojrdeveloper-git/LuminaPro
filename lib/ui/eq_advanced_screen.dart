@@ -171,10 +171,9 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
     return CupertinoPageScaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       navigationBar: CupertinoNavigationBar(
-        middle: Text(
+        middle: const Text(
           'Parametric EQ',
           style: TextStyle(
-            color: isDark ? Colors.white : Colors.black,
             fontWeight: FontWeight.w600,
             fontSize: 17,
             letterSpacing: -0.3,
