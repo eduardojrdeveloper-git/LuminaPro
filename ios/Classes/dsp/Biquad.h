@@ -6,6 +6,7 @@ enum class FilterType {
     Peak,
     LowShelf,
     HighShelf,
+    Preamp,
     None
 };
 

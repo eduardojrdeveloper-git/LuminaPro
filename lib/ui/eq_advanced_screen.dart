@@ -544,6 +544,20 @@ class EqVisualizerPainter extends CustomPainter {
       if (b['type'] == 'Preamp') preamp += (b['gain'] as num).toDouble();
     }
 
+    // ── Draw Preamp line (separate) ────────────────────────────────
+    final preampY = _dbToY(preamp, size);
+    final preampPaint = Paint()
+      ..color = LuminaColors.accent.withOpacity(0.4)
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+    
+    // Draw dashed preamp line
+    double dashWidth = 5, dashSpace = 5, startX = 0;
+    while (startX < size.width) {
+      canvas.drawLine(Offset(startX, preampY), Offset(startX + dashWidth, preampY), preampPaint);
+      startX += dashWidth + dashSpace;
+    }
+
     final path = Path();
     final fillPath = Path();
     bool first = true;
@@ -551,7 +565,7 @@ class EqVisualizerPainter extends CustomPainter {
     for (double x = 0; x <= size.width; x += 1) {
       final freq =
           exp(log(20.0) + (x / size.width) * (log(20000.0) - log(20.0)));
-      double totalDb = preamp;
+      double totalDb = 0.0; // Start at 0, don't include preamp in curve
       for (var band in bands) {
         if (band['type'] == 'Preamp') continue;
         totalDb += _calcGain(band, freq);
@@ -620,15 +634,57 @@ class EqVisualizerPainter extends CustomPainter {
     final gain = (band['gain'] as num).toDouble();
     final q    = (band['q']    as num).toDouble();
     if (fc <= 0) return 0;
-    final w0 = freq / fc;
+    
+    // Preamp is global, shouldn't be here but handled for safety
+    if (type == 'Preamp') return 0;
 
-    if (type == 'PK') {
-      final a = pow(10.0, gain / 40.0);
-      final n = 1.0 + pow(w0 - 1.0 / w0, 2) * pow(q, 2) * pow(a, 2);
-      final d = 1.0 + pow(w0 - 1.0 / w0, 2) * pow(q, 2) / pow(a, 2);
-      return 10 * log(n / d) / ln10;
+    // Using Audio EQ Cookbook based magnitude calculation
+    // This is an approximation of the digital filter response
+    final double fs = 44100.0; // Assume 44.1kHz for visualization
+    final double w0 = 2 * pi * fc / fs;
+    final double w = 2 * pi * freq / fs;
+    final double alpha = sin(w0) / (2 * q);
+    final double A = pow(10, gain / 40);
+
+    double b0, b1, b2, a0, a1, a2;
+
+    switch (type) {
+      case 'PK':
+        b0 = 1 + alpha * A;
+        b1 = -2 * cos(w0);
+        b2 = 1 - alpha * A;
+        a0 = 1 + alpha / A;
+        a1 = -2 * cos(w0);
+        a2 = 1 - alpha / A;
+        break;
+      case 'LS':
+      case 'LSC':
+        b0 = A * ((A + 1) - (A - 1) * cos(w0) + 2 * sqrt(A) * alpha);
+        b1 = 2 * A * ((A - 1) - (A + 1) * cos(w0));
+        b2 = A * ((A + 1) - (A - 1) * cos(w0) - 2 * sqrt(A) * alpha);
+        a0 = (A + 1) + (A - 1) * cos(w0) + 2 * sqrt(A) * alpha;
+        a1 = -2 * ((A - 1) + (A + 1) * cos(w0));
+        a2 = (A + 1) + (A - 1) * cos(w0) - 2 * sqrt(A) * alpha;
+        break;
+      case 'HS':
+      case 'HSC':
+        b0 = A * ((A + 1) + (A - 1) * cos(w0) + 2 * sqrt(A) * alpha);
+        b1 = -2 * A * ((A - 1) + (A + 1) * cos(w0));
+        b2 = A * ((A + 1) + (A - 1) * cos(w0) - 2 * sqrt(A) * alpha);
+        a0 = (A + 1) - (A - 1) * cos(w0) + 2 * sqrt(A) * alpha;
+        a1 = 2 * ((A - 1) - (A + 1) * cos(w0));
+        a2 = (A + 1) - (A - 1) * cos(w0) - 2 * sqrt(A) * alpha;
+        break;
+      default:
+        return 0;
     }
-    return 0;
+
+    // Magnitude response of biquad
+    // H(z) = (b0 + b1*z^-1 + b2*z^-2) / (a0 + a1*z^-1 + a2*z^-2)
+    final double n = b0*b0 + b1*b1 + b2*b2 + 2*(b0*b1 + b1*b2)*cos(w) + 2*b0*b2*cos(2*w);
+    final double d = a0*a0 + a1*a1 + a2*a2 + 2*(a0*a1 + a1*a2)*cos(w) + 2*a0*a2*cos(2*w);
+    
+    return 10 * log(max(n / d, 1e-10)) / ln10;
   }
 
   double _dbToY(double db, Size size) =>

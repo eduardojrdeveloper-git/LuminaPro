@@ -36,10 +36,23 @@ std::vector<FilterParams> EqualizerAPOParser::parseContent(const std::string& co
 
 FilterParams EqualizerAPOParser::parseLine(const std::string& line) {
     FilterParams params;
-    std::istringstream iss(line);
-    std::string token;
+    std::string trimmed = line;
+    // Trim leading whitespace
+    trimmed.erase(0, trimmed.find_first_not_of(" \t"));
     
+    // Check if line is a comment or empty
+    if (trimmed.empty() || trimmed[0] == '#') return params;
+
+    std::istringstream iss(trimmed);
+    std::string token;
     iss >> token;
+
+    if (token == "Preamp:") {
+        iss >> params.gain;
+        params.type = FilterType::Preamp; // Need to ensure Preamp is in FilterType enum
+        return params;
+    }
+
     if (token != "Filter:") return params;
     
     iss >> token; // ON/OFF
@@ -48,19 +61,20 @@ FilterParams EqualizerAPOParser::parseLine(const std::string& line) {
     iss >> token; // Type
     if (token == "PK") params.type = FilterType::Peak;
     else if (token == "LS") params.type = FilterType::LowShelf;
+    else if (token == "LSC") params.type = FilterType::LowShelf; // LSC is LS with Q
     else if (token == "HS") params.type = FilterType::HighShelf;
-    else return params; // Unsupported filter
+    else if (token == "HSC") params.type = FilterType::HighShelf;
+    else return params;
     
     while (iss >> token) {
         if (token == "Fc") {
             iss >> params.fc;
-            iss >> token; // Hz
         } else if (token == "Gain") {
             iss >> params.gain;
-            iss >> token; // dB
         } else if (token == "Q") {
             iss >> params.Q;
         }
+        // Skip units like Hz, dB
     }
     return params;
 }

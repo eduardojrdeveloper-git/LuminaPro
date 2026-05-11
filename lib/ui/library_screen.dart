@@ -28,8 +28,8 @@ class LibraryScreenState extends State<LibraryScreen>
   @override
   void initState() {
     super.initState();
-    // 5 tabs: Categories, Songs, Artists, Albums, Loved
-    _tabController = TabController(length: 5, vsync: this);
+    // 6 tabs: Categories, Songs, Artists, Albums, Genres, Loved
+    _tabController = TabController(length: 6, vsync: this);
     _tabController.addListener(() => setState(() {}));
     _refreshLibrary();
     _searchCtrl.addListener(_applyFilter);
@@ -216,7 +216,8 @@ class LibraryScreenState extends State<LibraryScreen>
                           1: _segLabel('Songs', _tabController.index == 1, isDark),
                           2: _segLabel('Artists', _tabController.index == 2, isDark),
                           3: _segLabel('Albums', _tabController.index == 3, isDark),
-                          4: _segLabel('Loved', _tabController.index == 4, isDark),
+                          4: _segLabel('Genres', _tabController.index == 4, isDark),
+                          5: _segLabel('Loved', _tabController.index == 5, isDark),
                         },
                         onValueChanged: (v) {
                           if (v != null) _tabController.index = v; // Listener triggers rebuild
@@ -242,6 +243,7 @@ class LibraryScreenState extends State<LibraryScreen>
                       _buildSongsList(filterLoved: false),
                       _buildGroupedList(groupBy: (s) => s.artist, icon: CupertinoIcons.person_fill),
                       _buildAlbumsView(),
+                      _buildGroupedList(groupBy: (s) => s.genre, icon: CupertinoIcons.music_mic),
                       _buildSongsList(filterLoved: true),
                     ],
                   ),
@@ -284,7 +286,8 @@ class LibraryScreenState extends State<LibraryScreen>
               _CategoryCard(label: 'Songs', icon: CupertinoIcons.music_note, gradient: [const Color(0xFFFA233B), const Color(0xFFFF5263)], onTap: () => switchTab(1)),
               _CategoryCard(label: 'Albums', icon: CupertinoIcons.music_albums, gradient: [const Color(0xFFFF9500), const Color(0xFFFFCC00)], onTap: () => switchTab(3)),
               _CategoryCard(label: 'Artists', icon: CupertinoIcons.person_fill, gradient: [const Color(0xFF5856D6), const Color(0xFF8989EB)], onTap: () => switchTab(2)),
-              _CategoryCard(label: 'Loved', icon: CupertinoIcons.heart_fill, gradient: [const Color(0xFF32ADE6), const Color(0xFF007AFF)], onTap: () => switchTab(4)),
+              _CategoryCard(label: 'Genres', icon: CupertinoIcons.music_mic, gradient: [const Color(0xFF4CD964), const Color(0xFF5AC8FA)], onTap: () => switchTab(4)),
+              _CategoryCard(label: 'Loved', icon: CupertinoIcons.heart_fill, gradient: [const Color(0xFF32ADE6), const Color(0xFF007AFF)], onTap: () => switchTab(5)),
             ],
           ),
           if (_allSongs.isNotEmpty) ...[

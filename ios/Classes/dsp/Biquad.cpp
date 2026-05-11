@@ -19,6 +19,14 @@ void Biquad::setParameters(FilterType type, double fs, double fc, double Q, doub
     double b0_t = 1.0, b1_t = 0.0, b2_t = 0.0, a0_t = 1.0, a1_t = 0.0, a2_t = 0.0;
 
     switch (type) {
+        case FilterType::Preamp:
+            b0_t = pow(10.0, gainDB / 20.0);
+            b1_t = 0.0;
+            b2_t = 0.0;
+            a0_t = 1.0;
+            a1_t = 0.0;
+            a2_t = 0.0;
+            break;
         case FilterType::Peak:
             b0_t = 1.0 + alpha * A;
             b1_t = -2.0 * cos(w0);

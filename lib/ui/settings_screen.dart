@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:file_picker/file_picker.dart';
 import '../main.dart' show LuminaColors, themeNotifier, rotateArtworkNotifier;
 import '../services/player_service.dart';
+import '../services/library_service.dart';
 import 'eq_advanced_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -14,6 +17,33 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _ps = PlayerService();
+
+  Future<void> _importEqProfile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['txt'],
+    );
+    if (result != null && result.files.single.path != null) {
+      final file = File(result.files.single.path!);
+      final content = await file.readAsString();
+      // Apply the EQ content via PlayerService
+      await _ps.updateEQFromContent(content);
+      _showToast('EQ Profile Applied: ${result.files.single.name}');
+    }
+  }
+
+  void _manageFolders() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => _FolderManagerSheet(onUpdate: () => setState(() {})),
+    );
+  }
+
+  void _showToast(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +66,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.only(bottom: 120),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
+                // ── AUDIO PATH ──────────────────────────────────────────────
+                _SectionHeader('BIT-PERFECT AUDIO PATH'),
+                _GroupedSection(
+                  isDark: isDark,
+                  children: [
+                    ValueListenableBuilder<Map<String, String>>(
+                      valueListenable: _ps.audioPathNotifier,
+                      builder: (_, path, __) {
+                        return Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            children: [
+                              _PathRow(label: 'SOURCE', value: path['Source']!, isDark: isDark),
+                              _PathRow(label: 'ENGINE', value: path['DSP']!, isDark: isDark),
+                              _PathRow(label: 'OUTPUT', value: path['Output']!, isDark: isDark, isLast: true),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+
+                // ── LIBRARY ────────────────────────────────────────────────
+                _SectionHeader('LIBRARY MANAGEMENT'),
+                _GroupedSection(
+                  isDark: isDark,
+                  children: [
+                    _SettingRow(
+                      isDark: isDark,
+                      icon: CupertinoIcons.folder_fill,
+                      iconColor: const Color(0xFF007AFF),
+                      title: 'Music Folders',
+                      subtitle: '${LibraryService.scanPaths.length} folders included',
+                      onTap: _manageFolders,
+                      showChevron: true,
+                    ),
+                  ],
+                ),
+
                 // ── AUDIO ENGINE ───────────────────────────────────────────
                 _SectionHeader('AUDIO ENGINE'),
                 _GroupedSection(
@@ -51,6 +121,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         context,
                         CupertinoPageRoute(builder: (_) => const EqAdvancedScreen()),
                       ),
+                      showChevron: true,
+                    ),
+                    const _Divider(),
+                    _SettingRow(
+                      isDark: isDark,
+                      icon: CupertinoIcons.doc_text_fill,
+                      iconColor: const Color(0xFF34C759),
+                      title: 'Import EQ Profile',
+                      subtitle: 'Load .txt from Equalizer APO',
+                      onTap: _importEqProfile,
                       showChevron: true,
                     ),
                     const _Divider(),
@@ -132,7 +212,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       icon: CupertinoIcons.info_circle_fill,
                       iconColor: const Color(0xFFFFCC00),
                       title: 'Lumina Pro',
-                      subtitle: 'v1.0.0 · Bit-Perfect Audio',
+                      subtitle: 'v1.1.0 · Bit-Perfect Audio',
                     ),
                     const _Divider(),
                     _SettingRow(
@@ -156,10 +236,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
 
                 const SizedBox(height: 24),
-                // Version footer
                 Center(
                   child: Text(
-                    'Lumina Pro 1.0.0\nMade with ♥ for audio enthusiasts',
+                    'Lumina Pro 1.1.0\nMade with ♥ for audio enthusiasts',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: LuminaColors.labelTertiary,
@@ -285,6 +364,93 @@ class _SettingRow extends StatelessWidget {
             if (trailing != null) trailing!,
             if (showChevron) const Icon(CupertinoIcons.chevron_right, color: LuminaColors.labelSecondary, size: 14),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PathRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isDark;
+  final bool isLast;
+  const _PathRow({required this.label, required this.value, required this.isDark, this.isLast = false});
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Column(
+          children: [
+            Container(width: 8, height: 8, decoration: BoxDecoration(color: LuminaColors.accent, shape: BoxShape.circle)),
+            if (!isLast) Container(width: 2, height: 20, color: LuminaColors.accent.withOpacity(0.3)),
+          ],
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.5, color: LuminaColors.labelTertiary)),
+              Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black)),
+              if (!isLast) const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FolderManagerSheet extends StatefulWidget {
+  final VoidCallback onUpdate;
+  const _FolderManagerSheet({required this.onUpdate});
+  @override
+  State<_FolderManagerSheet> createState() => _FolderManagerSheetState();
+}
+
+class _FolderManagerSheetState extends State<_FolderManagerSheet> {
+  late List<String> _paths;
+  @override
+  void initState() {
+    super.initState();
+    _paths = List.from(LibraryService.scanPaths);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return CupertinoPageScaffold(
+      navigationBar: CupertinoNavigationBar(
+        middle: const Text('Music Folders'),
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          child: const Text('Add'),
+          onPressed: () async {
+            String? path = await FilePicker.platform.getDirectoryPath();
+            if (path != null) {
+              setState(() => _paths.add(path));
+              await LibraryService.updateScanPaths(_paths);
+              widget.onUpdate();
+            }
+          },
+        ),
+      ),
+      child: SafeArea(
+        child: ListView.builder(
+          itemCount: _paths.length,
+          itemBuilder: (context, i) => ListTile(
+            title: Text(_paths[i], style: TextStyle(fontSize: 14, color: isDark ? Colors.white : Colors.black)),
+            trailing: CupertinoButton(
+              padding: EdgeInsets.zero,
+              child: const Icon(CupertinoIcons.delete, color: LuminaColors.destructive, size: 20),
+              onPressed: () async {
+                setState(() => _paths.removeAt(i));
+                await LibraryService.updateScanPaths(_paths);
+                widget.onUpdate();
+              },
+            ),
+          ),
         ),
       ),
     );

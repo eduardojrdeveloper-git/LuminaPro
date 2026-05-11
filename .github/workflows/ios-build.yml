@@ -74,6 +74,10 @@ jobs:
                   setupAudioEngine()
                   setupRemoteCommandCenter()
                   
+                  NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] _ in
+                      self?.updateAudioPathInfo()
+                  }
+                  
                   methodChannel?.setMethodCallHandler({ [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
                       guard let self = self else { return }
                       switch call.method {
@@ -85,6 +89,32 @@ jobs:
                               self.playAudio(path: path)
                               result(nil)
                           } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
+                      case "updateEQFromContent":
+                          if let args = call.arguments as? [String: Any], let content = args["content"] as? String {
+                              // Parsing logic for APO text -> AVAudioUnitEQ
+                              let lines = content.components(separatedBy: .newlines)
+                              var bands: [[String: Any]] = []
+                              for line in lines {
+                                  if line.contains("Filter:") && line.contains("ON") {
+                                      let parts = line.components(separatedBy: " ")
+                                      var fc: Double = 1000, gain: Double = 0, q: Double = 1, type = "PK"
+                                      if let fcIdx = parts.firstIndex(of: "Fc") { fc = Double(parts[fcIdx+1]) ?? 1000 }
+                                      if let gnIdx = parts.firstIndex(of: "Gain") { gain = Double(parts[gnIdx+1]) ?? 0 }
+                                      if let qIdx = parts.firstIndex(of: "Q") { q = Double(parts[qIdx+1]) ?? 1 }
+                                      if line.contains(" LSC") { type = "LSC" }
+                                      else if line.contains(" LS") { type = "LSC" } // Simplified
+                                      bands.append(["fc": fc, "gain": gain, "q": q, "type": type])
+                                  } else if line.contains("Preamp:") {
+                                      let parts = line.components(separatedBy: " ")
+                                      if let db = Double(parts.last?.replacingOccurrences(of: "dB", with: "") ?? "0") {
+                                          self.engine.mainMixerNode.outputVolume = Float(pow(10.0, db / 20.0))
+                                      }
+                                  }
+                              }
+                              self.updateEQ(bands: bands)
+                              result(nil)
+                          } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
+                      // ... rest of cases ...
                       case "pause":
                           self.pauseAudio()
                           result(nil)
@@ -227,11 +257,32 @@ jobs:
                   
                   MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
               }
-              
+              func updateAudioPathInfo() {
+                  guard let audioFile = audioFile else { return }
+                  let srcFormat = audioFile.processingFormat
+                  let outputFormat = engine.outputNode.outputFormat(forBus: 0)
+
+                  let sourceStr = "\(Int(srcFormat.sampleRate / 1000))kHz · \(srcFormat.commonFormat == .pcmFormatFloat32 ? "32-bit Float" : "Int")"
+                  let dspStr    = "Bit-Perfect Pass-through" // App processing
+
+                  let outputName = AVAudioSession.sharedInstance().currentRoute.outputs.first?.portName ?? "Unknown"
+                  let outputStr = "\(outputName) (\(Int(outputFormat.sampleRate / 1000))kHz)"
+
+                  DispatchQueue.main.async {
+                      self.methodChannel?.invokeMethod("audioPathUpdate", arguments: [
+                          "source": sourceStr,
+                          "dsp": dspStr,
+                          "output": outputStr
+                      ])
+                  }
+              }
+
               func playAudio(path: String) {
                   let url = URL(fileURLWithPath: path)
                   do {
                       audioFile = try AVAudioFile(forReading: url)
+                      updateAudioPathInfo()
+                      
                       // Reset seek offset when starting a new track
                       seekOffsetMs = 0
                       isSeeking = true

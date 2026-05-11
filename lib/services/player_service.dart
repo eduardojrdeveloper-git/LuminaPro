@@ -59,19 +59,37 @@ class PlayerService {
   final StreamController<Duration> _positionController = StreamController<Duration>.broadcast();
   final StreamController<Duration?> _durationController = StreamController<Duration?>.broadcast();
   final StreamController<bool> _playingController = StreamController<bool>.broadcast();
+// ── Audio Path Info ───────────────────────────────────────────────────────
+final ValueNotifier<Map<String, String>> audioPathNotifier = ValueNotifier({
+  'Source': '---',
+  'DSP': '---',
+  'Output': '---',
+});
 
-  PlayerService._internal() {
-    positionStream = _positionController.stream;
-    durationStream = _durationController.stream;
-    playingStream = _playingController.stream;
+PlayerService._internal() {
+  positionStream = _positionController.stream;
+  durationStream = _durationController.stream;
+  playingStream = _playingController.stream;
 
-    _channel.setMethodCallHandler((call) async {
-      try {
-        switch (call.method) {
-          case 'nextTrack': skipToNext(); break;
-          case 'previousTrack': skipToPrevious(); break;
-          case 'playPause': playPause(); break;
-          case 'seek':
+  _channel.setMethodCallHandler((call) async {
+    try {
+      switch (call.method) {
+        case 'nextTrack': skipToNext(); break;
+        case 'previousTrack': skipToPrevious(); break;
+        case 'playPause': playPause(); break;
+        case 'audioPathUpdate':
+          if (call.arguments is Map) {
+            final args = Map<String, dynamic>.from(call.arguments);
+            audioPathNotifier.value = {
+              'Source': args['source']?.toString() ?? '---',
+              'DSP': args['dsp']?.toString() ?? '---',
+              'Output': args['output']?.toString() ?? '---',
+            };
+          }
+          break;
+        case 'seek':
+// ... rest of handler ...
+
             final args = call.arguments;
             if (args is Map && args['position'] != null) {
               final posMs = (args['position'] as num).toInt();
@@ -219,11 +237,26 @@ class PlayerService {
   Future<void> _playCurrent() async {
     if (_queue.isEmpty || _currentIndex < 0 || _currentIndex >= _queue.length) return;
     final song = _queue[_currentIndex];
+    
+    // Check if file exists before trying to play
+    if (!await File(song.path).exists()) {
+      debugPrint('PlayerService: file not found: ${song.path}');
+      _onTrackFinished(); // Skip to next
+      return;
+    }
+
     currentSong.value = song;
     _emitPosition(Duration.zero);
     try {
-      await _channel.invokeMethod('play', {'path': song.path, 'title': song.title, 'artist': song.artist});
+      await _channel.invokeMethod('play', {
+        'path': song.path,
+        'title': song.title,
+        'artist': song.artist
+      });
       _emitPlaying(true);
+      
+      // Small delay to let native engine initialize before applying EQ
+      await Future.delayed(const Duration(milliseconds: 100));
       await applyCurrentEQ();
       await setVolume(volumeNotifier.value);
     } catch (e) {
@@ -303,11 +336,39 @@ class PlayerService {
   }
 
   Future<void> updateEQ(List<Map<String, dynamic>> bands) async {
-    try { await _channel.invokeMethod('updateEQ', {'bands': bands}); } catch (e) {}
+    try {
+      // Convert Q to bandwidth (octaves) for AVAudioUnitEQ
+      // N = 2/ln2 * arcsinh(1/(2Q))
+      final convertedBands = bands.map((b) {
+        final q = (b['q'] as num).toDouble();
+        final bandwidth = 2.0 / log(2.0) * _asinh(1.0 / (2.0 * q));
+        return {
+          ...b,
+          'q': bandwidth.clamp(0.05, 5.0), // native side uses 'q' key for bandwidth
+        };
+      }).toList();
+      
+      await _channel.invokeMethod('updateEQ', {'bands': convertedBands});
+    } catch (e) {
+      debugPrint('PlayerService: error updateEQ: $e');
+    }
   }
 
+  double _asinh(double x) => log(x + sqrt(x * x + 1));
+
   Future<void> updatePreamp(double gain) async {
-    try { await _channel.invokeMethod('updatePreamp', {'gain': gain}); } catch (e) {}
+    try { await _channel.invokeMethod('updatePreamp', {'gain': gain}); } catch (e) {
+      debugPrint('PlayerService: error updatePreamp: $e');
+    }
+  }
+
+  Future<void> updateEQFromContent(String content) async {
+    try {
+      await _channel.invokeMethod('updateEQFromContent', {'content': content});
+      LogService.log('EQ Profile applied from content');
+    } catch (e) {
+      LogService.log('PlayerService: error updateEQFromContent: $e');
+    }
   }
 
   Future<void> applyCurrentEQ() async {

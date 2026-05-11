@@ -34,8 +34,12 @@ class LuminaColors {
   static const destructive    = Color(0xFFFF3B30);
 }
 
+import 'services/log_service.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await LogService.initialize();
+  await LibraryService.initialize();
   runApp(const LuminaProApp());
 }
 

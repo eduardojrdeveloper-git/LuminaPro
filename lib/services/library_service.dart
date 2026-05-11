@@ -9,6 +9,7 @@ class AudioFile {
   final String title;
   final String artist;
   final String album;
+  final String genre;
   final Uint8List? coverArt;
   final Duration? duration;
   final int? sampleRate;
@@ -20,6 +21,7 @@ class AudioFile {
     required this.title,
     this.artist = 'Unknown Artist',
     this.album = 'Unknown Album',
+    this.genre = 'Unknown Genre',
     this.coverArt,
     this.duration,
     this.sampleRate,
@@ -40,17 +42,54 @@ class AudioFile {
   }
 }
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 class LibraryService {
+  static bool _initialized = false;
+  static List<String> _includePaths = [];
+
+  static Future<void> initialize() async {
+    if (_initialized) return;
+    try {
+      await MetadataGod.initialize();
+      final prefs = await SharedPreferences.getInstance();
+      _includePaths = prefs.getStringList('include_paths') ?? [];
+
+      // Default to documents directory if empty
+      if (_includePaths.isEmpty) {
+        final docDir = await getApplicationDocumentsDirectory();
+        _includePaths = [docDir.path];
+      }
+
+      _initialized = true;
+    } catch (e) {
+      debugPrint('LibraryService: MetadataGod initialization failed: $e');
+    }
+  }
+
+  static Future<void> updateScanPaths(List<String> paths) async {
+    _includePaths = paths;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('include_paths', paths);
+  }
+
+  static List<String> get scanPaths => List.unmodifiable(_includePaths);
+
   static Future<List<AudioFile>> scanMusic() async {
     final List<AudioFile> songs = [];
     try {
-      MetadataGod.initialize();
-      final directory = await getApplicationDocumentsDirectory();
-      final List<FileSystemEntity> entities =
-          await directory.list(recursive: true).toList();
+      await initialize();
 
-      for (var entity in entities) {
-        if (entity is File) {
+      for (var path in _includePaths) {
+        final dir = Directory(path);
+        if (!await dir.exists()) continue;
+
+        final List<FileSystemEntity> entities =
+            await dir.list(recursive: true).toList();
+
+        for (var entity in entities) {
+// ... rest of scan logic ...
+
           final ext = p.extension(entity.path).toLowerCase();
           if (ext == '.flac' ||
               ext == '.wav' ||
@@ -62,6 +101,7 @@ class LibraryService {
             String title = fileName;
             String artist = 'Unknown Artist';
             String album = 'Unknown Album';
+            String genre = 'Unknown Genre';
             Uint8List? coverArt;
             Duration? duration;
             int? sampleRate;
@@ -80,18 +120,15 @@ class LibraryService {
               if (metadata.album != null && metadata.album!.isNotEmpty) {
                 album = metadata.album!;
               }
+              if (metadata.genre != null && metadata.genre!.isNotEmpty) {
+                genre = metadata.genre!;
+              }
               if (metadata.picture != null) {
                 coverArt = metadata.picture!.data;
               }
               if (metadata.durationMs != null) {
                 duration = Duration(milliseconds: metadata.durationMs!.toInt());
               }
-              // if (metadata.sampleRate != null) {
-              //   sampleRate = metadata.sampleRate!.toInt();
-              // }
-              // if (metadata.bitDepth != null) {
-              //   bitDepth = metadata.bitDepth!.toInt();
-              // }
             } catch (e) {
               debugPrint(
                   'LibraryService: metadata error for ${entity.path}: $e');
@@ -113,6 +150,7 @@ class LibraryService {
               title: title,
               artist: artist,
               album: album,
+              genre: genre,
               coverArt: coverArt,
               duration: duration,
               sampleRate: sampleRate,
@@ -132,5 +170,8 @@ class LibraryService {
   }
 }
 
-// ignore_for_file: avoid_print
-void debugPrint(String msg) => print(msg);
+import 'log_service.dart';
+
+// ... rest of imports ...
+
+void debugPrint(String msg) => LogService.log(msg);
