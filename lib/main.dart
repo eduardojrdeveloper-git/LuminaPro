@@ -135,7 +135,7 @@ class MainNavigationState extends State<MainNavigation> with TickerProviderState
     return Scaffold(
       extendBody: true, // Allow body to flow behind bottom bar
       body: IndexedStack(index: _currentIndex, children: _screens),
-      bottomNavigationBar: isPlayer ? null : _buildBottomBar(isDark),
+      bottomNavigationBar: _buildBottomBar(isDark),
     );
   }
 

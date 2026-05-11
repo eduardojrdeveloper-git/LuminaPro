@@ -182,10 +182,11 @@ jobs:
               
               func extractArtwork(from path: String) -> MPMediaItemArtwork? {
                   let url = URL(fileURLWithPath: path)
-                  let asset = AVAsset(url: url)
-                  for metadata in asset.commonMetadata {
-                      if metadata.commonKey == .commonKeyArtwork,
-                         let data = metadata.value as? Data,
+                  let asset = AVURLAsset(url: url)
+                  let metadata = asset.metadata(forFormat: .commonMetadata)
+                  for item in metadata {
+                      if item.commonKey == .commonKeyArtwork,
+                         let data = item.dataValue,
                          let image = UIImage(data: data) {
                           return MPMediaItemArtwork(boundsSize: image.size) { _ in return image }
                       }
