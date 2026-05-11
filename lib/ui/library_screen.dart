@@ -617,6 +617,7 @@ class _SongRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
         onTap: onTap,
+        onLongPress: !song.isLocal ? () => _triggerDownload(context) : null,
         behavior: HitTestBehavior.opaque,
         child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -684,5 +685,15 @@ class _SongRow extends StatelessWidget {
                       child: Icon(CupertinoIcons.ellipsis,
                           color: LuminaColors.labelSecondary, size: 20)))
             ])));
+  }
+
+  void _triggerDownload(BuildContext context) async {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloading: ${song.title}...')));
+    final path = await GoogleDriveService().downloadFile(song.driveFileId!, '${song.title}.flac');
+    if (path != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloaded: ${song.title} to local.')));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Download failed.')));
+    }
   }
 }

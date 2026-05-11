@@ -544,31 +544,57 @@ class _GoogleDriveSheetState extends State<_GoogleDriveSheet> {
                       onPressed: _handleSignIn,
                     ),
                   )
-                : ListView.builder(
-                    itemCount: _folders.length,
-                    itemBuilder: (context, i) {
-                      final folder = _folders[i];
-                      return Material(
-                        color: Colors.transparent,
-                        child: ListTile(
-                          leading: const Icon(CupertinoIcons.folder_fill, color: Color(0xFF007AFF)),
-                          title: Text(folder.name ?? 'Unknown', style: TextStyle(color: isDark ? Colors.white : Colors.black)),
-                          trailing: CupertinoButton(
-                            padding: EdgeInsets.zero,
-                            child: const Text('Scan'),
-                            onPressed: () async {
-                              setState(() => _isLoading = true);
-                              final songs = await _driveService.scanFolderForFlacs(folder.id!, folder.name ?? 'Drive Folder');
-                              LibraryService.addDriveSongs(songs);
-                              widget.onUpdate();
-                              Navigator.pop(context);
-                            },
-                          ),
+                : _folders.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(CupertinoIcons.folder_badge_minus, size: 64, color: LuminaColors.labelTertiary),
+                            const SizedBox(height: 16),
+                            Text('No folders found in your Drive', style: TextStyle(color: isDark ? Colors.white : Colors.black54)),
+                            CupertinoButton(child: const Text('Refresh'), onPressed: _loadFolders),
+                          ],
                         ),
-                      );
-                    },
-                  ),
+                      )
+                    : ListView.builder(
+                        itemCount: _folders.length,
+                        itemBuilder: (context, i) {
+                          final folder = _folders[i];
+                          return Material(
+                            color: Colors.transparent,
+                            child: ListTile(
+                              leading: const Icon(CupertinoIcons.folder_fill, color: Color(0xFF007AFF)),
+                              title: Text(folder.name ?? 'Unknown',
+                                  style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 16)),
+                              subtitle: const Text('Tap Scan to index FLAC files', style: TextStyle(fontSize: 12)),
+                              trailing: CupertinoButton(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                color: const Color(0xFF34A853),
+                                borderRadius: BorderRadius.circular(20),
+                                child: const Text('Scan', style: TextStyle(fontSize: 13, color: Colors.white)),
+                                onPressed: () async {
+                                  setState(() => _isLoading = true);
+                                  try {
+                                    final songs = await _driveService.scanFolderForFlacs(folder.id!, folder.name ?? 'Drive Folder');
+                                    LibraryService.addDriveSongs(songs);
+                                    _showToast('Found ${songs.length} FLAC files');
+                                    widget.onUpdate();
+                                    Navigator.pop(context);
+                                  } catch (e) {
+                                    _showToast('Scan failed: $e');
+                                    setState(() => _isLoading = false);
+                                  }
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                      ),
       ),
     );
+  }
+
+  void _showToast(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }
