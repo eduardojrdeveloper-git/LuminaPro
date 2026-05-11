@@ -36,181 +36,191 @@ class DetailScreen extends StatelessWidget {
 
     return CupertinoPageScaffold(
       backgroundColor: isDark ? LuminaColors.bg0 : LuminaColors.lightBg0,
-      child: CustomScrollView(
-        slivers: [
-          // ── Cupertino Nav Bar ────────────────────────────────────────────
-          CupertinoSliverNavigationBar(
-            largeTitle: Text(
-              title,
-              style: TextStyle(
-                color: isDark ? Colors.white : Colors.black,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.5,
+      child: Material(
+        type: MaterialType.transparency, // Fix yellow underlines
+        child: CustomScrollView(
+          slivers: [
+            // ── Cupertino Nav Bar ────────────────────────────────────────────
+            CupertinoSliverNavigationBar(
+              largeTitle: Text(
+                title,
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                  decoration: TextDecoration.none,
+                ),
               ),
+              leading: CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: () => Navigator.pop(context),
+                child: const Icon(CupertinoIcons.chevron_back,
+                    color: LuminaColors.accent),
+              ),
+              backgroundColor:
+                  (isDark ? LuminaColors.bg0 : LuminaColors.lightBg0)
+                      .withOpacity(0.88),
+              border: null,
             ),
-            leading: CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () => Navigator.pop(context),
-              child: const Icon(CupertinoIcons.chevron_back,
-                  color: LuminaColors.accent),
-            ),
-            backgroundColor:
-                (isDark ? LuminaColors.bg0 : LuminaColors.lightBg0)
-                    .withOpacity(0.88),
-            border: null,
-          ),
 
-          SliverToBoxAdapter(
-            child: Column(
-              children: [
-                // ── Album Artwork — centrado con sombra (Apple Music style) ─
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(48, 20, 48, 0),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(isDark ? 0.5 : 0.22),
-                          blurRadius: 36,
-                          offset: const Offset(0, 14),
-                          spreadRadius: -4,
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  // ── Album Artwork ──
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(54, 20, 54, 0),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(isDark ? 0.55 : 0.2),
+                            blurRadius: 40,
+                            offset: const Offset(0, 16),
+                            spreadRadius: -4,
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: AspectRatio(
+                          aspectRatio: 1,
+                          child: coverArt != null
+                              ? Image.memory(coverArt!, fit: BoxFit.cover)
+                              : Container(
+                                  color: isDark
+                                      ? LuminaColors.bg2
+                                      : LuminaColors.lightBg2,
+                                  child: const Center(
+                                    child: Icon(CupertinoIcons.music_albums,
+                                        color: LuminaColors.labelSecondary,
+                                        size: 64),
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // ── Album Info ──
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 4),
+                    child: Column(
+                      children: [
+                        if (songs.isNotEmpty)
+                          Text(
+                            songs.first.artist,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              color: LuminaColors.accent,
+                              fontWeight: FontWeight.w600,
+                              decoration: TextDecoration.none,
+                            ),
+                          ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${songs.length} SONGS · $totalMin MINUTES',
+                          style: TextStyle(
+                            color: LuminaColors.labelSecondary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.2,
+                            decoration: TextDecoration.none,
+                          ),
                         ),
                       ],
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: AspectRatio(
-                        aspectRatio: 1,
-                        child: coverArt != null
-                            ? Image.memory(coverArt!, fit: BoxFit.cover)
-                            : Container(
-                                color: isDark
-                                    ? LuminaColors.bg2
-                                    : LuminaColors.lightBg2,
-                                child: const Center(
-                                  child: Icon(CupertinoIcons.music_albums,
-                                      color: LuminaColors.labelSecondary,
-                                      size: 56),
-                                ),
-                              ),
-                      ),
-                    ),
                   ),
-                ),
 
-                // ── Album Info ──────────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 4),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (songs.isNotEmpty)
-                        Text(
-                          songs.first.artist,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            color: LuminaColors.accent,
-                            fontWeight: FontWeight.w500,
+                  // ── Play + Shuffle Buttons ──
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _DetailButton(
+                            icon: CupertinoIcons.play_fill,
+                            label: 'Play',
+                            filled: true,
+                            isDark: isDark,
+                            onTap: () =>
+                                PlayerService().playQueue(songs, initialIndex: 0),
                           ),
                         ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${songs.length} songs · $totalMin min',
-                        style: const TextStyle(
-                          color: LuminaColors.labelSecondary,
-                          fontSize: 13,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: _DetailButton(
+                            icon: CupertinoIcons.shuffle,
+                            label: 'Shuffle',
+                            filled: false,
+                            isDark: isDark,
+                            onTap: () {
+                              final ps = PlayerService();
+                              ps.playQueue(songs, initialIndex: 0);
+                              if (!ps.shuffle) ps.toggleShuffle();
+                            },
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // ── Play + Shuffle Buttons ───────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _DetailButton(
-                          icon: CupertinoIcons.play_fill,
-                          label: 'Play',
-                          filled: true,
-                          isDark: isDark,
-                          onTap: () =>
-                              PlayerService().playQueue(songs, initialIndex: 0),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _DetailButton(
-                          icon: CupertinoIcons.shuffle,
-                          label: 'Shuffle',
-                          filled: false,
-                          isDark: isDark,
-                          onTap: () {
-                            final ps = PlayerService();
-                            ps.playQueue(songs, initialIndex: 0);
-                            if (!ps.shuffle) ps.toggleShuffle();
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Separator
-                Divider(
-                  color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3,
-                  height: 1,
-                  indent: 20,
-                  endIndent: 20,
-                ),
-              ],
-            ),
-          ),
-
-          // ── Track List ───────────────────────────────────────────────────
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final song = songs[index];
-                final isPlaying =
-                    PlayerService().currentSong.value?.path == song.path;
-                return Column(
-                  children: [
-                    _TrackRow(
-                      song: song,
-                      index: index,
-                      isPlaying: isPlaying,
-                      isDark: isDark,
-                      fmt: _fmt,
-                      onTap: () => PlayerService()
-                          .playQueue(songs, initialIndex: index),
+                      ],
                     ),
-                    if (index < songs.length - 1)
-                      Divider(
-                        color: isDark
-                            ? LuminaColors.bg3
-                            : LuminaColors.lightBg3,
-                        indent: 56,
-                        height: 1,
-                      ),
-                  ],
-                );
-              },
-              childCount: songs.length,
-            ),
-          ),
+                  ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 120)),
-        ],
+                  const SizedBox(height: 8),
+                  Divider(
+                    color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3,
+                    height: 1,
+                    indent: 24,
+                    endIndent: 24,
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Track List ──
+            SliverPadding(
+              padding: const EdgeInsets.only(top: 8),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final song = songs[index];
+                    final isPlaying =
+                        PlayerService().currentSong.value?.path == song.path;
+                    return Column(
+                      children: [
+                        _TrackRow(
+                          song: song,
+                          index: index,
+                          isPlaying: isPlaying,
+                          isDark: isDark,
+                          fmt: _fmt,
+                          onTap: () => PlayerService()
+                              .playQueue(songs, initialIndex: index),
+                        ),
+                        if (index < songs.length - 1)
+                          Divider(
+                            color: isDark
+                                ? LuminaColors.bg3
+                                : LuminaColors.lightBg3,
+                            indent: 72,
+                            height: 1,
+                          ),
+                      ],
+                    );
+                  },
+                  childCount: songs.length,
+                ),
+              ),
+            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 150)),
+          ],
+        ),
       ),
     );
   }
 }
 
-// ── Track Row ─────────────────────────────────────────────────────────────────
 class _TrackRow extends StatelessWidget {
   final AudioFile song;
   final int index;
@@ -234,27 +244,26 @@ class _TrackRow extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         child: Row(
           children: [
-            // Track number / playing indicator
             SizedBox(
-              width: 28,
+              width: 32,
               child: isPlaying
                   ? const Icon(CupertinoIcons.waveform,
                       color: LuminaColors.accent, size: 18)
                   : Text(
                       '${index + 1}',
                       textAlign: TextAlign.right,
-                      style: const TextStyle(
-                        color: LuminaColors.labelSecondary,
-                        fontSize: 16,
+                      style: TextStyle(
+                        color: LuminaColors.labelSecondary.withOpacity(0.6),
+                        fontSize: 15,
                         fontWeight: FontWeight.w400,
+                        decoration: TextDecoration.none,
                       ),
                     ),
             ),
             const SizedBox(width: 16),
-            // Info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -262,12 +271,13 @@ class _TrackRow extends StatelessWidget {
                   Text(
                     song.title,
                     style: TextStyle(
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                       fontSize: 16,
                       color: isPlaying
                           ? LuminaColors.accent
                           : (isDark ? Colors.white : Colors.black87),
-                      letterSpacing: -0.2,
+                      letterSpacing: -0.3,
+                      decoration: TextDecoration.none,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -275,30 +285,31 @@ class _TrackRow extends StatelessWidget {
                   if (song.artist.isNotEmpty)
                     Text(
                       song.artist,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: LuminaColors.labelSecondary,
                         fontSize: 13,
+                        decoration: TextDecoration.none,
                       ),
                       maxLines: 1,
                     ),
                 ],
               ),
             ),
-            // Duration + More
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (song.duration != null)
                   Text(
                     fmt(song.duration),
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: LuminaColors.labelTertiary,
                       fontSize: 13,
+                      decoration: TextDecoration.none,
                     ),
                   ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 const Icon(CupertinoIcons.ellipsis,
-                    color: LuminaColors.labelSecondary, size: 18),
+                    color: LuminaColors.labelSecondary, size: 20),
               ],
             ),
           ],
@@ -308,7 +319,6 @@ class _TrackRow extends StatelessWidget {
   }
 }
 
-// ── Detail Button ─────────────────────────────────────────────────────────────
 class _DetailButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -329,7 +339,7 @@ class _DetailButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 44,
+        height: 48,
         decoration: BoxDecoration(
           color: filled
               ? LuminaColors.accent
@@ -341,21 +351,22 @@ class _DetailButton extends StatelessWidget {
           children: [
             Icon(
               icon,
-              size: 15,
+              size: 16,
               color: filled
                   ? Colors.white
-                  : (isDark ? Colors.white : Colors.black87),
+                  : LuminaColors.accent,
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-                letterSpacing: -0.2,
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                letterSpacing: -0.3,
                 color: filled
                     ? Colors.white
-                    : (isDark ? Colors.white : Colors.black87),
+                    : LuminaColors.accent,
+                decoration: TextDecoration.none,
               ),
             ),
           ],

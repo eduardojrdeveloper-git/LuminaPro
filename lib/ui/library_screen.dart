@@ -28,7 +28,8 @@ class LibraryScreenState extends State<LibraryScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    // 5 tabs: Categories, Songs, Artists, Albums, Loved
+    _tabController = TabController(length: 5, vsync: this);
     _tabController.addListener(() => setState(() {}));
     _refreshLibrary();
     _searchCtrl.addListener(_applyFilter);
@@ -207,10 +208,11 @@ class LibraryScreenState extends State<LibraryScreen>
                         thumbColor: isDark ? LuminaColors.bg3 : Colors.white,
                         backgroundColor: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2,
                         children: {
-                          0: _segLabel('Songs', _tabController.index == 0, isDark),
-                          1: _segLabel('Artists', _tabController.index == 1, isDark),
-                          2: _segLabel('Albums', _tabController.index == 2, isDark),
-                          3: _segLabel('Loved', _tabController.index == 3, isDark),
+                          0: _segLabel('Browse', _tabController.index == 0, isDark),
+                          1: _segLabel('Songs', _tabController.index == 1, isDark),
+                          2: _segLabel('Artists', _tabController.index == 2, isDark),
+                          3: _segLabel('Albums', _tabController.index == 3, isDark),
+                          4: _segLabel('Loved', _tabController.index == 4, isDark),
                         },
                         onValueChanged: (v) {
                           if (v != null) setState(() => _tabController.index = v);
@@ -232,6 +234,7 @@ class LibraryScreenState extends State<LibraryScreen>
                   child: TabBarView(
                     controller: _tabController,
                     children: [
+                      _buildCategories(isDark),
                       _buildSongsList(filterLoved: false),
                       _buildGroupedList(groupBy: (s) => s.artist, icon: CupertinoIcons.person_fill),
                       _buildAlbumsView(),
@@ -258,6 +261,37 @@ class LibraryScreenState extends State<LibraryScreen>
     );
   }
 
+  Widget _buildCategories(bool isDark) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 130),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Browse Music', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.4)),
+          const SizedBox(height: 16),
+          GridView.count(
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 2.2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              _CategoryCard(label: 'Songs', icon: CupertinoIcons.music_note, gradient: [const Color(0xFFFA233B), const Color(0xFFFF5263)], onTap: () => switchTab(1)),
+              _CategoryCard(label: 'Albums', icon: CupertinoIcons.music_albums, gradient: [const Color(0xFFFF9500), const Color(0xFFFFCC00)], onTap: () => switchTab(3)),
+              _CategoryCard(label: 'Artists', icon: CupertinoIcons.person_fill, gradient: [const Color(0xFF5856D6), const Color(0xFF8989EB)], onTap: () => switchTab(2)),
+              _CategoryCard(label: 'Loved', icon: CupertinoIcons.heart_fill, gradient: [const Color(0xFF32ADE6), const Color(0xFF007AFF)], onTap: () => switchTab(4)),
+            ],
+          ),
+          if (_allSongs.isNotEmpty) ...[
+            const Padding(padding: EdgeInsets.fromLTRB(0, 32, 0, 16), child: Text('Recently Added', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.4))),
+            _RecentList(songs: _allSongs.take(6).toList(), isDark: isDark),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildSongsList({required bool filterLoved}) {
     final ps = PlayerService();
     return ValueListenableBuilder<Set<String>>(
@@ -272,7 +306,7 @@ class LibraryScreenState extends State<LibraryScreen>
         final isDark = Theme.of(context).brightness == Brightness.dark;
 
         return ListView.builder(
-          padding: const EdgeInsets.only(bottom: 120),
+          padding: const EdgeInsets.only(bottom: 130),
           itemCount: songs.length + 1,
           itemBuilder: (context, index) {
             if (index == 0) return _ShuffleHeroButton(songs: songs);
@@ -325,7 +359,7 @@ class LibraryScreenState extends State<LibraryScreen>
     for (var song in songs) { final key = groupBy(song); grouped.putIfAbsent(key, () => []).add(song); }
     final keys = grouped.keys.toList()..sort();
     return ListView.separated(
-      padding: const EdgeInsets.only(bottom: 120),
+      padding: const EdgeInsets.only(bottom: 130),
       itemCount: keys.length,
       separatorBuilder: (_, __) => Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 76, height: 1),
       itemBuilder: (context, index) {
@@ -379,6 +413,38 @@ class LibraryScreenState extends State<LibraryScreen>
 
   Widget _buildEmptyState({bool isLoved = false}) {
     return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(isLoved ? CupertinoIcons.heart_fill : CupertinoIcons.music_note_list, size: 64, color: LuminaColors.labelTertiary), const SizedBox(height: 16), Text(isLoved ? 'No Loved Songs' : 'No Music Found', style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 17, fontWeight: FontWeight.w600)), const SizedBox(height: 8), Text(isLoved ? 'Songs you mark with a heart will appear here.' : 'Transfer songs via the Files app.', textAlign: TextAlign.center, style: const TextStyle(color: LuminaColors.labelTertiary, fontSize: 14))]));
+  }
+}
+
+class _CategoryCard extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final List<Color> gradient;
+  final VoidCallback onTap;
+  const _CategoryCard({required this.label, required this.icon, required this.gradient, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          decoration: BoxDecoration(gradient: LinearGradient(colors: gradient, begin: Alignment.topLeft, end: Alignment.bottomRight)),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(children: [Icon(icon, color: Colors.white, size: 24), const SizedBox(width: 12), Expanded(child: Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white, letterSpacing: -0.3), maxLines: 1, overflow: TextOverflow.ellipsis))]),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecentList extends StatelessWidget {
+  final List<AudioFile> songs;
+  final bool isDark;
+  const _RecentList({required this.songs, required this.isDark});
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(height: 180, child: ListView.separated(padding: EdgeInsets.zero, scrollDirection: Axis.horizontal, itemCount: songs.length, separatorBuilder: (_, __) => const SizedBox(width: 14), itemBuilder: (context, index) { final song = songs[index]; return GestureDetector(onTap: () => PlayerService().playQueue(songs, initialIndex: index), child: SizedBox(width: 130, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.4 : 0.15), blurRadius: 12, offset: const Offset(0, 4))]), child: ClipRRect(borderRadius: BorderRadius.circular(10), child: song.coverArt != null ? Image.memory(song.coverArt!, fit: BoxFit.cover, width: 130) : Container(color: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2, child: const Center(child: Icon(CupertinoIcons.music_note, color: LuminaColors.labelSecondary, size: 32)))))), const SizedBox(height: 6), Text(song.title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis), Text(song.artist, style: const TextStyle(fontSize: 12, color: LuminaColors.labelSecondary), maxLines: 1, overflow: TextOverflow.ellipsis)]))); }));
   }
 }
 
