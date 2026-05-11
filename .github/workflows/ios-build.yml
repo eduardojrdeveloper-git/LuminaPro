@@ -80,22 +80,25 @@ jobs:
                             let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
                             let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else { return }
                       
-                      if reason == .oldDeviceUnavailable {
+                      // Pause on both disconnection AND connection to ensure engine reconfigures correctly
+                      if reason == .oldDeviceUnavailable || reason == .newDeviceAvailable {
                           self.pauseAudio()
                           self.methodChannel?.invokeMethod("playPause", arguments: nil)
                       }
-                      self.updateAudioPathInfo()
+                      
+                      // Small delay to let system settle before updating path info
+                      DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                          self.updateAudioPathInfo()
+                      }
                   }
                   
                   NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: nil, queue: .main) { [weak self] _ in
                       guard let self = self else { return }
-                      // The engine configuration changed (e.g. route change), might need restart
-                      if !self.engine.isRunning {
-                          do {
-                              try self.engine.start()
-                          } catch {
-                              print("Failed to restart engine: \(error)")
-                          }
+                      // Hard restart if configuration changes to align sample rates
+                      let wasPlaying = self.playerNode.isPlaying
+                      self.setupAudioEngine() 
+                      if wasPlaying {
+                          self.resumeAudio()
                       }
                       self.updateAudioPathInfo()
                   }
@@ -176,15 +179,18 @@ jobs:
                   if playerNode.engine == nil { engine.attach(playerNode) }
                   if eqNode.engine == nil { engine.attach(eqNode) }
                   
+                  // Disconnect first to ensure we use new device formats
+                  engine.disconnectNodeInput(eqNode)
+                  engine.disconnectNodeInput(engine.mainMixerNode)
+                  
                   engine.connect(playerNode, to: eqNode, format: nil)
                   engine.connect(eqNode, to: engine.mainMixerNode, format: nil)
                   
                   do {
                       try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, policy: .longFormAudio)
                       try AVAudioSession.sharedInstance().setActive(true)
-                      if !engine.isRunning {
-                          try engine.start()
-                      }
+                      if engine.isRunning { engine.stop() }
+                      try engine.start()
                   } catch {
                       print("Audio Engine setup error: \(error)")
                   }
