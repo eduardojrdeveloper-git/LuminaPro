@@ -1,9 +1,8 @@
 import 'dart:ui';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../services/player_service.dart';
 import '../services/library_service.dart';
-import '../main.dart' show LuminaColors;
+import '../main.dart' show LuminaColors, rotateArtworkNotifier;
 
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({super.key});
@@ -697,7 +696,7 @@ class _Controls extends StatelessWidget {
                 color = LuminaColors.accent;
                 break;
               case RepeatMode.one:
-                icon = Icons.repeat_rounded_1;
+                icon = Icons.repeat_one_rounded;
                 color = LuminaColors.accent;
                 break;
             }
@@ -809,10 +808,5 @@ class _SeekBarState extends State<_SeekBar> {
         );
       },
     );
-  }
-}
-}
-}
-);
   }
 }

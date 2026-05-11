@@ -430,8 +430,3 @@ class _SettingRow extends StatelessWidget {
     );
   }
 }
-       ),
-      ),
-    );
-  }
-}
