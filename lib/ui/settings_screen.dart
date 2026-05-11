@@ -52,7 +52,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     _SettingRow(
                       isDark: isDark,
-                      icon: CupertinoIcons.waveform,
+                      icon: Icons.graphic_eq_rounded,
                       iconColor: const Color(0xFF5856D6),
                       title: 'Parametric EQ',
                       subtitle: 'Customize frequency response',
@@ -70,7 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         final cf = _ps.crossfadeDuration;
                         return _SettingRow(
                           isDark: isDark,
-                          icon: CupertinoIcons.arrow_left_right,
+                          icon: Icons.compare_arrows_rounded,
                           iconColor: const Color(0xFFFF9500),
                           title: 'Crossfade',
                           subtitle: cf == 0
@@ -128,7 +128,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       fontSize: 14),
                                 ),
                                 const SizedBox(width: 4),
-                                const Icon(CupertinoIcons.chevron_right,
+                                const Icon(Icons.chevron_right_rounded,
                                     color: LuminaColors.labelSecondary,
                                     size: 14),
                               ],
@@ -152,7 +152,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         if (song == null) {
                           return _SettingRow(
                             isDark: isDark,
-                            icon: CupertinoIcons.music_note_2,
+                            icon: Icons.music_note_rounded,
                             iconColor: LuminaColors.accent,
                             title: 'Current Track',
                             subtitle: 'Nothing playing',
@@ -160,7 +160,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         }
                         return _SettingRow(
                           isDark: isDark,
-                          icon: CupertinoIcons.music_note_2,
+                          icon: Icons.music_note_rounded,
                           iconColor: LuminaColors.accent,
                           title: song.title,
                           subtitle: song.formatBadge.isNotEmpty
@@ -179,7 +179,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     _SettingRow(
                       isDark: isDark,
-                      icon: CupertinoIcons.folder_fill,
+                      icon: Icons.folder_rounded,
                       iconColor: const Color(0xFF34C759),
                       title: 'How to Add Music',
                       subtitle: 'Transfer via Files app or iTunes',
@@ -189,7 +189,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const _Divider(),
                     _SettingRow(
                       isDark: isDark,
-                      icon: CupertinoIcons.doc_text,
+                      icon: Icons.description_rounded,
                       iconColor: const Color(0xFF5AC8FA),
                       title: 'Supported Formats',
                       subtitle: 'FLAC · WAV · MP3 · M4A · AIFF',
@@ -204,7 +204,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     _SettingRow(
                       isDark: isDark,
-                      icon: CupertinoIcons.sparkles,
+                      icon: Icons.auto_awesome_rounded,
                       iconColor: const Color(0xFFFFCC00),
                       title: 'Lumina Pro',
                       subtitle: 'v1.0.0 · Bit-Perfect Audio Player',
@@ -212,7 +212,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const _Divider(),
                     _SettingRow(
                       isDark: isDark,
-                      icon: CupertinoIcons.waveform_path_ecg,
+                      icon: Icons.graphic_eq_rounded,
                       iconColor: const Color(0xFFFF3B30),
                       title: 'Audio Engine',
                       subtitle: 'AVAudioEngine · CoreAudio · Direct',
@@ -422,10 +422,15 @@ class _SettingRow extends StatelessWidget {
             ),
             if (trailing != null) trailing!,
             if (showChevron)
-              const Icon(CupertinoIcons.chevron_right,
+              const Icon(Icons.chevron_right_rounded,
                   color: LuminaColors.labelSecondary, size: 14),
           ],
         ),
+      ),
+    );
+  }
+}
+       ),
       ),
     );
   }

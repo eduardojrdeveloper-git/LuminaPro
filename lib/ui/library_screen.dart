@@ -105,7 +105,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                 const Text('Title'),
                 if (_sortMode == SortMode.title) ...[
                   const SizedBox(width: 8),
-                  const Icon(CupertinoIcons.checkmark, size: 16),
+                  const Icon(Icons.check, size: 16),
                 ],
               ],
             ),
@@ -122,7 +122,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                 const Text('Artist'),
                 if (_sortMode == SortMode.artist) ...[
                   const SizedBox(width: 8),
-                  const Icon(CupertinoIcons.checkmark, size: 16),
+                  const Icon(Icons.check, size: 16),
                 ],
               ],
             ),
@@ -139,7 +139,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                 const Text('Album'),
                 if (_sortMode == SortMode.album) ...[
                   const SizedBox(width: 8),
-                  const Icon(CupertinoIcons.checkmark, size: 16),
+                  const Icon(Icons.check, size: 16),
                 ],
               ],
             ),
@@ -184,8 +184,8 @@ class _LibraryScreenState extends State<LibraryScreen>
               IconButton(
                 icon: Icon(
                   _showSearch
-                      ? CupertinoIcons.xmark_circle_fill
-                      : CupertinoIcons.search,
+                      ? Icons.cancel
+                      : Icons.search,
                   color: LuminaColors.accent,
                 ),
                 onPressed: () {
@@ -198,12 +198,12 @@ class _LibraryScreenState extends State<LibraryScreen>
                 },
               ),
               IconButton(
-                icon: const Icon(CupertinoIcons.sort_down,
+                icon: const Icon(Icons.sort,
                     color: LuminaColors.accent),
                 onPressed: _showSortMenu,
               ),
               IconButton(
-                icon: const Icon(CupertinoIcons.refresh,
+                icon: const Icon(Icons.refresh,
                     color: LuminaColors.accent),
                 onPressed: _refreshLibrary,
               ),
@@ -237,7 +237,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                               fontSize: 15,
                             ),
                             prefixIcon: const Icon(
-                              CupertinoIcons.search,
+                              Icons.search,
                               color: LuminaColors.labelSecondary,
                               size: 18,
                             ),
@@ -282,7 +282,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                   _buildSongsList(),
                   _buildGroupedList(
                       groupBy: (s) => s.artist,
-                      icon: CupertinoIcons.person_fill),
+                      icon: Icons.person),
                   _buildAlbumsView(),
                 ],
               ),
@@ -328,7 +328,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                           ? LuminaColors.bg2
                           : LuminaColors.lightBg2,
                       child: const Icon(
-                        CupertinoIcons.music_note,
+                        Icons.music_note,
                         color: LuminaColors.labelSecondary,
                         size: 20,
                       ),
@@ -459,7 +459,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                 color: LuminaColors.labelSecondary, fontSize: 13),
           ),
           trailing:
-              const Icon(CupertinoIcons.chevron_right, color: LuminaColors.labelSecondary, size: 16),
+              const Icon(Icons.chevron_right, color: LuminaColors.labelSecondary, size: 16),
           onTap: () {
             Navigator.push(
               context,
@@ -500,8 +500,8 @@ class _LibraryScreenState extends State<LibraryScreen>
                 onTap: () => setState(() => _albumsGrid = !_albumsGrid),
                 child: Icon(
                   _albumsGrid
-                      ? CupertinoIcons.list_bullet
-                      : CupertinoIcons.square_grid_2x2_fill,
+                      ? Icons.list
+                      : Icons.grid_view,
                   color: LuminaColors.accent,
                   size: 20,
                 ),
@@ -560,7 +560,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                                             ? LuminaColors.bg2
                                             : LuminaColors.lightBg2,
                                         child: const Icon(
-                                          CupertinoIcons.music_albums_fill,
+                                          Icons.album,
                                           color: LuminaColors.labelSecondary,
                                           size: 40,
                                         ),
@@ -626,7 +626,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                                       ? LuminaColors.bg2
                                       : LuminaColors.lightBg2,
                                   child: const Icon(
-                                    CupertinoIcons.music_albums_fill,
+                                    Icons.album,
                                     color: LuminaColors.labelSecondary,
                                     size: 22,
                                   ),
@@ -644,7 +644,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                         style: const TextStyle(
                             color: LuminaColors.labelSecondary, fontSize: 13),
                       ),
-                      trailing: const Icon(CupertinoIcons.chevron_right,
+                      trailing: const Icon(Icons.chevron_right,
                           color: LuminaColors.labelSecondary, size: 16),
                       onTap: () {
                         Navigator.push(
@@ -671,7 +671,7 @@ class _LibraryScreenState extends State<LibraryScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(CupertinoIcons.music_note_2,
+          Icon(Icons.library_music,
               size: 64, color: LuminaColors.labelTertiary),
           const SizedBox(height: 16),
           const Text(

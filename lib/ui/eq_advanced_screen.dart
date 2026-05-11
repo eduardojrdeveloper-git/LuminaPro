@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'dart:math';
 import '../services/player_service.dart';
@@ -117,14 +116,14 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
         ),
         leading: GestureDetector(
           onTap: () => Navigator.pop(context),
-          child: const Icon(CupertinoIcons.back, color: LuminaColors.accent),
+          child: const Icon(Icons.arrow_back_ios_new, color: LuminaColors.accent),
         ),
         actions: [
           GestureDetector(
             onTap: _exportApoProfile,
             child: const Padding(
               padding: EdgeInsets.only(right: 16),
-              child: Icon(CupertinoIcons.share, color: LuminaColors.accent),
+              child: Icon(Icons.share, color: LuminaColors.accent),
             ),
           ),
         ],
@@ -232,7 +231,7 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(CupertinoIcons.add, color: Colors.white, size: 18),
+                    Icon(Icons.add, color: Colors.white, size: 18),
                     SizedBox(width: 8),
                     Text(
                       'Add Filter Band',
@@ -331,7 +330,7 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
                     });
                     _applyEQ();
                   },
-                  child: const Icon(CupertinoIcons.trash,
+                  child: const Icon(Icons.delete,
                       color: LuminaColors.destructive, size: 18),
                 ),
               ],

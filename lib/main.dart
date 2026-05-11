@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'ui/library_screen.dart';
 import 'ui/player_screen.dart';
@@ -9,6 +8,7 @@ import 'services/player_service.dart';
 import 'services/library_service.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
+final ValueNotifier<bool> rotateArtworkNotifier = ValueNotifier(false);
 
 // ── Apple HIG Color System ────────────────────────────────────────────────────
 class LuminaColors {
@@ -189,8 +189,8 @@ class _MainNavigationState extends State<MainNavigation>
                       _TabItem(
                         index: 0,
                         current: _currentIndex,
-                        icon: CupertinoIcons.music_note_list,
-                        activeIcon: CupertinoIcons.music_note_list,
+                        icon: Icons.library_music_outlined,
+                        activeIcon: Icons.library_music,
                         label: 'Library',
                         onTap: () => setState(() => _currentIndex = 0),
                         isDark: isDark,
@@ -198,8 +198,8 @@ class _MainNavigationState extends State<MainNavigation>
                       _TabItem(
                         index: 1,
                         current: _currentIndex,
-                        icon: CupertinoIcons.music_note_2,
-                        activeIcon: CupertinoIcons.music_note_2,
+                        icon: Icons.play_circle_outline,
+                        activeIcon: Icons.play_circle,
                         label: 'Now Playing',
                         onTap: () => setState(() => _currentIndex = 1),
                         isDark: isDark,
@@ -207,8 +207,8 @@ class _MainNavigationState extends State<MainNavigation>
                       _TabItem(
                         index: 2,
                         current: _currentIndex,
-                        icon: CupertinoIcons.settings,
-                        activeIcon: CupertinoIcons.settings_solid,
+                        icon: Icons.settings_outlined,
+                        activeIcon: Icons.settings,
                         label: 'Settings',
                         onTap: () => setState(() => _currentIndex = 2),
                         isDark: isDark,
@@ -331,7 +331,7 @@ class _MiniPlayer extends StatelessWidget {
                             : Container(
                                 color: LuminaColors.bg2,
                                 child: const Icon(
-                                  CupertinoIcons.music_note,
+                                  Icons.music_note_rounded,
                                   color: LuminaColors.labelSecondary,
                                   size: 20,
                                 ),
@@ -375,13 +375,13 @@ class _MiniPlayer extends StatelessWidget {
                         children: [
                           _MiniButton(
                             icon: isPlaying
-                                ? CupertinoIcons.pause_fill
-                                : CupertinoIcons.play_fill,
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
                             isDark: isDark,
                             onTap: playerService.playPause,
                           ),
                           _MiniButton(
-                            icon: CupertinoIcons.forward_fill,
+                            icon: Icons.skip_next_rounded,
                             isDark: isDark,
                             onTap: playerService.skipToNext,
                           ),

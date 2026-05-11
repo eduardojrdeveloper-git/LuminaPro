@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 import 'dart:ui';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../services/library_service.dart';
 import '../services/player_service.dart';
@@ -53,7 +52,7 @@ class DetailScreen extends StatelessWidget {
                   color: Colors.black45,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(CupertinoIcons.back,
+                child: const Icon(Icons.arrow_back_ios_new,
                     color: Colors.white, size: 20),
               ),
             ),
@@ -69,7 +68,7 @@ class DetailScreen extends StatelessWidget {
                     Container(
                       color: isDark ? LuminaColors.bg1 : LuminaColors.lightBg2,
                       child: const Icon(
-                        CupertinoIcons.music_albums_fill,
+                        Icons.album,
                         size: 80,
                         color: LuminaColors.labelTertiary,
                       ),
@@ -134,7 +133,7 @@ class DetailScreen extends StatelessWidget {
                       children: [
                         Expanded(
                           child: _HeaderButton(
-                            icon: CupertinoIcons.play_fill,
+                            icon: Icons.play_arrow,
                             label: 'Play',
                             onTap: () => PlayerService()
                                 .playQueue(songs, initialIndex: 0),
@@ -145,7 +144,7 @@ class DetailScreen extends StatelessWidget {
                         const SizedBox(width: 12),
                         Expanded(
                           child: _HeaderButton(
-                            icon: CupertinoIcons.shuffle,
+                            icon: Icons.shuffle,
                             label: 'Shuffle',
                             onTap: () {
                               final ps = PlayerService();
@@ -179,7 +178,7 @@ class DetailScreen extends StatelessWidget {
                       leading: SizedBox(
                         width: 32,
                         child: isPlaying
-                            ? const Icon(CupertinoIcons.waveform,
+                            ? const Icon(Icons.graphic_eq,
                                 color: LuminaColors.accent, size: 18)
                             : Text(
                                 '${index + 1}',
@@ -224,7 +223,7 @@ class DetailScreen extends StatelessWidget {
                               ),
                             ),
                           const SizedBox(width: 8),
-                          const Icon(CupertinoIcons.ellipsis,
+                          const Icon(Icons.more_horiz,
                               color: LuminaColors.labelSecondary, size: 16),
                         ],
                       ),

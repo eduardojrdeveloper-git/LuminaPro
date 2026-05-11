@@ -75,7 +75,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    CupertinoIcons.music_note_2,
+                    Icons.music_note_rounded,
                     size: 72,
                     color: LuminaColors.labelTertiary,
                   ),
@@ -149,7 +149,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                         GestureDetector(
                           onTap: () => _showMoreMenu(context, song),
                           child: Icon(
-                            CupertinoIcons.ellipsis_circle,
+                            Icons.more_horiz_rounded,
                             color: isDark ? Colors.white70 : Colors.black54,
                             size: 26,
                           ),
@@ -158,25 +158,56 @@ class _PlayerScreenState extends State<PlayerScreen>
                     ),
                   ),
 
-                  // Artwork with scale + rotation
+                  // Artwork with scale + rotation (conditional)
                   Expanded(
                     child: Center(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 28),
-                        child: ScaleTransition(
-                          scale: _scaleAnim,
-                          child: RotationTransition(
-                            turns: _artworkController,
-                            child: song.coverArt != null
-                                ? ClipOval(
-                                    child: Image.memory(
-                                      song.coverArt!,
-                                      fit: BoxFit.cover,
-                                      width: double.infinity,
-                                    ),
+                        child: ValueListenableBuilder<bool>(
+                          valueListenable: rotateArtworkNotifier,
+                          builder: (_, isRotating, __) {
+                            final Widget artworkImage = song.coverArt != null
+                                ? Image.memory(
+                                    song.coverArt!,
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                    height: double.infinity,
                                   )
-                                : _buildPlaceholderArt(isDark),
-                          ),
+                                : _buildPlaceholderArt(isDark);
+
+                            return ScaleTransition(
+                              scale: _scaleAnim,
+                              child: isRotating
+                                  ? RotationTransition(
+                                      turns: _artworkController,
+                                      child: ClipOval(
+                                        child: AspectRatio(
+                                          aspectRatio: 1,
+                                          child: artworkImage,
+                                        ),
+                                      ),
+                                    )
+                                  : Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(16),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.3),
+                                            blurRadius: 30,
+                                            offset: const Offset(0, 15),
+                                          )
+                                        ],
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(16),
+                                        child: AspectRatio(
+                                          aspectRatio: 1,
+                                          child: artworkImage,
+                                        ),
+                                      ),
+                                    ),
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -195,8 +226,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                               Text(
                                 song.title,
                                 style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w700,
                                   color: isDark ? Colors.white : Colors.black87,
                                 ),
                                 maxLines: 1,
@@ -205,9 +236,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                               const SizedBox(height: 3),
                               Text(
                                 song.artist,
-                                style: const TextStyle(
-                                  fontSize: 17,
-                                  color: LuminaColors.accent,
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: LuminaColors.accent.withOpacity(0.9),
                                   fontWeight: FontWeight.w500,
                                 ),
                                 maxLines: 1,
@@ -227,11 +258,11 @@ class _PlayerScreenState extends State<PlayerScreen>
                             ],
                           ),
                         ),
-                        // Favorite (placeholder)
+                        // Favorite
                         GestureDetector(
                           onTap: () {},
                           child: Icon(
-                            CupertinoIcons.heart,
+                            Icons.favorite_outline_rounded,
                             color: isDark ? Colors.white60 : Colors.black45,
                             size: 24,
                           ),
@@ -273,7 +304,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                         GestureDetector(
                           onTap: () => _showQueue(context),
                           child: Icon(
-                            CupertinoIcons.list_bullet_below_rectangle,
+                            Icons.queue_music_rounded,
                             color: isDark ? Colors.white54 : Colors.black45,
                             size: 24,
                           ),
@@ -300,7 +331,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       child: const AspectRatio(
         aspectRatio: 1,
         child: Icon(
-          CupertinoIcons.music_note,
+          Icons.music_note_rounded,
           size: 80,
           color: LuminaColors.labelSecondary,
         ),
@@ -345,7 +376,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                             ? Image.memory(song.coverArt!, fit: BoxFit.cover)
                             : Container(
                                 color: LuminaColors.bg2,
-                                child: const Icon(CupertinoIcons.music_note,
+                                child: const Icon(Icons.music_note_rounded,
                                     color: LuminaColors.labelSecondary),
                               ),
                       ),
@@ -380,19 +411,19 @@ class _PlayerScreenState extends State<PlayerScreen>
                 ),
                 const SizedBox(height: 20),
                 _MoreMenuItem(
-                  icon: CupertinoIcons.waveform,
+                  icon: Icons.graphic_eq_rounded,
                   label: 'Equalizer (PEQ)',
                   onTap: () => Navigator.pop(context),
                   isDark: isDark,
                 ),
                 _MoreMenuItem(
-                  icon: CupertinoIcons.heart,
+                  icon: Icons.favorite_outline_rounded,
                   label: 'Add to Favorites',
                   onTap: () => Navigator.pop(context),
                   isDark: isDark,
                 ),
                 _MoreMenuItem(
-                  icon: CupertinoIcons.info_circle,
+                  icon: Icons.info_outline_rounded,
                   label: 'Song Info',
                   onTap: () => Navigator.pop(context),
                   isDark: isDark,
@@ -469,7 +500,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                                       : Container(
                                           color: LuminaColors.bg2,
                                           child: const Icon(
-                                              CupertinoIcons.music_note,
+                                              Icons.music_note_rounded,
                                               size: 16,
                                               color: LuminaColors.labelSecondary),
                                         ),
@@ -498,7 +529,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                               ),
                               trailing: isCurrent
                                   ? const Icon(
-                                      CupertinoIcons.waveform,
+                                      Icons.graphic_eq_rounded,
                                       color: LuminaColors.accent,
                                       size: 18,
                                     )
@@ -561,7 +592,7 @@ class _MoreMenuItem extends StatelessWidget {
               fontSize: 15,
             ),
           ),
-          trailing: const Icon(CupertinoIcons.chevron_right,
+          trailing: const Icon(Icons.chevron_right_rounded,
               color: LuminaColors.labelSecondary, size: 14),
           onTap: onTap,
         ),
@@ -593,7 +624,7 @@ class _Controls extends StatelessWidget {
           builder: (_, shuffle, __) => GestureDetector(
             onTap: playerService.toggleShuffle,
             child: Icon(
-              CupertinoIcons.shuffle,
+              Icons.shuffle_rounded,
               color: shuffle
                   ? LuminaColors.accent
                   : (isDark ? Colors.white54 : Colors.black38),
@@ -605,7 +636,7 @@ class _Controls extends StatelessWidget {
         GestureDetector(
           onTap: playerService.skipToPrevious,
           child: Icon(
-            CupertinoIcons.backward_fill,
+            Icons.skip_previous_rounded,
             color: isDark ? Colors.white : Colors.black87,
             size: 36,
           ),
@@ -632,8 +663,8 @@ class _Controls extends StatelessWidget {
                 ),
                 child: Icon(
                   isPlaying
-                      ? CupertinoIcons.pause_fill
-                      : CupertinoIcons.play_fill,
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
                   color: isDark ? Colors.black : Colors.white,
                   size: 32,
                 ),
@@ -645,7 +676,7 @@ class _Controls extends StatelessWidget {
         GestureDetector(
           onTap: playerService.skipToNext,
           child: Icon(
-            CupertinoIcons.forward_fill,
+            Icons.skip_next_rounded,
             color: isDark ? Colors.white : Colors.black87,
             size: 36,
           ),
@@ -658,15 +689,15 @@ class _Controls extends StatelessWidget {
             Color color;
             switch (repeat) {
               case RepeatMode.off:
-                icon = CupertinoIcons.repeat;
+                icon = Icons.repeat_rounded;
                 color = isDark ? Colors.white54 : Colors.black38;
                 break;
               case RepeatMode.all:
-                icon = CupertinoIcons.repeat;
+                icon = Icons.repeat_rounded;
                 color = LuminaColors.accent;
                 break;
               case RepeatMode.one:
-                icon = CupertinoIcons.repeat_1;
+                icon = Icons.repeat_rounded_1;
                 color = LuminaColors.accent;
                 break;
             }
@@ -778,5 +809,10 @@ class _SeekBarState extends State<_SeekBar> {
         );
       },
     );
+  }
+}
+}
+}
+);
   }
 }
