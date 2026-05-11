@@ -10,6 +10,7 @@ class AudioFile {
   final String path;
   final String title;
   final String artist;
+  final String albumArtist;
   final String album;
   final String genre;
   final Uint8List? coverArt;
@@ -22,6 +23,7 @@ class AudioFile {
     required this.path,
     required this.title,
     this.artist = 'Unknown Artist',
+    this.albumArtist = 'Unknown Artist',
     this.album = 'Unknown Album',
     this.genre = 'Unknown Genre',
     this.coverArt,
@@ -99,6 +101,7 @@ class LibraryService {
               String fileName = p.basenameWithoutExtension(entity.path);
               String title = fileName;
               String artist = 'Unknown Artist';
+              String albumArtist = 'Unknown Artist';
               String album = 'Unknown Album';
               String genre = 'Unknown Genre';
               Uint8List? coverArt;
@@ -115,6 +118,11 @@ class LibraryService {
                 }
                 if (metadata.artist != null && metadata.artist!.isNotEmpty) {
                   artist = metadata.artist!;
+                }
+                if (metadata.albumArtist != null && metadata.albumArtist!.isNotEmpty) {
+                  albumArtist = metadata.albumArtist!;
+                } else if (metadata.artist != null && metadata.artist!.isNotEmpty) {
+                  albumArtist = metadata.artist!;
                 }
                 if (metadata.album != null && metadata.album!.isNotEmpty) {
                   album = metadata.album!;
@@ -140,6 +148,7 @@ class LibraryService {
                   if (album == 'Unknown Album') album = parts[parts.length - 2];
                   if (artist == 'Unknown Artist') {
                     artist = parts[parts.length - 3];
+                    if (albumArtist == 'Unknown Artist') albumArtist = artist;
                   }
                 }
               }
@@ -148,6 +157,7 @@ class LibraryService {
                 path: entity.path,
                 title: title,
                 artist: artist,
+                albumArtist: albumArtist,
                 album: album,
                 genre: genre,
                 coverArt: coverArt,

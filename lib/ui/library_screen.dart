@@ -187,14 +187,34 @@ class LibraryScreenState extends State<LibraryScreen>
             ),
             SliverPersistentHeader(
               pinned: true,
-              delegate: _LibraryHeaderDelegate(
+              delegate: _SearchHeaderDelegate(
                 isDark: isDark,
                 searchCtrl: _searchCtrl,
                 searchFocus: _searchFocus,
-                tabController: _tabController,
-                onTabChanged: (v) {
-                  if (v != null) _tabController.index = v;
-                },
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: CupertinoSlidingSegmentedControl<int>(
+                    groupValue: _tabController.index,
+                    thumbColor: isDark ? LuminaColors.bg3 : Colors.white,
+                    backgroundColor: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2,
+                    children: {
+                      0: _segLabel('Library', _tabController.index == 0, isDark),
+                      1: _segLabel('Songs', _tabController.index == 1, isDark),
+                      2: _segLabel('Artists', _tabController.index == 2, isDark),
+                      3: _segLabel('Albums', _tabController.index == 3, isDark),
+                      4: _segLabel('Genres', _tabController.index == 4, isDark),
+                      5: _segLabel('Loved', _tabController.index == 5, isDark),
+                    },
+                    onValueChanged: (v) {
+                      if (v != null) setState(() => _tabController.index = v);
+                    },
+                  ),
+                ),
               ),
             ),
           ],
@@ -210,7 +230,7 @@ class LibraryScreenState extends State<LibraryScreen>
                     children: [
                       _buildCategories(isDark),
                       _buildSongsList(filterLoved: false),
-                      _buildGroupedList(groupBy: (s) => s.artist, icon: CupertinoIcons.person_fill),
+                      _buildGroupedList(groupBy: (s) => s.albumArtist, icon: CupertinoIcons.person_fill),
                       _buildAlbumsView(),
                       _buildGroupedList(groupBy: (s) => s.genre, icon: CupertinoIcons.music_mic),
                       _buildSongsList(filterLoved: true),
@@ -238,33 +258,107 @@ class LibraryScreenState extends State<LibraryScreen>
 
   Widget _buildCategories(bool isDark) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 130),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 130),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Browse Music', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.4)),
-          const SizedBox(height: 16),
+          if (_allSongs.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.fromLTRB(0, 12, 0, 12),
+              child: Text('Recently Added',
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.4)),
+            ),
+            _RecentList(songs: _allSongs.take(6).toList(), isDark: isDark),
+            const SizedBox(height: 12),
+          ],
+          const Text('Library',
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.4)),
+          const SizedBox(height: 8),
           GridView.count(
             crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 2.2,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 2.4,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             children: [
-              _CategoryCard(label: 'Songs', icon: CupertinoIcons.music_note, gradient: [const Color(0xFFFA233B), const Color(0xFFFF5263)], onTap: () => switchTab(1)),
-              _CategoryCard(label: 'Albums', icon: CupertinoIcons.music_albums, gradient: [const Color(0xFFFF9500), const Color(0xFFFFCC00)], onTap: () => switchTab(3)),
-              _CategoryCard(label: 'Artists', icon: CupertinoIcons.person_fill, gradient: [const Color(0xFF5856D6), const Color(0xFF8989EB)], onTap: () => switchTab(2)),
-              _CategoryCard(label: 'Genres', icon: CupertinoIcons.music_mic, gradient: [const Color(0xFF4CD964), const Color(0xFF5AC8FA)], onTap: () => switchTab(4)),
-              _CategoryCard(label: 'Loved', icon: CupertinoIcons.heart_fill, gradient: [const Color(0xFF32ADE6), const Color(0xFF007AFF)], onTap: () => switchTab(5)),
+              _CategoryCard(
+                  label: 'Songs',
+                  icon: CupertinoIcons.music_note,
+                  gradient: [const Color(0xFFFA233B), const Color(0xFFFF5263)],
+                  onTap: () => switchTab(1)),
+              _CategoryCard(
+                  label: 'Albums',
+                  icon: CupertinoIcons.music_albums,
+                  gradient: [const Color(0xFFFF9500), const Color(0xFFFFCC00)],
+                  onTap: () => switchTab(3)),
+              _CategoryCard(
+                  label: 'Artists',
+                  icon: CupertinoIcons.person_fill,
+                  gradient: [const Color(0xFF5856D6), const Color(0xFF8989EB)],
+                  onTap: () => switchTab(2)),
+              _CategoryCard(
+                  label: 'Genres',
+                  icon: CupertinoIcons.music_mic,
+                  gradient: [const Color(0xFF4CD964), const Color(0xFF5AC8FA)],
+                  onTap: () => switchTab(4)),
             ],
           ),
-          if (_allSongs.isNotEmpty) ...[
-            const Padding(padding: EdgeInsets.fromLTRB(0, 32, 0, 16), child: Text('Recently Added', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.4))),
-            _RecentList(songs: _allSongs.take(6).toList(), isDark: isDark),
-          ],
+          const Padding(
+            padding: EdgeInsets.fromLTRB(0, 16, 0, 8),
+            child: Text('All Songs',
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.4)),
+          ),
+          _buildInlineSongsList(),
         ],
       ),
+    );
+  }
+
+  Widget _buildInlineSongsList() {
+    final ps = PlayerService();
+    final songs = _allSongs;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
+      itemCount: songs.length,
+      itemBuilder: (context, index) {
+        final song = songs[index];
+        return ValueListenableBuilder<AudioFile?>(
+          valueListenable: ps.currentSong,
+          builder: (ctx, currentSong, _) {
+            final isPlaying = currentSong?.path == song.path;
+            return Column(
+              children: [
+                _SongRow(
+                  song: song,
+                  isPlaying: isPlaying,
+                  isDark: isDark,
+                  onTap: () => ps.playQueue(songs, initialIndex: index),
+                  onMore: () => _showSongMenu(context, song, index, songs),
+                ),
+                if (index < songs.length - 1)
+                  Divider(
+                      color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3,
+                      indent: 76,
+                      height: 1),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -391,7 +485,7 @@ class LibraryScreenState extends State<LibraryScreen>
               Expanded(child: Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.4 : 0.18), blurRadius: 16, offset: const Offset(0, 6))]), child: ClipRRect(borderRadius: BorderRadius.circular(10), child: cover != null ? Image.memory(cover, fit: BoxFit.cover, width: double.infinity) : Container(color: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2, child: const Center(child: Icon(CupertinoIcons.music_albums, color: LuminaColors.labelSecondary, size: 40)))))),
               const SizedBox(height: 8),
               Text(albumName, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87, letterSpacing: -0.2), maxLines: 1, overflow: TextOverflow.ellipsis),
-              Text(albumSongs.first.artist, style: const TextStyle(fontSize: 12, color: LuminaColors.labelSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(albumSongs.first.albumArtist, style: const TextStyle(fontSize: 12, color: LuminaColors.labelSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
             ],
           ),
         );
@@ -404,82 +498,40 @@ class LibraryScreenState extends State<LibraryScreen>
   }
 }
 
-class _LibraryHeaderDelegate extends SliverPersistentHeaderDelegate {
+class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
   final bool isDark;
   final TextEditingController searchCtrl;
   final FocusNode searchFocus;
-  final TabController tabController;
-  final ValueChanged<int?> onTabChanged;
 
-  _LibraryHeaderDelegate({
+  _SearchHeaderDelegate({
     required this.isDark,
     required this.searchCtrl,
     required this.searchFocus,
-    required this.tabController,
-    required this.onTabChanged,
   });
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.95),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-            child: CupertinoSearchTextField(
-              controller: searchCtrl,
-              focusNode: searchFocus,
-              placeholder: 'Artists, Songs, Lyrics, and More',
-              style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 16),
-              backgroundColor: isDark
-                  ? LuminaColors.bg2.withOpacity(0.9)
-                  : LuminaColors.lightBg2.withOpacity(0.9),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: CupertinoSlidingSegmentedControl<int>(
-                groupValue: tabController.index,
-                thumbColor: isDark ? LuminaColors.bg3 : Colors.white,
-                backgroundColor: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2,
-                children: {
-                  0: _segLabel('Browse', tabController.index == 0, isDark),
-                  1: _segLabel('Songs', tabController.index == 1, isDark),
-                  2: _segLabel('Artists', tabController.index == 2, isDark),
-                  3: _segLabel('Albums', tabController.index == 3, isDark),
-                  4: _segLabel('Genres', tabController.index == 4, isDark),
-                  5: _segLabel('Loved', tabController.index == 5, isDark),
-                },
-                onValueChanged: onTabChanged,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _segLabel(String text, bool isActive, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-          color: isActive ? (isDark ? Colors.white : Colors.black) : LuminaColors.labelSecondary,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child: CupertinoSearchTextField(
+          controller: searchCtrl,
+          focusNode: searchFocus,
+          placeholder: 'Artists, Songs, Lyrics, and More',
+          style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 16),
+          backgroundColor: isDark
+              ? LuminaColors.bg2.withOpacity(0.9)
+              : LuminaColors.lightBg2.withOpacity(0.9),
         ),
       ),
     );
   }
 
   @override
-  double get maxExtent => 110;
+  double get maxExtent => 64;
   @override
-  double get minExtent => 110;
+  double get minExtent => 64;
   @override
   bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) => true;
 }
@@ -512,7 +564,7 @@ class _RecentList extends StatelessWidget {
   const _RecentList({required this.songs, required this.isDark});
   @override
   Widget build(BuildContext context) {
-    return SizedBox(height: 180, child: ListView.separated(padding: EdgeInsets.zero, scrollDirection: Axis.horizontal, itemCount: songs.length, separatorBuilder: (_, __) => const SizedBox(width: 14), itemBuilder: (context, index) { final song = songs[index]; return GestureDetector(onTap: () => PlayerService().playQueue(songs, initialIndex: index), child: SizedBox(width: 130, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.4 : 0.15), blurRadius: 12, offset: const Offset(0, 4))]), child: ClipRRect(borderRadius: BorderRadius.circular(10), child: song.coverArt != null ? Image.memory(song.coverArt!, fit: BoxFit.cover, width: 130) : Container(color: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2, child: const Center(child: Icon(CupertinoIcons.music_note, color: LuminaColors.labelSecondary, size: 32)))))), const SizedBox(height: 6), Text(song.title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis), Text(song.artist, style: const TextStyle(fontSize: 12, color: LuminaColors.labelSecondary), maxLines: 1, overflow: TextOverflow.ellipsis)]))); }));
+    return SizedBox(height: 180, child: ListView.separated(padding: EdgeInsets.zero, scrollDirection: Axis.horizontal, itemCount: songs.length, separatorBuilder: (_, __) => const SizedBox(width: 14), itemBuilder: (context, index) { final song = songs[index]; return GestureDetector(onTap: () => PlayerService().playQueue(songs, initialIndex: index), child: SizedBox(width: 130, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.4 : 0.15), blurRadius: 12, offset: const Offset(0, 4))]), child: ClipRRect(borderRadius: BorderRadius.circular(10), child: song.coverArt != null ? Image.memory(song.coverArt!, fit: BoxFit.cover, width: 130) : Container(color: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2, child: const Center(child: Icon(CupertinoIcons.music_note, color: LuminaColors.labelSecondary, size: 32)))))), const SizedBox(height: 6), Text(song.title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis), Text(song.albumArtist, style: const TextStyle(fontSize: 12, color: LuminaColors.labelSecondary), maxLines: 1, overflow: TextOverflow.ellipsis)]))); }));
   }
 }
 
@@ -548,6 +600,52 @@ class _SongRow extends StatelessWidget {
   const _SongRow({required this.song, required this.isPlaying, required this.isDark, required this.onTap, required this.onMore});
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(onTap: onTap, behavior: HitTestBehavior.opaque, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), child: Row(children: [ClipRRect(borderRadius: BorderRadius.circular(6), child: SizedBox(width: 48, height: 48, child: song.coverArt != null ? Image.memory(song.coverArt!, fit: BoxFit.cover) : Container(color: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2, child: const Icon(CupertinoIcons.music_note, color: LuminaColors.labelSecondary, size: 20)))), const SizedBox(width: 14), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(song.title, style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16, color: isPlaying ? LuminaColors.accent : (isDark ? Colors.white : Colors.black87), letterSpacing: -0.2), maxLines: 1, overflow: TextOverflow.ellipsis), const SizedBox(height: 2), Text(song.artist, style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis)])), GestureDetector(onTap: onMore, behavior: HitTestBehavior.opaque, child: const Padding(padding: EdgeInsets.only(left: 12), child: Icon(CupertinoIcons.ellipsis, color: LuminaColors.labelSecondary, size: 20)))])));
+    return GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Row(children: [
+              ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: song.coverArt != null
+                          ? Image.memory(song.coverArt!, fit: BoxFit.cover)
+                          : Container(
+                              color: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2,
+                              child: const Icon(CupertinoIcons.music_note,
+                                  color: LuminaColors.labelSecondary, size: 20)))),
+              const SizedBox(width: 14),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(song.title,
+                        style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 16,
+                            color: isPlaying
+                                ? LuminaColors.accent
+                                : (isDark ? Colors.white : Colors.black87),
+                            letterSpacing: -0.2),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 2),
+                    Text(song.albumArtist,
+                        style: const TextStyle(
+                            color: LuminaColors.labelSecondary, fontSize: 14),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis)
+                  ])),
+              GestureDetector(
+                  onTap: onMore,
+                  behavior: HitTestBehavior.opaque,
+                  child: const Padding(
+                      padding: EdgeInsets.only(left: 12),
+                      child: Icon(CupertinoIcons.ellipsis,
+                          color: LuminaColors.labelSecondary, size: 20)))
+            ])));
   }
 }
