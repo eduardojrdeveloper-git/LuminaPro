@@ -80,13 +80,12 @@ jobs:
                             let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
                             let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else { return }
                       
-                      // Pause on both disconnection AND connection to ensure engine reconfigures correctly
-                      if reason == .oldDeviceUnavailable || reason == .newDeviceAvailable {
+                      // Pause on disconnect. User manually resumes. Maintains position.
+                      if reason == .oldDeviceUnavailable {
                           self.pauseAudio()
                           self.methodChannel?.invokeMethod("playPause", arguments: nil)
                       }
                       
-                      // Small delay to let system settle before updating path info
                       DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                           self.updateAudioPathInfo()
                       }
@@ -94,12 +93,13 @@ jobs:
                   
                   NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: nil, queue: .main) { [weak self] _ in
                       guard let self = self else { return }
-                      // Hard restart if configuration changes to align sample rates
                       let wasPlaying = self.playerNode.isPlaying
+                      self.isSeeking = true // Prevent 'finished' callback triggering track change
                       self.setupAudioEngine() 
                       if wasPlaying {
                           self.resumeAudio()
                       }
+                      self.isSeeking = false
                       self.updateAudioPathInfo()
                   }
                   
@@ -335,27 +335,53 @@ jobs:
               }
               
               func pauseAudio() {
-                  playerNode.pause()
-                  stopTimer()
-                  // FIX: snapshot current position into seekOffsetMs before pausing,
-                  // so that when we resume and later call updateNowPlaying the offset is correct.
                   if let nodeTime = playerNode.lastRenderTime,
                      let playerTime = playerNode.playerTime(forNodeTime: nodeTime) {
                       let elapsedMs = Int(Double(playerTime.sampleTime) / playerTime.sampleRate * 1000)
                       seekOffsetMs += elapsedMs
                   }
+                  playerNode.pause()
+                  stopTimer()
                   stateSink?(["playing": false])
                   updateNowPlaying(isPause: true)
               }
               
               func resumeAudio() {
                   guard !playerNode.isPlaying else { return }
-                  do { if !engine.isRunning { try engine.start() } } catch { print(error) }
-                  // seekOffsetMs already holds the correct position from the last pause/seek
+                  do {
+                      if !engine.isRunning {
+                          try engine.start()
+                          reScheduleCurrent()
+                      } else if playerNode.lastRenderTime == nil {
+                          reScheduleCurrent()
+                      }
+                  } catch { print(error) }
+                  
                   playerNode.play()
                   startTimer()
                   stateSink?(["playing": true])
                   updateNowPlaying()
+              }
+              
+              func reScheduleCurrent() {
+                  guard let audioFile = audioFile else { return }
+                  let sampleRate = audioFile.processingFormat.sampleRate
+                  let newFramePosition = AVAudioFramePosition(Double(seekOffsetMs) / 1000.0 * sampleRate)
+                  let framesToPlay = AVAudioFrameCount(max(0, audioFile.length - newFramePosition))
+                  
+                  isSeeking = true
+                  playerNode.stop()
+                  if framesToPlay > 0 {
+                      playerNode.scheduleSegment(audioFile, startingFrame: newFramePosition, frameCount: framesToPlay, at: nil) { [weak self] in
+                          guard let self = self else { return }
+                          if !self.isSeeking {
+                              DispatchQueue.main.async {
+                                  self.stateSink?(["finished": true])
+                              }
+                          }
+                      }
+                  }
+                  isSeeking = false
               }
               
               func seekAudio(toMs: Int) {

@@ -185,47 +185,16 @@ class LibraryScreenState extends State<LibraryScreen>
                 ],
               ),
             ),
-            SliverToBoxAdapter(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                    child: CupertinoSearchTextField(
-                      controller: _searchCtrl,
-                      focusNode: _searchFocus,
-                      onTap: () {
-                        if (!_searchFocus.hasFocus) _searchFocus.requestFocus();
-                      },
-                      placeholder: 'Artists, Songs, Lyrics, and More',
-                      style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 16),
-                      backgroundColor: isDark
-                          ? LuminaColors.bg2.withOpacity(0.9)
-                          : LuminaColors.lightBg2.withOpacity(0.9),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: CupertinoSlidingSegmentedControl<int>(
-                        groupValue: _tabController.index,
-                        thumbColor: isDark ? LuminaColors.bg3 : Colors.white,
-                        backgroundColor: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2,
-                        children: {
-                          0: _segLabel('Browse', _tabController.index == 0, isDark),
-                          1: _segLabel('Songs', _tabController.index == 1, isDark),
-                          2: _segLabel('Artists', _tabController.index == 2, isDark),
-                          3: _segLabel('Albums', _tabController.index == 3, isDark),
-                          4: _segLabel('Genres', _tabController.index == 4, isDark),
-                          5: _segLabel('Loved', _tabController.index == 5, isDark),
-                        },
-                        onValueChanged: (v) {
-                          if (v != null) _tabController.index = v; // Listener triggers rebuild
-                        },
-                      ),
-                    ),
-                  ),
-                ],
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _LibraryHeaderDelegate(
+                isDark: isDark,
+                searchCtrl: _searchCtrl,
+                searchFocus: _searchFocus,
+                tabController: _tabController,
+                onTabChanged: (v) {
+                  if (v != null) _tabController.index = v;
+                },
               ),
             ),
           ],
@@ -433,6 +402,86 @@ class LibraryScreenState extends State<LibraryScreen>
   Widget _buildEmptyState({bool isLoved = false}) {
     return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(isLoved ? CupertinoIcons.heart_fill : CupertinoIcons.music_note_list, size: 64, color: LuminaColors.labelTertiary), const SizedBox(height: 16), Text(isLoved ? 'No Loved Songs' : 'No Music Found', style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 17, fontWeight: FontWeight.w600)), const SizedBox(height: 8), Text(isLoved ? 'Songs you mark with a heart will appear here.' : 'Transfer songs via the Files app.', textAlign: TextAlign.center, style: const TextStyle(color: LuminaColors.labelTertiary, fontSize: 14))]));
   }
+}
+
+class _LibraryHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final bool isDark;
+  final TextEditingController searchCtrl;
+  final FocusNode searchFocus;
+  final TabController tabController;
+  final ValueChanged<int?> onTabChanged;
+
+  _LibraryHeaderDelegate({
+    required this.isDark,
+    required this.searchCtrl,
+    required this.searchFocus,
+    required this.tabController,
+    required this.onTabChanged,
+  });
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.95),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+            child: CupertinoSearchTextField(
+              controller: searchCtrl,
+              focusNode: searchFocus,
+              placeholder: 'Artists, Songs, Lyrics, and More',
+              style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 16),
+              backgroundColor: isDark
+                  ? LuminaColors.bg2.withOpacity(0.9)
+                  : LuminaColors.lightBg2.withOpacity(0.9),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: CupertinoSlidingSegmentedControl<int>(
+                groupValue: tabController.index,
+                thumbColor: isDark ? LuminaColors.bg3 : Colors.white,
+                backgroundColor: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2,
+                children: {
+                  0: _segLabel('Browse', tabController.index == 0, isDark),
+                  1: _segLabel('Songs', tabController.index == 1, isDark),
+                  2: _segLabel('Artists', tabController.index == 2, isDark),
+                  3: _segLabel('Albums', tabController.index == 3, isDark),
+                  4: _segLabel('Genres', tabController.index == 4, isDark),
+                  5: _segLabel('Loved', tabController.index == 5, isDark),
+                },
+                onValueChanged: onTabChanged,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _segLabel(String text, bool isActive, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+          color: isActive ? (isDark ? Colors.white : Colors.black) : LuminaColors.labelSecondary,
+        ),
+      ),
+    );
+  }
+
+  @override
+  double get maxExtent => 110;
+  @override
+  double get minExtent => 110;
+  @override
+  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) => true;
 }
 
 class _CategoryCard extends StatelessWidget {

@@ -21,11 +21,68 @@ class PlayerService {
 
   // ── EQ Bands ────────────────────────────────────────────────────────────────
   List<Map<String, dynamic>> eqBands = [
-    {'fc': 1000.0, 'gain': -6.0, 'q': 1.41, 'type': 'Preamp'},
-    {'fc': 31.0,   'gain': 0.0,  'q': 1.41, 'type': 'PK'},
-    {'fc': 250.0,  'gain': 0.0,  'q': 1.41, 'type': 'LSC'},
-    {'fc': 8000.0, 'gain': 0.0,  'q': 1.41, 'type': 'HSC'},
+    {'fc': 1000.0, 'gain': 0.0,  'q': 1.41, 'type': 'Preamp'},
+    {'fc': 1000.0, 'gain': 0.0,  'q': 1.41, 'type': 'PK'},
   ];
+
+  static const String ia500Config = '''
+Preamp: -7.3 dB
+Filter: ON LSC Fc 28 Hz Gain 2.2 dB Q 0.917
+Filter: ON LS Fc 90 Hz Gain 5 dB
+Filter: ON PK Fc 2335 Hz Gain -0.9 dB Q 1.414
+Filter: ON PK Fc 2451 Hz Gain 0.5 dB Q 2.998
+Filter: ON PK Fc 3596 Hz Gain -3 dB Q 2.133
+Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
+''';
+
+  List<Map<String, dynamic>> parseApoContent(String content) {
+    final List<Map<String, dynamic>> bands = [];
+    final lines = content.split('\n');
+    for (var line in lines) {
+      line = line.trim();
+      if (line.isEmpty || line.startsWith('#')) continue;
+
+      if (line.startsWith('Preamp:')) {
+        final match = RegExp(r'Preamp:\s+([-\d.]+)\s*dB').firstMatch(line);
+        if (match != null) {
+          bands.add({
+            'fc': 1000.0,
+            'gain': double.tryParse(match.group(1)!) ?? 0.0,
+            'q': 1.41,
+            'type': 'Preamp'
+          });
+        }
+      } else if (line.startsWith('Filter:')) {
+        final isOn = line.contains(' ON ');
+        if (!isOn) continue;
+
+        String type = 'PK';
+        if (line.contains(' LSC ') || line.contains(' LS ')) type = 'LSC';
+        else if (line.contains(' HSC ') || line.contains(' HS ')) type = 'HSC';
+
+        double fc = 1000.0;
+        double gain = 0.0;
+        double q = 1.0;
+
+        final fcMatch = RegExp(r'Fc\s+([\d.]+)\s*Hz').firstMatch(line);
+        if (fcMatch != null) fc = double.tryParse(fcMatch.group(1)!) ?? 1000.0;
+
+        final gainMatch = RegExp(r'Gain\s+([-\d.]+)\s*dB').firstMatch(line);
+        if (gainMatch != null) gain = double.tryParse(gainMatch.group(1)!) ?? 0.0;
+
+        final qMatch = RegExp(r'Q\s+([\d.]+)\b').firstMatch(line);
+        if (qMatch != null) q = double.tryParse(qMatch.group(1)!) ?? 1.0;
+
+        bands.add({
+          'fc': fc,
+          'gain': gain,
+          'q': q,
+          'type': type,
+        });
+      }
+    }
+    return bands;
+  }
 
   // ── Crossfade ────────────────────────────────────────────────────────────────
   double crossfadeDuration = 0.0;

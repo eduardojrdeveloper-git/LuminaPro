@@ -16,27 +16,7 @@ final List<EqPreset> kEqPresets = [
   EqPreset('Flat', [
     {'fc': 1000.0, 'gain': 0.0, 'q': 1.41, 'type': 'Preamp'},
   ]),
-  EqPreset('Bass Boost', [
-    {'fc': 1000.0, 'gain': -2.0, 'q': 1.41, 'type': 'Preamp'},
-    {'fc': 60.0, 'gain': 6.0, 'q': 0.7, 'type': 'PK'},
-    {'fc': 200.0, 'gain': 3.0, 'q': 1.0, 'type': 'PK'},
-  ]),
-  EqPreset('Vocal', [
-    {'fc': 1000.0, 'gain': -2.0, 'q': 1.41, 'type': 'Preamp'},
-    {'fc': 1000.0, 'gain': 4.0, 'q': 1.5, 'type': 'PK'},
-    {'fc': 3000.0, 'gain': 3.0, 'q': 1.2, 'type': 'PK'},
-    {'fc': 100.0, 'gain': -3.0, 'q': 0.8, 'type': 'HSC'},
-  ]),
-  EqPreset('Treble Boost', [
-    {'fc': 1000.0, 'gain': -1.0, 'q': 1.41, 'type': 'Preamp'},
-    {'fc': 8000.0, 'gain': 5.0, 'q': 1.0, 'type': 'PK'},
-    {'fc': 16000.0, 'gain': 3.0, 'q': 0.8, 'type': 'PK'},
-  ]),
-  EqPreset('Loudness', [
-    {'fc': 1000.0, 'gain': -3.0, 'q': 1.41, 'type': 'Preamp'},
-    {'fc': 60.0, 'gain': 5.0, 'q': 0.7, 'type': 'PK'},
-    {'fc': 12000.0, 'gain': 4.0, 'q': 0.9, 'type': 'PK'},
-  ]),
+  EqPreset('IA500', PlayerService().parseApoContent(PlayerService.ia500Config)),
 ];
 
 class EqAdvancedScreen extends StatefulWidget {

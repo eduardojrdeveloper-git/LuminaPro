@@ -506,9 +506,9 @@ class _SeekBarState extends State<_SeekBar> {
               children: [
                 SliderTheme(
                   data: SliderThemeData(
-                    trackHeight: _dragging ? 6 : 4,
-                    thumbShape: _dragging ? const RoundSliderThumbShape(enabledThumbRadius: 8) : const _HiddenThumbShape(),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 0),
+                    trackHeight: 4,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
                     activeTrackColor: baseColor,
                     inactiveTrackColor: baseColor.withOpacity(0.2),
                     thumbColor: Colors.white,
