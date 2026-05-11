@@ -130,6 +130,7 @@ class PlayerService {
     }
   }
 
+  bool isFavorite(String path) => _favorites.contains(path);
   bool get shuffle => _shuffle;
 
   // ── Emit Helpers ─────────────────────────────────────────────────────────────
@@ -161,7 +162,7 @@ class PlayerService {
     if (_shuffle) {
       _originalQueue = List.from(_queue);
       final current = _queue.isNotEmpty ? _queue[_currentIndex] : null;
-      _queue.shuffle();
+      _queue.shuffle(Random());
       if (current != null) {
         _queue.remove(current);
         _queue.insert(0, current);
@@ -305,10 +306,6 @@ class PlayerService {
   void dispose() {
     _positionController.close();
     _durationController.close();
-    _playingController.close();
-  }
-}
-ntroller.close();
     _playingController.close();
   }
 }
