@@ -142,7 +142,7 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
           onPressed: () => Navigator.pop(context),
-          child: const Icon(CupertinoIcons.chevron_backward,
+          child: const Icon(CupertinoIcons.chevron_back,
               color: LuminaColors.accent),
         ),
         trailing: Row(
