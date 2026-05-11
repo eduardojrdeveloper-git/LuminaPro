@@ -102,9 +102,15 @@ class PlayerService {
     });
 
     _positionEventChannel.receiveBroadcastStream().listen((data) {
-      if (data is Map && data['position'] != null) {
-        final posMs = (data['position'] as num).toInt();
-        _emitPosition(Duration(milliseconds: posMs));
+      if (data is Map) {
+        if (data['position'] != null) {
+          final posMs = (data['position'] as num).toInt();
+          _emitPosition(Duration(milliseconds: posMs));
+        }
+        if (data['duration'] != null) {
+          final durMs = (data['duration'] as num).toInt();
+          _emitDuration(Duration(milliseconds: durMs));
+        }
       }
     });
 
@@ -119,6 +125,11 @@ class PlayerService {
   void _emitPosition(Duration p) {
     positionNotifier.value = p;
     _positionController.add(p);
+  }
+
+  void _emitDuration(Duration? d) {
+    durationNotifier.value = d;
+    _durationController.add(d);
   }
 
   void _emitPlaying(bool p) {

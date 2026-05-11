@@ -74,8 +74,30 @@ jobs:
                   setupAudioEngine()
                   setupRemoteCommandCenter()
                   
-                  NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] _ in
-                      self?.updateAudioPathInfo()
+                  NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] notification in
+                      guard let self = self,
+                            let userInfo = notification.userInfo,
+                            let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+                            let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else { return }
+                      
+                      if reason == .oldDeviceUnavailable {
+                          self.pauseAudio()
+                          self.methodChannel?.invokeMethod("playPause", arguments: nil)
+                      }
+                      self.updateAudioPathInfo()
+                  }
+                  
+                  NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: nil, queue: .main) { [weak self] _ in
+                      guard let self = self else { return }
+                      // The engine configuration changed (e.g. route change), might need restart
+                      if !self.engine.isRunning {
+                          do {
+                              try self.engine.start()
+                          } catch {
+                              print("Failed to restart engine: \(error)")
+                          }
+                      }
+                      self.updateAudioPathInfo()
                   }
                   
                   methodChannel?.setMethodCallHandler({ [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
@@ -151,15 +173,8 @@ jobs:
               }
               
               func setupAudioEngine() {
-                  engine.attach(playerNode)
-                  engine.attach(eqNode)
-                  
-                  for i in 0..<eqNode.bands.count {
-                      eqNode.bands[i].filterType = .parametric
-                      eqNode.bands[i].bypass = false
-                      eqNode.bands[i].frequency = 1000.0
-                      eqNode.bands[i].gain = 0.0
-                  }
+                  if playerNode.engine == nil { engine.attach(playerNode) }
+                  if eqNode.engine == nil { engine.attach(eqNode) }
                   
                   engine.connect(playerNode, to: eqNode, format: nil)
                   engine.connect(eqNode, to: engine.mainMixerNode, format: nil)
@@ -167,7 +182,9 @@ jobs:
                   do {
                       try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, policy: .longFormAudio)
                       try AVAudioSession.sharedInstance().setActive(true)
-                      try engine.start()
+                      if !engine.isRunning {
+                          try engine.start()
+                      }
                   } catch {
                       print("Audio Engine setup error: \(error)")
                   }
@@ -280,6 +297,7 @@ jobs:
               func playAudio(path: String) {
                   let url = URL(fileURLWithPath: path)
                   do {
+                      if !engine.isRunning { try engine.start() }
                       audioFile = try AVAudioFile(forReading: url)
                       updateAudioPathInfo()
                       
@@ -326,6 +344,7 @@ jobs:
               
               func resumeAudio() {
                   guard !playerNode.isPlaying else { return }
+                  do { if !engine.isRunning { try engine.start() } } catch { print(error) }
                   // seekOffsetMs already holds the correct position from the last pause/seek
                   playerNode.play()
                   startTimer()
@@ -335,6 +354,7 @@ jobs:
               
               func seekAudio(toMs: Int) {
                   guard let audioFile = audioFile else { return }
+                  do { if !engine.isRunning { try engine.start() } } catch { print(error) }
                   let sampleRate = audioFile.processingFormat.sampleRate
                   let newFramePosition = AVAudioFramePosition(Double(toMs) / 1000.0 * sampleRate)
                   
