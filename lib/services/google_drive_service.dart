@@ -29,6 +29,7 @@ class GoogleDriveService {
   GoogleDriveService._internal();
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId: '1060456152789-njpej5einmvtheuk2574ckkgd798crfl.apps.googleusercontent.com',
     scopes: [
       drive.DriveApi.driveReadonlyScope,
     ],
