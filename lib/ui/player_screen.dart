@@ -266,11 +266,10 @@ class _PlayerScreenState extends State<PlayerScreen>
                       children: [
                         // AirPlay (placeholder)
                         Icon(
-                          CupertinoIcons.airplayaudio,
+                          Icons.airplay,
                           color: isDark ? Colors.white54 : Colors.black45,
                           size: 24,
-                        ),
-                        // Queue
+                        ),                        // Queue
                         GestureDetector(
                           onTap: () => _showQueue(context),
                           child: Icon(
