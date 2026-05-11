@@ -644,7 +644,7 @@ class EqVisualizerPainter extends CustomPainter {
     final double w0 = 2 * pi * fc / fs;
     final double w = 2 * pi * freq / fs;
     final double alpha = sin(w0) / (2 * q);
-    final double A = pow(10, gain / 40.0);
+    final double A = pow(10, gain / 40.0).toDouble();
 
     double b0, b1, b2, a0, a1, a2;
 

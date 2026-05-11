@@ -292,9 +292,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                                 builder: (context, favs, _) {
                                   final isFav = favs.contains(song.path);
                                   return GestureDetector(
-                                    onTap: () => _ps.toggleFavorite(song.path),
-                                    child: Icon(
-                                      isFav ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                                    onTap: () => _ps.toggleFavorite(song),
+                                    child: Icon(                                      isFav ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
                                       size: 26,
                                       color: isFav 
                                           ? LuminaColors.accent 

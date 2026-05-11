@@ -355,7 +355,7 @@ class LibraryScreenState extends State<LibraryScreen>
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.pop(context);
-              ps.toggleFavorite(song.path);
+              ps.toggleFavorite(song);
             },
             child: ValueListenableBuilder<Set<String>>(
               valueListenable: ps.favoritesNotifier,
