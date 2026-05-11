@@ -553,33 +553,36 @@ class _GoogleDriveSheetState extends State<_GoogleDriveSheet> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final currentDir = _navStack.last;
 
-    return CupertinoPageScaffold(
-      backgroundColor: isDark ? LuminaColors.bg1 : LuminaColors.lightBg1,
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: (isDark ? LuminaColors.bg1 : LuminaColors.lightBg1).withOpacity(0.8),
-        middle: Text(currentDir['name']!, style: TextStyle(color: isDark ? Colors.white : Colors.black)),
-        leading: _navStack.length > 1 
-            ? CupertinoButton(
-                padding: EdgeInsets.zero,
-                child: const Icon(CupertinoIcons.back),
-                onPressed: _popFolder,
-              )
-            : null,
-        trailing: _driveService.isSignedIn 
-            ? CupertinoButton(
-                padding: EdgeInsets.zero,
-                onPressed: _startScan,
-                child: Text('Add (${_selectedFolderIds.length})', 
-                    style: const TextStyle(fontWeight: FontWeight.w600, color: LuminaColors.accent)),
-              )
-            : null,
-      ),
-      child: SafeArea(
-        child: _isLoading
-            ? const Center(child: CupertinoActivityIndicator())
-            : !_driveService.isSignedIn
-                ? _buildLoginView(isDark)
-                : _buildFolderList(isDark),
+    return Material(
+      color: Colors.transparent,
+      child: CupertinoPageScaffold(
+        backgroundColor: isDark ? LuminaColors.bg1 : LuminaColors.lightBg1,
+        navigationBar: CupertinoNavigationBar(
+          backgroundColor: (isDark ? LuminaColors.bg1 : LuminaColors.lightBg1).withOpacity(0.8),
+          middle: Text(currentDir['name']!, style: TextStyle(color: isDark ? Colors.white : Colors.black)),
+          leading: _navStack.length > 1 
+              ? CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  child: const Icon(CupertinoIcons.back),
+                  onPressed: _popFolder,
+                )
+              : null,
+          trailing: _driveService.isSignedIn 
+              ? CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: _startScan,
+                  child: Text('Add (${_selectedFolderIds.length})', 
+                      style: const TextStyle(fontWeight: FontWeight.w600, color: LuminaColors.accent)),
+                )
+              : null,
+        ),
+        child: SafeArea(
+          child: _isLoading
+              ? const Center(child: CupertinoActivityIndicator())
+              : !_driveService.isSignedIn
+                  ? _buildLoginView(isDark)
+                  : _buildFolderList(isDark),
+        ),
       ),
     );
   }
