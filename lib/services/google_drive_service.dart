@@ -62,13 +62,14 @@ class GoogleDriveService {
 
   bool get isSignedIn => _currentUser != null && _driveApi != null;
 
-  Future<List<drive.File>> listFolders() async {
+  Future<List<drive.File>> listFolders({String parentId = 'root'}) async {
     if (!isSignedIn) throw Exception('Not signed in');
     try {
       final fileList = await _driveApi!.files.list(
-        q: "mimeType='application/vnd.google-apps.folder' and trashed=false",
+        q: "'$parentId' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false",
         spaces: 'drive',
         $fields: 'files(id, name)',
+        orderBy: 'name',
       );
       return fileList.files ?? [];
     } catch (e) {
@@ -77,11 +78,21 @@ class GoogleDriveService {
     }
   }
 
-  Future<List<AudioFile>> scanFolderForFlacs(String folderId, String folderName) async {
+  Future<List<AudioFile>> scanFoldersForFlacs(List<String> folderIds) async {
     if (!isSignedIn) throw Exception('Not signed in');
+    final List<AudioFile> allSongs = [];
+    for (final id in folderIds) {
+      final songs = await _scanRecursive(id, 'Cloud Folder');
+      allSongs.addAll(songs);
+    }
+    return allSongs;
+  }
+
+  Future<List<AudioFile>> _scanRecursive(String folderId, String folderName) async {
     final List<AudioFile> driveSongs = [];
     String? pageToken;
     try {
+      // 1. Get FLACs in current folder
       do {
         final fileList = await _driveApi!.files.list(
           q: "'$folderId' in parents and mimeType='audio/flac' and trashed=false",
@@ -89,28 +100,31 @@ class GoogleDriveService {
           $fields: 'nextPageToken, files(id, name, size, webContentLink)',
           pageToken: pageToken,
         );
-
-        final files = fileList.files ?? [];
-        for (var file in files) {
-          driveSongs.add(
-            AudioFile(
-              path: file.webContentLink ?? '',
-              title: file.name?.replaceAll('.flac', '') ?? 'Unknown',
-              artist: 'Unknown Artist',
-              albumArtist: 'Unknown Artist',
-              album: folderName,
-              genre: 'Google Drive',
-              format: 'FLAC',
-              isLocal: false,
-              driveFileId: file.id,
-              driveStreamUrl: file.webContentLink,
-            ),
-          );
+        for (var file in fileList.files ?? []) {
+          driveSongs.add(AudioFile(
+            path: file.webContentLink ?? '',
+            title: file.name?.replaceAll('.flac', '') ?? 'Unknown',
+            artist: 'Google Drive',
+            albumArtist: 'Google Drive',
+            album: folderName,
+            genre: 'Cloud',
+            format: 'FLAC',
+            isLocal: false,
+            driveFileId: file.id,
+            driveStreamUrl: file.webContentLink,
+          ));
         }
         pageToken = fileList.nextPageToken;
       } while (pageToken != null);
+
+      // 2. Recurse into subfolders
+      final subfolders = await listFolders(parentId: folderId);
+      for (var sub in subfolders) {
+        final subSongs = await _scanRecursive(sub.id!, sub.name ?? 'Subfolder');
+        driveSongs.addAll(subSongs);
+      }
     } catch (e) {
-      LogService.log('Google Drive scan error: $e');
+      LogService.log('Google Drive recursive scan error: $e');
     }
     return driveSongs;
   }

@@ -483,23 +483,25 @@ class _GoogleDriveSheet extends StatefulWidget {
 class _GoogleDriveSheetState extends State<_GoogleDriveSheet> {
   final GoogleDriveService _driveService = GoogleDriveService();
   bool _isLoading = false;
-  List<dynamic> _folders = [];
+  
+  // Navigation stack: List of {id, name}
+  final List<Map<String, String>> _navStack = [{'id': 'root', 'name': 'My Drive'}];
+  List<dynamic> _currentFolders = [];
+  final Set<String> _selectedFolderIds = {};
 
   @override
   void initState() {
     super.initState();
-    if (_driveService.isSignedIn) {
-      _loadFolders();
-    }
+    if (_driveService.isSignedIn) _fetchCurrentLevel();
   }
 
-  Future<void> _loadFolders() async {
+  Future<void> _fetchCurrentLevel() async {
     setState(() => _isLoading = true);
     try {
-      final folders = await _driveService.listFolders();
-      setState(() => _folders = folders);
+      final folders = await _driveService.listFolders(parentId: _navStack.last['id']!);
+      setState(() => _currentFolders = folders);
     } catch (e) {
-      // Handle error
+      _showToast('Error loading folders: $e');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -509,28 +511,66 @@ class _GoogleDriveSheetState extends State<_GoogleDriveSheet> {
     setState(() => _isLoading = true);
     try {
       await _driveService.signIn();
-      await _loadFolders();
+      await _fetchCurrentLevel();
     } catch (e) {
       setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _handleSignOut() async {
-    await _driveService.signOut();
-    setState(() => _folders = []);
+  void _pushFolder(String id, String name) {
+    setState(() => _navStack.add({'id': id, 'name': name}));
+    _fetchCurrentLevel();
+  }
+
+  void _popFolder() {
+    if (_navStack.length > 1) {
+      setState(() => _navStack.removeLast());
+      _fetchCurrentLevel();
+    }
+  }
+
+  Future<void> _startScan() async {
+    if (_selectedFolderIds.isEmpty) {
+      _showToast('Select at least one folder');
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      final songs = await _driveService.scanFoldersForFlacs(_selectedFolderIds.toList());
+      LibraryService.addDriveSongs(songs);
+      _showToast('Successfully indexed ${songs.length} cloud files');
+      widget.onUpdate();
+      Navigator.pop(context);
+    } catch (e) {
+      _showToast('Scan failed: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final currentDir = _navStack.last;
+
     return CupertinoPageScaffold(
+      backgroundColor: isDark ? LuminaColors.bg1 : LuminaColors.lightBg1,
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('Google Drive'),
-        trailing: _driveService.isSignedIn
+        backgroundColor: (isDark ? LuminaColors.bg1 : LuminaColors.lightBg1).withOpacity(0.8),
+        middle: Text(currentDir['name']!, style: TextStyle(color: isDark ? Colors.white : Colors.black)),
+        leading: _navStack.length > 1 
             ? CupertinoButton(
                 padding: EdgeInsets.zero,
-                child: const Text('Sign Out', style: TextStyle(color: LuminaColors.destructive)),
-                onPressed: _handleSignOut,
+                child: const Icon(CupertinoIcons.back),
+                onPressed: _popFolder,
+              )
+            : null,
+        trailing: _driveService.isSignedIn 
+            ? CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: _startScan,
+                child: Text('Add (${_selectedFolderIds.length})', 
+                    style: const TextStyle(fontWeight: FontWeight.w600, color: LuminaColors.accent)),
               )
             : null,
       ),
@@ -538,63 +578,116 @@ class _GoogleDriveSheetState extends State<_GoogleDriveSheet> {
         child: _isLoading
             ? const Center(child: CupertinoActivityIndicator())
             : !_driveService.isSignedIn
-                ? Center(
-                    child: CupertinoButton.filled(
-                      child: const Text('Sign in with Google'),
-                      onPressed: _handleSignIn,
-                    ),
-                  )
-                : _folders.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(CupertinoIcons.folder_badge_minus, size: 64, color: LuminaColors.labelTertiary),
-                            const SizedBox(height: 16),
-                            Text('No folders found in your Drive', style: TextStyle(color: isDark ? Colors.white : Colors.black54)),
-                            CupertinoButton(child: const Text('Refresh'), onPressed: _loadFolders),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        itemCount: _folders.length,
-                        itemBuilder: (context, i) {
-                          final folder = _folders[i];
-                          return Material(
-                            color: Colors.transparent,
-                            child: ListTile(
-                              leading: const Icon(CupertinoIcons.folder_fill, color: Color(0xFF007AFF)),
-                              title: Text(folder.name ?? 'Unknown',
-                                  style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 16)),
-                              subtitle: const Text('Tap Scan to index FLAC files', style: TextStyle(fontSize: 12)),
-                              trailing: CupertinoButton(
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
-                                color: const Color(0xFF34A853),
-                                borderRadius: BorderRadius.circular(20),
-                                child: const Text('Scan', style: TextStyle(fontSize: 13, color: Colors.white)),
-                                onPressed: () async {
-                                  setState(() => _isLoading = true);
-                                  try {
-                                    final songs = await _driveService.scanFolderForFlacs(folder.id!, folder.name ?? 'Drive Folder');
-                                    LibraryService.addDriveSongs(songs);
-                                    _showToast('Found ${songs.length} FLAC files');
-                                    widget.onUpdate();
-                                    Navigator.pop(context);
-                                  } catch (e) {
-                                    _showToast('Scan failed: $e');
-                                    setState(() => _isLoading = false);
-                                  }
-                                },
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                ? _buildLoginView(isDark)
+                : _buildFolderList(isDark),
       ),
     );
   }
 
+  Widget _buildLoginView(bool isDark) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(CupertinoIcons.cloud_fill, size: 80, color: Color(0xFF34A853)),
+          const SizedBox(height: 24),
+          const Text('Google Drive', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Text('Select folders from your cloud storage to stream or download FLAC files directly to your library.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: LuminaColors.labelSecondary, fontSize: 14)),
+          ),
+          const SizedBox(height: 32),
+          CupertinoButton.filled(
+            borderRadius: BorderRadius.circular(25),
+            onPressed: _handleSignIn,
+            child: const Text('Sign in with Google', style: TextStyle(fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFolderList(bool isDark) {
+    if (_currentFolders.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(CupertinoIcons.folder_badge_minus, size: 48, color: LuminaColors.labelTertiary),
+            const SizedBox(height: 12),
+            Text('Empty folder', style: TextStyle(color: LuminaColors.labelSecondary)),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        if (_navStack.length == 1)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              children: [
+                const Icon(CupertinoIcons.info_circle, size: 16, color: LuminaColors.accent),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Tap folder to open, check circle to select for scanning.', 
+                    style: TextStyle(fontSize: 12, color: LuminaColors.labelSecondary))),
+              ],
+            ),
+          ),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            itemCount: _currentFolders.length,
+            separatorBuilder: (_, __) => Divider(height: 1, indent: 60, color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3),
+            itemBuilder: (context, i) {
+              final folder = _currentFolders[i];
+              final isSelected = _selectedFolderIds.contains(folder.id);
+              
+              return Material(
+                color: Colors.transparent,
+                child: ListTile(
+                  onTap: () => _pushFolder(folder.id!, folder.name ?? 'Unknown'),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  leading: const Icon(CupertinoIcons.folder_fill, color: Color(0xFF007AFF), size: 28),
+                  title: Text(folder.name ?? 'Unknown', style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w500)),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: () {
+                          setState(() {
+                            if (isSelected) _selectedFolderIds.remove(folder.id);
+                            else _selectedFolderIds.add(folder.id!);
+                          });
+                        },
+                        child: Icon(
+                          isSelected ? CupertinoIcons.check_mark_circle_fill : CupertinoIcons.circle,
+                          color: isSelected ? LuminaColors.accent : LuminaColors.labelTertiary,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(CupertinoIcons.chevron_right, size: 14, color: LuminaColors.labelTertiary),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showToast(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ));
   }
 }
