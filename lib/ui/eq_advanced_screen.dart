@@ -178,6 +178,7 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
             fontWeight: FontWeight.w600,
             fontSize: 17,
             letterSpacing: -0.3,
+            decoration: TextDecoration.none,
           ),
         ),
         backgroundColor:
@@ -200,7 +201,8 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
                 style: TextStyle(
                     color: LuminaColors.accent,
                     fontSize: 15,
-                    fontWeight: FontWeight.w400),
+                    fontWeight: FontWeight.w400,
+                    decoration: TextDecoration.none),
               ),
             ),
             CupertinoButton(
@@ -212,107 +214,111 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
           ],
         ),
       ),
-      child: SafeArea(
-        child: Column(
-          children: [
-            // ── Real-time EQ Visualizer ──────────────────────────────────
-            Container(
-              height: 160,
-              margin: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isDark
-                      ? Colors.white.withOpacity(0.05)
-                      : Colors.black.withOpacity(0.04),
-                  width: 0.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(isDark ? 0.35 : 0.05),
-                    blurRadius: 20,
-                    offset: const Offset(0, 6),
+      child: Material(
+        type: MaterialType.transparency,
+        child: SafeArea(
+          child: Column(
+            children: [
+              // ── Real-time EQ Visualizer ──────────────────────────────────
+              Container(
+                height: 160,
+                margin: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withOpacity(0.05)
+                        : Colors.black.withOpacity(0.04),
+                    width: 0.5,
                   ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: ValueListenableBuilder<List<Map<String, dynamic>>>(
-                  valueListenable: _bandsNotifier,
-                  builder: (_, bands, __) => CustomPaint(
-                    painter: EqVisualizerPainter(bands, isDark),
-                    child: const SizedBox.expand(),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(isDark ? 0.35 : 0.05),
+                      blurRadius: 20,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: ValueListenableBuilder<List<Map<String, dynamic>>>(
+                    valueListenable: _bandsNotifier,
+                    builder: (_, bands, __) => CustomPaint(
+                      painter: EqVisualizerPainter(bands, isDark),
+                      child: const SizedBox.expand(),
+                    ),
                   ),
                 ),
               ),
-            ),
 
-            // ── Presets — Horizontal Scroll Chips ────────────────────────
-            SizedBox(
-              height: 40,
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                scrollDirection: Axis.horizontal,
-                itemCount: kEqPresets.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (context, i) {
-                  final isSelected = _selectedPresetIndex == i;
-                  return GestureDetector(
-                    onTap: () => _applyPreset(i),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? LuminaColors.accent
-                            : (isDark ? LuminaColors.bg2 : LuminaColors.lightBg2),
-                        borderRadius: BorderRadius.circular(20),
-                        border: isSelected
-                            ? null
-                            : Border.all(
-                                color: isDark
-                                    ? Colors.white.withOpacity(0.1)
-                                    : Colors.black.withOpacity(0.08),
-                                width: 0.5,
-                              ),
-                      ),
-                      child: Text(
-                        kEqPresets[i].name,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: isSelected
-                              ? FontWeight.w600
-                              : FontWeight.w400,
+              // ── Presets — Horizontal Scroll Chips ────────────────────────
+              SizedBox(
+                height: 40,
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: kEqPresets.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, i) {
+                    final isSelected = _selectedPresetIndex == i;
+                    return GestureDetector(
+                      onTap: () => _applyPreset(i),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
                           color: isSelected
-                              ? Colors.white
-                              : (isDark
-                                  ? Colors.white
-                                  : Colors.black87),
+                              ? LuminaColors.accent
+                              : (isDark ? LuminaColors.bg2 : LuminaColors.lightBg2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: isSelected
+                              ? null
+                              : Border.all(
+                                  color: isDark
+                                      ? Colors.white.withOpacity(0.1)
+                                      : Colors.black.withOpacity(0.08),
+                                  width: 0.5,
+                                ),
+                        ),
+                        child: Text(
+                          kEqPresets[i].name,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                            color: isSelected
+                                ? Colors.white
+                                : (isDark
+                                    ? Colors.white
+                                    : Colors.black87),
+                            decoration: TextDecoration.none,
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
-            ),
 
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-            // ── Bands List ───────────────────────────────────────────────
-            Expanded(
-              child: AnimatedList(
-                key: _listKey,
-                initialItemCount: _bands.length,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemBuilder: (context, index, animation) {
-                  return _buildAnimatedBandRow(
-                      _bands[index], animation, index, isDark);
-                },
+              // ── Bands List ───────────────────────────────────────────────
+              Expanded(
+                child: AnimatedList(
+                  key: _listKey,
+                  initialItemCount: _bands.length,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemBuilder: (context, index, animation) {
+                    return _buildAnimatedBandRow(
+                        _bands[index], animation, index, isDark);
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -365,6 +371,7 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
                     fontSize: 10,
                     letterSpacing: 0.8,
                     color: LuminaColors.accent,
+                    decoration: TextDecoration.none,
                   ),
                 ),
               ),
@@ -378,6 +385,7 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: LuminaColors.accent,
+                      decoration: TextDecoration.none,
                     ),
                   ),
                 ),
@@ -434,7 +442,8 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
                   style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: LuminaColors.labelSecondary)),
+                      color: LuminaColors.labelSecondary,
+                      decoration: TextDecoration.none)),
               GestureDetector(
                 onTap: () => _showEditPopup(index, label, value, min: min, max: max),
                 child: Text(
@@ -444,6 +453,7 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
                     fontWeight: FontWeight.w600,
                     color: LuminaColors.accent,
                     fontFeatures: const [FontFeature.tabularFigures()],
+                    decoration: TextDecoration.none,
                   ),
                 ),
               ),
@@ -505,6 +515,7 @@ class EqVisualizerPainter extends CustomPainter {
     final labelStyle = TextStyle(
       color: (isDark ? Colors.white : Colors.black).withOpacity(0.25),
       fontSize: 9,
+      decoration: TextDecoration.none,
     );
     for (final (freq, label) in freqLabels) {
       final x = _freqToX(freq, size.width);

@@ -64,43 +64,62 @@ class _SearchScreenState extends State<SearchScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: NestedScrollView(
-        headerSliverBuilder: (context, _) => [
-          CupertinoSliverNavigationBar(
-            largeTitle: Text(
-              'Search',
-              style: TextStyle(
-                color: isDark ? Colors.white : Colors.black,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.5,
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Material(
+          type: MaterialType.transparency,
+          child: NestedScrollView(
+            headerSliverBuilder: (context, _) => [
+              CupertinoSliverNavigationBar(
+                largeTitle: Text(
+                  'Search',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                backgroundColor:
+                    Theme.of(context).scaffoldBackgroundColor.withOpacity(0.85),
+                border: null,
               ),
-            ),
-            backgroundColor:
-                Theme.of(context).scaffoldBackgroundColor.withOpacity(0.85),
-            border: null,
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: CupertinoSearchTextField(
-                controller: _searchCtrl,
-                focusNode: _focusNode,
-                placeholder: 'Artists, Songs, Albums',
-                autofocus: false,
-                style: TextStyle(
-                    color: isDark ? Colors.white : Colors.black, fontSize: 16),
-                backgroundColor: isDark
-                    ? LuminaColors.bg2.withOpacity(0.9)
-                    : LuminaColors.lightBg2.withOpacity(0.9),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: CupertinoSearchTextField(
+                    controller: _searchCtrl,
+                    focusNode: _focusNode,
+                    onTap: () {
+                      if (!_focusNode.hasFocus) {
+                        _focusNode.requestFocus();
+                      }
+                    },
+                    placeholder: 'Artists, Songs, Albums',
+                    autofocus: false,
+                    style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black, fontSize: 16),
+                    backgroundColor: isDark
+                        ? LuminaColors.bg2.withOpacity(0.9)
+                        : LuminaColors.lightBg2.withOpacity(0.9),
+                  ),
+                ),
               ),
-            ),
+            ],
+            body: _isLoading
+                ? const Center(child: CupertinoActivityIndicator(radius: 14))
+                : NotificationListener<ScrollNotification>(
+                    onNotification: (notification) {
+                      if (notification is ScrollStartNotification) {
+                        _focusNode.unfocus();
+                      }
+                      return false;
+                    },
+                    child: hasQuery
+                        ? _buildResults(isDark)
+                        : _buildCategories(isDark),
+                  ),
           ),
-        ],
-        body: _isLoading
-            ? const Center(child: CupertinoActivityIndicator(radius: 14))
-            : hasQuery
-                ? _buildResults(isDark)
-                : _buildCategories(isDark),
+        ),
       ),
     );
   }
@@ -152,14 +171,6 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildCategories(bool isDark) {
-    // Build unique albums/artists from library
-    final artists = <String>{};
-    final albums = <String, List<AudioFile>>{};
-    for (final s in _allSongs) {
-      artists.add(s.artist);
-      albums.putIfAbsent(s.album, () => []).add(s);
-    }
-
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: 120),
       child: Column(

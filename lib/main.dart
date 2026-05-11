@@ -176,17 +176,17 @@ class _MainNavigationState extends State<MainNavigation>
         // ── Frosted Tab Bar ──────────────────────────────────────────────────
         ClipRect(
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
             child: Container(
               decoration: BoxDecoration(
                 color: isDark
-                    ? LuminaColors.bg0.withOpacity(0.82)
-                    : Colors.white.withOpacity(0.88),
+                    ? LuminaColors.bg0.withOpacity(0.65)
+                    : Colors.white.withOpacity(0.75),
                 border: Border(
                   top: BorderSide(
                     color: isDark
-                        ? Colors.white.withOpacity(0.08)
-                        : Colors.black.withOpacity(0.1),
+                        ? Colors.white.withOpacity(0.06)
+                        : Colors.black.withOpacity(0.06),
                     width: 0.5,
                   ),
                 ),
