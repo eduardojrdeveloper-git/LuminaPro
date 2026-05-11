@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:metadata_god/metadata_god.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'log_service.dart';
 
 class AudioFile {
   final String path;
@@ -42,8 +44,6 @@ class AudioFile {
   }
 }
 
-import 'package:shared_preferences/shared_preferences.dart';
-
 class LibraryService {
   static bool _initialized = false;
   static List<String> _includePaths = [];
@@ -51,16 +51,16 @@ class LibraryService {
   static Future<void> initialize() async {
     if (_initialized) return;
     try {
-      await MetadataGod.initialize();
+      MetadataGod.initialize();
       final prefs = await SharedPreferences.getInstance();
       _includePaths = prefs.getStringList('include_paths') ?? [];
-
+      
       // Default to documents directory if empty
       if (_includePaths.isEmpty) {
         final docDir = await getApplicationDocumentsDirectory();
         _includePaths = [docDir.path];
       }
-
+      
       _initialized = true;
     } catch (e) {
       debugPrint('LibraryService: MetadataGod initialization failed: $e');
@@ -79,7 +79,7 @@ class LibraryService {
     final List<AudioFile> songs = [];
     try {
       await initialize();
-
+      
       for (var path in _includePaths) {
         final dir = Directory(path);
         if (!await dir.exists()) continue;
@@ -88,75 +88,75 @@ class LibraryService {
             await dir.list(recursive: true).toList();
 
         for (var entity in entities) {
-// ... rest of scan logic ...
+          if (entity is File) {
+            final ext = p.extension(entity.path).toLowerCase();
+            if (ext == '.flac' ||
+                ext == '.wav' ||
+                ext == '.mp3' ||
+                ext == '.m4a' ||
+                ext == '.aiff' ||
+                ext == '.aif') {
+              String fileName = p.basenameWithoutExtension(entity.path);
+              String title = fileName;
+              String artist = 'Unknown Artist';
+              String album = 'Unknown Album';
+              String genre = 'Unknown Genre';
+              Uint8List? coverArt;
+              Duration? duration;
+              int? sampleRate;
+              int? bitDepth;
+              final format = ext.replaceFirst('.', '');
 
-          final ext = p.extension(entity.path).toLowerCase();
-          if (ext == '.flac' ||
-              ext == '.wav' ||
-              ext == '.mp3' ||
-              ext == '.m4a' ||
-              ext == '.aiff' ||
-              ext == '.aif') {
-            String fileName = p.basenameWithoutExtension(entity.path);
-            String title = fileName;
-            String artist = 'Unknown Artist';
-            String album = 'Unknown Album';
-            String genre = 'Unknown Genre';
-            Uint8List? coverArt;
-            Duration? duration;
-            int? sampleRate;
-            int? bitDepth;
-            final format = ext.replaceFirst('.', '');
+              try {
+                final metadata =
+                    await MetadataGod.readMetadata(file: entity.path);
+                if (metadata.title != null && metadata.title!.isNotEmpty) {
+                  title = metadata.title!;
+                }
+                if (metadata.artist != null && metadata.artist!.isNotEmpty) {
+                  artist = metadata.artist!;
+                }
+                if (metadata.album != null && metadata.album!.isNotEmpty) {
+                  album = metadata.album!;
+                }
+                if (metadata.genre != null && metadata.genre!.isNotEmpty) {
+                  genre = metadata.genre!;
+                }
+                if (metadata.picture != null) {
+                  coverArt = metadata.picture!.data;
+                }
+                if (metadata.durationMs != null) {
+                  duration = Duration(milliseconds: metadata.durationMs!.toInt());
+                }
+              } catch (e) {
+                debugPrint(
+                    'LibraryService: metadata error for ${entity.path}: $e');
+              }
 
-            try {
-              final metadata =
-                  await MetadataGod.readMetadata(file: entity.path);
-              if (metadata.title != null && metadata.title!.isNotEmpty) {
-                title = metadata.title!;
-              }
-              if (metadata.artist != null && metadata.artist!.isNotEmpty) {
-                artist = metadata.artist!;
-              }
-              if (metadata.album != null && metadata.album!.isNotEmpty) {
-                album = metadata.album!;
-              }
-              if (metadata.genre != null && metadata.genre!.isNotEmpty) {
-                genre = metadata.genre!;
-              }
-              if (metadata.picture != null) {
-                coverArt = metadata.picture!.data;
-              }
-              if (metadata.durationMs != null) {
-                duration = Duration(milliseconds: metadata.durationMs!.toInt());
-              }
-            } catch (e) {
-              debugPrint(
-                  'LibraryService: metadata error for ${entity.path}: $e');
-            }
-
-            // Folder-structure fallback for artist/album tags
-            if (artist == 'Unknown Artist' || album == 'Unknown Album') {
-              final parts = p.split(entity.path);
-              if (parts.length >= 3) {
-                if (album == 'Unknown Album') album = parts[parts.length - 2];
-                if (artist == 'Unknown Artist') {
-                  artist = parts[parts.length - 3];
+              // Folder-structure fallback for artist/album tags
+              if (artist == 'Unknown Artist' || album == 'Unknown Album') {
+                final parts = p.split(entity.path);
+                if (parts.length >= 3) {
+                  if (album == 'Unknown Album') album = parts[parts.length - 2];
+                  if (artist == 'Unknown Artist') {
+                    artist = parts[parts.length - 3];
+                  }
                 }
               }
-            }
 
-            songs.add(AudioFile(
-              path: entity.path,
-              title: title,
-              artist: artist,
-              album: album,
-              genre: genre,
-              coverArt: coverArt,
-              duration: duration,
-              sampleRate: sampleRate,
-              bitDepth: bitDepth,
-              format: format,
-            ));
+              songs.add(AudioFile(
+                path: entity.path,
+                title: title,
+                artist: artist,
+                album: album,
+                genre: genre,
+                coverArt: coverArt,
+                duration: duration,
+                sampleRate: sampleRate,
+                bitDepth: bitDepth,
+                format: format,
+              ));
+            }
           }
         }
       }
@@ -169,9 +169,5 @@ class LibraryService {
     return songs;
   }
 }
-
-import 'log_service.dart';
-
-// ... rest of imports ...
 
 void debugPrint(String msg) => LogService.log(msg);

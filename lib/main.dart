@@ -7,6 +7,7 @@ import 'ui/player_screen.dart';
 import 'ui/settings_screen.dart';
 import 'services/player_service.dart';
 import 'services/library_service.dart';
+import 'services/log_service.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
 final ValueNotifier<bool> rotateArtworkNotifier = ValueNotifier(false);
@@ -33,8 +34,6 @@ class LuminaColors {
   static const labelTertiary  = Color(0xFF636366);
   static const destructive    = Color(0xFFFF3B30);
 }
-
-import 'services/log_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

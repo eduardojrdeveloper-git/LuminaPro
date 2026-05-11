@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
-import '../services/library_service.dart' hide debugPrint;
+import 'library_service.dart';
+import 'log_service.dart';
 
 enum RepeatMode { off, one, all }
 
@@ -59,37 +59,36 @@ class PlayerService {
   final StreamController<Duration> _positionController = StreamController<Duration>.broadcast();
   final StreamController<Duration?> _durationController = StreamController<Duration?>.broadcast();
   final StreamController<bool> _playingController = StreamController<bool>.broadcast();
-// ── Audio Path Info ───────────────────────────────────────────────────────
-final ValueNotifier<Map<String, String>> audioPathNotifier = ValueNotifier({
-  'Source': '---',
-  'DSP': '---',
-  'Output': '---',
-});
 
-PlayerService._internal() {
-  positionStream = _positionController.stream;
-  durationStream = _durationController.stream;
-  playingStream = _playingController.stream;
+  // ── Audio Path Info ───────────────────────────────────────────────────────
+  final ValueNotifier<Map<String, String>> audioPathNotifier = ValueNotifier({
+    'Source': '---',
+    'DSP': '---',
+    'Output': '---',
+  });
 
-  _channel.setMethodCallHandler((call) async {
-    try {
-      switch (call.method) {
-        case 'nextTrack': skipToNext(); break;
-        case 'previousTrack': skipToPrevious(); break;
-        case 'playPause': playPause(); break;
-        case 'audioPathUpdate':
-          if (call.arguments is Map) {
-            final args = Map<String, dynamic>.from(call.arguments);
-            audioPathNotifier.value = {
-              'Source': args['source']?.toString() ?? '---',
-              'DSP': args['dsp']?.toString() ?? '---',
-              'Output': args['output']?.toString() ?? '---',
-            };
-          }
-          break;
-        case 'seek':
-// ... rest of handler ...
+  PlayerService._internal() {
+    positionStream = _positionController.stream;
+    durationStream = _durationController.stream;
+    playingStream = _playingController.stream;
 
+    _channel.setMethodCallHandler((call) async {
+      try {
+        switch (call.method) {
+          case 'nextTrack': skipToNext(); break;
+          case 'previousTrack': skipToPrevious(); break;
+          case 'playPause': playPause(); break;
+          case 'audioPathUpdate':
+            if (call.arguments is Map) {
+              final args = Map<String, dynamic>.from(call.arguments);
+              audioPathNotifier.value = {
+                'Source': args['source']?.toString() ?? '---',
+                'DSP': args['dsp']?.toString() ?? '---',
+                'Output': args['output']?.toString() ?? '---',
+              };
+            }
+            break;
+          case 'seek':
             final args = call.arguments;
             if (args is Map && args['position'] != null) {
               final posMs = (args['position'] as num).toInt();
@@ -98,149 +97,74 @@ PlayerService._internal() {
             break;
         }
       } catch (e) {
-        debugPrint('PlayerService: method handler error: $e');
+        LogService.log('PlayerService call error: $e');
       }
     });
 
-    _positionEventChannel.receiveBroadcastStream().listen(
-      (event) {
-        if (event is Map) {
-          final posMs = (event['position'] as num?)?.toInt();
-          final durMs = (event['duration'] as num?)?.toInt();
-          if (posMs != null) _emitPosition(Duration(milliseconds: posMs));
-          if (durMs != null) _emitDuration(Duration(milliseconds: durMs));
-        }
-      },
-      onError: (e) => debugPrint('PlayerService: position stream error: $e'),
-      cancelOnError: false,
-    );
+    _positionEventChannel.receiveBroadcastStream().listen((data) {
+      if (data is Map && data['position'] != null) {
+        final posMs = (data['position'] as num).toInt();
+        _emitPosition(Duration(milliseconds: posMs));
+      }
+    });
 
-    _stateEventChannel.receiveBroadcastStream().listen(
-      (event) {
-        if (event is Map) {
-          final playing = event['playing'] as bool?;
-          final finished = event['finished'] as bool?;
-          if (playing != null) _emitPlaying(playing);
-          if (finished == true) _onTrackFinished();
-        }
-      },
-      onError: (e) => debugPrint('PlayerService: state stream error: $e'),
-      cancelOnError: false,
-    );
-
-    _loadFavorites();
+    _stateEventChannel.receiveBroadcastStream().listen((data) {
+      if (data is Map) {
+        if (data['playing'] != null) _emitPlaying(data['playing'] as bool);
+        if (data['finished'] == true) _onTrackFinished();
+      }
+    });
   }
 
-  // ── Favorites ────────────────────────────────────────────────────────────────
-  Future<void> _loadFavorites() async {
+  void _emitPosition(Duration p) {
+    positionNotifier.value = p;
+    _positionController.add(p);
+  }
+
+  void _emitPlaying(bool p) {
+    playingNotifier.value = p;
+    _playingController.add(p);
+  }
+
+  Future<void> playPause() async {
     try {
-      final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/favorites.json');
-      if (await file.exists()) {
-        final List<dynamic> data = jsonDecode(await file.readAsString());
-        _favorites.addAll(data.cast<String>());
-        favoritesNotifier.value = Set.from(_favorites);
+      if (playingNotifier.value) {
+        await _channel.invokeMethod('pause');
+        _emitPlaying(false);
+      } else {
+        await _channel.invokeMethod('resume');
+        _emitPlaying(true);
       }
     } catch (e) {
-      debugPrint('PlayerService: error loading favorites: $e');
+      LogService.log('PlayerService: error native playPause: $e');
     }
   }
 
-  Future<void> toggleFavorite(String path) async {
-    if (_favorites.contains(path)) {
-      _favorites.remove(path);
-    } else {
-      _favorites.add(path);
-    }
-    favoritesNotifier.value = Set.from(_favorites);
+  Future<void> seek(Duration position) async {
     try {
-      final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/favorites.json');
-      await file.writeAsString(jsonEncode(_favorites.toList()));
+      await _channel.invokeMethod('seek', {'position': position.inMilliseconds});
+      _emitPosition(position);
     } catch (e) {
-      debugPrint('PlayerService: error saving favorites: $e');
+      LogService.log('PlayerService: error native seek: $e');
     }
   }
 
-  bool isFavorite(String path) => _favorites.contains(path);
-  bool get shuffle => _shuffle;
-
-  // ── Emit Helpers ─────────────────────────────────────────────────────────────
-  void _emitPosition(Duration pos) {
-    if (positionNotifier.value != pos) {
-      positionNotifier.value = pos;
-      _positionController.add(pos);
-    }
-  }
-
-  void _emitDuration(Duration dur) {
-    if (durationNotifier.value != dur) {
-      durationNotifier.value = dur;
-      _durationController.add(dur);
-    }
-  }
-
-  void _emitPlaying(bool playing) {
-    if (playingNotifier.value != playing) {
-      playingNotifier.value = playing;
-      _playingController.add(playing);
-    }
-  }
-
-  // ── Actions ──────────────────────────────────────────────────────────────────
-  void toggleShuffle() {
-    _shuffle = !_shuffle;
-    shuffleNotifier.value = _shuffle;
-    if (_shuffle) {
-      _originalQueue = List.from(_queue);
-      final current = _queue.isNotEmpty ? _queue[_currentIndex] : null;
-      _queue.shuffle(Random());
-      if (current != null) {
-        _queue.remove(current);
-        _queue.insert(0, current);
-        _currentIndex = 0;
-      }
-    } else {
-      final current = currentSong.value;
-      _queue = List.from(_originalQueue);
-      if (current != null) {
-        final idx = _queue.indexWhere((s) => s.path == current.path);
-        if (idx >= 0) _currentIndex = idx;
-      }
-    }
-    queueNotifier.value = List.from(_queue);
-  }
-
-  void cycleRepeat() {
-    switch (_repeat) {
-      case RepeatMode.off: _repeat = RepeatMode.all; break;
-      case RepeatMode.all: _repeat = RepeatMode.one; break;
-      case RepeatMode.one: _repeat = RepeatMode.off; break;
-    }
-    repeatNotifier.value = _repeat;
-  }
-
-  Future<void> playQueue(List<AudioFile> songs, {int initialIndex = 0}) async {
+  void setQueue(List<AudioFile> songs, {int initialIndex = 0}) {
     _originalQueue = List.from(songs);
-    _queue = List.from(songs);
+    _queue = _shuffle ? (List.from(songs)..shuffle()) : List.from(songs);
     _currentIndex = initialIndex;
-    queueNotifier.value = List.from(_queue);
-    await _playCurrent();
-  }
-
-  Future<void> playFromQueue(int index) async {
-    if (index < 0 || index >= _queue.length) return;
-    _currentIndex = index;
-    await _playCurrent();
+    queueNotifier.value = _queue;
+    _playCurrent();
   }
 
   Future<void> _playCurrent() async {
     if (_queue.isEmpty || _currentIndex < 0 || _currentIndex >= _queue.length) return;
     final song = _queue[_currentIndex];
+    LogService.log('Playing: ${song.title} from ${song.path}');
     
     // Check if file exists before trying to play
     if (!await File(song.path).exists()) {
-      debugPrint('PlayerService: file not found: ${song.path}');
+      LogService.log('PlayerService: file not found: ${song.path}');
       _onTrackFinished(); // Skip to next
       return;
     }
@@ -260,97 +184,102 @@ PlayerService._internal() {
       await applyCurrentEQ();
       await setVolume(volumeNotifier.value);
     } catch (e) {
-      debugPrint('PlayerService: error native play: $e');
+      LogService.log('PlayerService: error native play: $e');
     }
   }
 
-  void _onTrackFinished() {
-    final idx = _currentIndex;
-    final len = _queue.length;
-    if (len == 0) return;
-
+  void skipToNext() {
     if (_repeat == RepeatMode.one) {
       _playCurrent();
-    } else if (idx < len - 1) {
-      _currentIndex = idx + 1;
-      _playCurrent();
-    } else if (_repeat == RepeatMode.all) {
-      _currentIndex = 0;
-      _playCurrent();
-    } else {
-      _emitPlaying(false);
+      return;
     }
-  }
-
-  Future<void> playPause() async {
-    try {
-      if (playingNotifier.value) {
-        await _channel.invokeMethod('pause');
-        _emitPlaying(false);
+    _currentIndex++;
+    if (_currentIndex >= _queue.length) {
+      if (_repeat == RepeatMode.all) {
+        _currentIndex = 0;
       } else {
-        await _channel.invokeMethod('resume');
-        _emitPlaying(true);
+        _currentIndex = _queue.length - 1;
+        _emitPlaying(false);
+        return;
       }
-    } catch (e) {
-      debugPrint('PlayerService: error native pause/resume: $e');
     }
+    _playCurrent();
   }
 
-  Future<void> seek(Duration pos) async {
-    try {
-      _emitPosition(pos);
-      await _channel.invokeMethod('seek', {'position': pos.inMilliseconds});
-    } catch (e) {
-      debugPrint('PlayerService: error native seek: $e');
+  void skipToPrevious() {
+    _currentIndex--;
+    if (_currentIndex < 0) {
+      if (_repeat == RepeatMode.all) {
+        _currentIndex = _queue.length - 1;
+      } else {
+        _currentIndex = 0;
+      }
     }
+    _playCurrent();
   }
+
+  void _onTrackFinished() => skipToNext();
 
   Future<void> setVolume(double volume) async {
     volumeNotifier.value = volume;
     try {
       await _channel.invokeMethod('setVolume', {'volume': volume});
     } catch (e) {
-      debugPrint('PlayerService: error native volume: $e');
+      LogService.log('PlayerService: error native volume: $e');
     }
   }
 
-  void skipToNext() {
-    if (_queue.isEmpty) return;
-    if (_currentIndex < _queue.length - 1) {
-      _currentIndex++;
-      _playCurrent();
-    } else if (_repeat == RepeatMode.all) {
-      _currentIndex = 0;
-      _playCurrent();
+  Future<void> toggleShuffle() async {
+    _shuffle = !_shuffle;
+    shuffleNotifier.value = _shuffle;
+    if (_shuffle) {
+      final current = currentSong.value;
+      _queue.shuffle();
+      if (current != null) {
+        _queue.remove(current);
+        _queue.insert(0, current);
+        _currentIndex = 0;
+      }
+    } else {
+      final current = currentSong.value;
+      _queue = List.from(_originalQueue);
+      if (current != null) {
+        _currentIndex = _queue.indexOf(current);
+      }
     }
+    queueNotifier.value = _queue;
   }
 
-  void skipToPrevious() {
-    if (_queue.isEmpty) return;
-    if (positionNotifier.value.inSeconds > 3) {
-      seek(Duration.zero);
-    } else if (_currentIndex > 0) {
-      _currentIndex--;
-      _playCurrent();
-    }
+  void toggleRepeat() {
+    if (_repeat == RepeatMode.off) _repeat = RepeatMode.all;
+    else if (_repeat == RepeatMode.all) _repeat = RepeatMode.one;
+    else _repeat = RepeatMode.off;
+    repeatNotifier.value = _repeat;
+  }
+
+  bool isFavorite(String path) => _favorites.contains(path);
+
+  void toggleFavorite(AudioFile song) {
+    if (_favorites.contains(song.path)) _favorites.remove(song.path);
+    else _favorites.add(song.path);
+    favoritesNotifier.value = Set.from(_favorites);
   }
 
   Future<void> updateEQ(List<Map<String, dynamic>> bands) async {
     try {
       // Convert Q to bandwidth (octaves) for AVAudioUnitEQ
-      // N = 2/ln2 * arcsinh(1/(2Q))
       final convertedBands = bands.map((b) {
         final q = (b['q'] as num).toDouble();
         final bandwidth = 2.0 / log(2.0) * _asinh(1.0 / (2.0 * q));
         return {
           ...b,
-          'q': bandwidth.clamp(0.05, 5.0), // native side uses 'q' key for bandwidth
+          'q': bandwidth.clamp(0.05, 5.0),
         };
       }).toList();
       
       await _channel.invokeMethod('updateEQ', {'bands': convertedBands});
     } catch (e) {
-      debugPrint('PlayerService: error updateEQ: $e');
+      LogService.log('PlayerService: error updateEQ: $e');
     }
   }
 
@@ -358,7 +287,7 @@ PlayerService._internal() {
 
   Future<void> updatePreamp(double gain) async {
     try { await _channel.invokeMethod('updatePreamp', {'gain': gain}); } catch (e) {
-      debugPrint('PlayerService: error updatePreamp: $e');
+      LogService.log('PlayerService: error updatePreamp: $e');
     }
   }
 
