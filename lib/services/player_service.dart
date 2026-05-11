@@ -129,7 +129,7 @@ class PlayerService {
     }
   }
 
-  bool isFavorite(String path) => _favorites.contains(path);
+  bool get shuffle => _shuffle;
 
   // ── Emit Helpers ─────────────────────────────────────────────────────────────
   void _emitPosition(Duration pos) {
