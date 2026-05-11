@@ -71,25 +71,39 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
   }
 
   void _applyPreset(int index) {
+    _selectedPresetIndex = index;
+    final preset = kEqPresets[index];
+
+    // 1. Capture snapshot BEFORE mutating _bands
+    final oldBands = List<Map<String, dynamic>>.from(_bands);
+
+    // 2. Animate removals using the snapshot
+    for (int i = oldBands.length - 1; i >= 0; i--) {
+      final removed = oldBands[i];
+      _listKey.currentState?.removeItem(
+        i,
+        (ctx, anim) => _buildAnimatedBandRow(
+            removed, anim, i, Theme.of(context).brightness == Brightness.dark),
+        duration: const Duration(milliseconds: 200),
+      );
+    }
+
+    // 3. Mutate state
     setState(() {
-      _selectedPresetIndex = index;
-      final preset = kEqPresets[index];
-      // Clear existing list
-      for (int i = _bands.length - 1; i >= 0; i--) {
-        final removed = _bands[i];
-        _listKey.currentState?.removeItem(
-          i,
-          (context, anim) => _buildAnimatedBandRow(
-              removed, anim, i, Theme.of(context).brightness == Brightness.dark),
-        );
-      }
       _bands.clear();
-      // Add preset bands
       for (int i = 0; i < preset.bands.length; i++) {
         _bands.add(Map<String, dynamic>.from(preset.bands[i]));
-        _listKey.currentState?.insertItem(i);
       }
       _onBandChanged();
+    });
+
+    // 4. Insert animations AFTER the removals animate out
+    Future.delayed(const Duration(milliseconds: 220), () {
+      if (!mounted) return;
+      for (int i = 0; i < _bands.length; i++) {
+        _listKey.currentState?.insertItem(i,
+            duration: const Duration(milliseconds: 180));
+      }
     });
   }
 
@@ -99,20 +113,20 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
 
   void _addBand() {
     final newBand = {'fc': 1000.0, 'gain': 0.0, 'q': 1.41, 'type': 'PK'};
-    setState(() {
-      _bands.add(newBand);
-      _listKey.currentState?.insertItem(_bands.length - 1);
-      _onBandChanged();
-    });
+    setState(() => _bands.add(newBand));
+    _listKey.currentState?.insertItem(_bands.length - 1);
+    _onBandChanged();
   }
 
   void _removeBand(int index) {
-    final removed = _bands[index];
+    if (index < 0 || index >= _bands.length) return;
+    final removed = Map<String, dynamic>.from(_bands[index]);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     _listKey.currentState?.removeItem(
       index,
       (context, animation) =>
           _buildAnimatedBandRow(removed, animation, index, isDark),
+      duration: const Duration(milliseconds: 200),
     );
     setState(() {
       _bands.removeAt(index);
@@ -149,7 +163,7 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
             isDefaultAction: true,
             onPressed: () {
               final val = double.tryParse(ctrl.text);
-              if (val != null) {
+              if (val != null && mounted) {
                 setState(() {
                   _bands[index][field == 'Frequency' ? 'fc' : (field == 'Gain' ? 'gain' : 'q')] = val.clamp(min, max);
                   _onBandChanged();
@@ -527,7 +541,7 @@ class EqVisualizerPainter extends CustomPainter {
 
     double preamp = 0.0;
     for (var b in bands) {
-      if (b['type'] == 'Preamp') preamp += (b['gain'] as double);
+      if (b['type'] == 'Preamp') preamp += (b['gain'] as num).toDouble();
     }
 
     final path = Path();
@@ -602,9 +616,9 @@ class EqVisualizerPainter extends CustomPainter {
 
   double _calcGain(Map<String, dynamic> band, double freq) {
     final type = band['type'];
-    final fc = band['fc'] as double;
-    final gain = band['gain'] as double;
-    final q = band['q'] as double;
+    final fc   = (band['fc']   as num).toDouble();
+    final gain = (band['gain'] as num).toDouble();
+    final q    = (band['q']    as num).toDouble();
     if (fc <= 0) return 0;
     final w0 = freq / fc;
 

@@ -47,7 +47,7 @@ class LibraryService {
       MetadataGod.initialize();
       final directory = await getApplicationDocumentsDirectory();
       final List<FileSystemEntity> entities =
-          directory.listSync(recursive: true);
+          await directory.list(recursive: true).toList();
 
       for (var entity in entities) {
         if (entity is File) {

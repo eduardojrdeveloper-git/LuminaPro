@@ -44,6 +44,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _onPlayingChanged() {
+    if (!mounted) return;
     if (_ps.playingNotifier.value) {
       _scaleController.forward();
       _artworkController.repeat();

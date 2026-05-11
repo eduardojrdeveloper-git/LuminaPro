@@ -1,6 +1,7 @@
 import 'dart:ffi';
 import 'dart:io';
 import 'package:ffi/ffi.dart'; // Required in pubspec.yaml
+import 'package:flutter/foundation.dart';
 
 typedef DspCreateC = Pointer<Void> Function();
 typedef DspCreateDart = Pointer<Void> Function();
@@ -21,16 +22,30 @@ class AudioEngine {
   late DspProcessDart _process;
 
   AudioEngine() {
-    _lib = Platform.isIOS ? DynamicLibrary.process() : DynamicLibrary.executable();
-    _dsp = _lib.lookupFunction<DspCreateC, DspCreateDart>('dsp_create')();
-    _loadEq = _lib.lookupFunction<DspLoadEqC, DspLoadEqDart>('dsp_load_eq');
-    _process = _lib.lookupFunction<DspProcessC, DspProcessDart>('dsp_process');
+    try {
+      _lib = Platform.isIOS ? DynamicLibrary.process() : DynamicLibrary.executable();
+      _dsp = _lib.lookupFunction<DspCreateC, DspCreateDart>('dsp_create')();
+      if (_dsp == nullptr) {
+        throw StateError('AudioEngine: dsp_create returned a null pointer');
+      }
+      _loadEq = _lib.lookupFunction<DspLoadEqC, DspLoadEqDart>('dsp_load_eq');
+      _process = _lib.lookupFunction<DspProcessC, DspProcessDart>('dsp_process');
+    } catch (e) {
+      debugPrint('AudioEngine: initialization failed: $e');
+      rethrow;
+    }
   }
 
   void loadEqContent(String content, double sampleRate) {
-    final ptr = content.toNativeUtf8();
-    _loadEq(_dsp, ptr, sampleRate);
-    calloc.free(ptr);
+    Pointer<Utf8>? ptr;
+    try {
+      ptr = content.toNativeUtf8();
+      _loadEq(_dsp, ptr, sampleRate);
+    } catch (e) {
+      debugPrint('AudioEngine: loadEqContent error: $e');
+    } finally {
+      if (ptr != null) calloc.free(ptr);
+    }
   }
 
   void processBuffer(Pointer<Float> buffer, int length) {
@@ -38,6 +53,10 @@ class AudioEngine {
   }
 
   void dispose() {
-    _lib.lookupFunction<DspDestroyC, DspDestroyDart>('dsp_destroy')(_dsp);
+    try {
+      _lib.lookupFunction<DspDestroyC, DspDestroyDart>('dsp_destroy')(_dsp);
+    } catch (e) {
+      debugPrint('AudioEngine: dispose error: $e');
+    }
   }
-}
+}

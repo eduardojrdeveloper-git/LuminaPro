@@ -66,35 +66,49 @@ class PlayerService {
     playingStream = _playingController.stream;
 
     _channel.setMethodCallHandler((call) async {
-      switch (call.method) {
-        case 'nextTrack': skipToNext(); break;
-        case 'previousTrack': skipToPrevious(); break;
-        case 'playPause': playPause(); break;
-        case 'seek':
-          if (call.arguments != null && call.arguments['position'] != null) {
-            _emitPosition(Duration(milliseconds: call.arguments['position'] as int));
-          }
-          break;
+      try {
+        switch (call.method) {
+          case 'nextTrack': skipToNext(); break;
+          case 'previousTrack': skipToPrevious(); break;
+          case 'playPause': playPause(); break;
+          case 'seek':
+            final args = call.arguments;
+            if (args is Map && args['position'] != null) {
+              final posMs = (args['position'] as num).toInt();
+              _emitPosition(Duration(milliseconds: posMs));
+            }
+            break;
+        }
+      } catch (e) {
+        debugPrint('PlayerService: method handler error: $e');
       }
     });
 
-    _positionEventChannel.receiveBroadcastStream().listen((event) {
-      if (event is Map) {
-        final posMs = event['position'] as int?;
-        final durMs = event['duration'] as int?;
-        if (posMs != null) _emitPosition(Duration(milliseconds: posMs));
-        if (durMs != null) _emitDuration(Duration(milliseconds: durMs));
-      }
-    });
+    _positionEventChannel.receiveBroadcastStream().listen(
+      (event) {
+        if (event is Map) {
+          final posMs = (event['position'] as num?)?.toInt();
+          final durMs = (event['duration'] as num?)?.toInt();
+          if (posMs != null) _emitPosition(Duration(milliseconds: posMs));
+          if (durMs != null) _emitDuration(Duration(milliseconds: durMs));
+        }
+      },
+      onError: (e) => debugPrint('PlayerService: position stream error: $e'),
+      cancelOnError: false,
+    );
 
-    _stateEventChannel.receiveBroadcastStream().listen((event) {
-      if (event is Map) {
-        final playing = event['playing'] as bool?;
-        final finished = event['finished'] as bool?;
-        if (playing != null) _emitPlaying(playing);
-        if (finished == true) _onTrackFinished();
-      }
-    });
+    _stateEventChannel.receiveBroadcastStream().listen(
+      (event) {
+        if (event is Map) {
+          final playing = event['playing'] as bool?;
+          final finished = event['finished'] as bool?;
+          if (playing != null) _emitPlaying(playing);
+          if (finished == true) _onTrackFinished();
+        }
+      },
+      onError: (e) => debugPrint('PlayerService: state stream error: $e'),
+      cancelOnError: false,
+    );
 
     _loadFavorites();
   }
@@ -218,10 +232,14 @@ class PlayerService {
   }
 
   void _onTrackFinished() {
+    final idx = _currentIndex;
+    final len = _queue.length;
+    if (len == 0) return;
+
     if (_repeat == RepeatMode.one) {
       _playCurrent();
-    } else if (_currentIndex < _queue.length - 1) {
-      _currentIndex++;
+    } else if (idx < len - 1) {
+      _currentIndex = idx + 1;
       _playCurrent();
     } else if (_repeat == RepeatMode.all) {
       _currentIndex = 0;

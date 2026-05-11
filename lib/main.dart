@@ -209,21 +209,27 @@ class _TabItem extends StatelessWidget {
   }
 }
 
-class _MiniPlayer extends StatelessWidget {
+class _MiniPlayer extends StatefulWidget {
   final VoidCallback onTap;
   const _MiniPlayer({required this.onTap});
 
   @override
+  State<_MiniPlayer> createState() => _MiniPlayerState();
+}
+
+class _MiniPlayerState extends State<_MiniPlayer> {
+  final _ps = PlayerService();
+
+  @override
   Widget build(BuildContext context) {
-    final playerService = PlayerService();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return ValueListenableBuilder<AudioFile?>(
-      valueListenable: playerService.currentSong,
+      valueListenable: _ps.currentSong,
       builder: (context, song, _) {
         if (song == null) return const SizedBox.shrink();
         return GestureDetector(
-          onTap: onTap,
+          onTap: widget.onTap,
           child: Container(
             margin: const EdgeInsets.fromLTRB(10, 0, 10, 6),
             decoration: BoxDecoration(
@@ -262,12 +268,12 @@ class _MiniPlayer extends StatelessWidget {
                           ),
                         ),
                         ValueListenableBuilder<bool>(
-                          valueListenable: playerService.playingNotifier,
+                          valueListenable: _ps.playingNotifier,
                           builder: (_, isPlaying, __) => Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              _MiniButton(icon: isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill, isDark: isDark, onTap: playerService.playPause),
-                              _MiniButton(icon: CupertinoIcons.forward_fill, isDark: isDark, onTap: playerService.skipToNext),
+                              _MiniButton(icon: isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill, isDark: isDark, onTap: _ps.playPause),
+                              _MiniButton(icon: CupertinoIcons.forward_fill, isDark: isDark, onTap: _ps.skipToNext),
                             ],
                           ),
                         ),

@@ -44,8 +44,10 @@ class LibraryScreenState extends State<LibraryScreen>
   }
 
   Future<void> _refreshLibrary() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     final songs = await LibraryService.scanMusic();
+    if (!mounted) return;
     setState(() {
       _allSongs = songs;
       _applySort();
@@ -82,8 +84,10 @@ class LibraryScreenState extends State<LibraryScreen>
         comparator = (a, b) => a.album.compareTo(b.album);
         break;
     }
-    _allSongs.sort(comparator);
-    if (!applyToFiltered) _filtered = List.from(_allSongs);
+    if (!applyToFiltered) {
+      _allSongs.sort(comparator);
+      _filtered = List.from(_allSongs);
+    }
     _filtered.sort(comparator);
   }
 
@@ -136,7 +140,7 @@ class LibraryScreenState extends State<LibraryScreen>
 
   void switchTab(int index) {
     if (index >= 0 && index < _tabController.length) {
-      setState(() => _tabController.index = index);
+      _tabController.index = index; // Listener already calls setState
     }
   }
 
@@ -215,7 +219,7 @@ class LibraryScreenState extends State<LibraryScreen>
                           4: _segLabel('Loved', _tabController.index == 4, isDark),
                         },
                         onValueChanged: (v) {
-                          if (v != null) setState(() => _tabController.index = v);
+                          if (v != null) _tabController.index = v; // Listener triggers rebuild
                         },
                       ),
                     ),
@@ -311,12 +315,24 @@ class LibraryScreenState extends State<LibraryScreen>
           itemBuilder: (context, index) {
             if (index == 0) return _ShuffleHeroButton(songs: songs);
             final song = songs[index - 1];
-            final isPlaying = ps.currentSong.value?.path == song.path;
-            return Column(
-              children: [
-                _SongRow(song: song, isPlaying: isPlaying, isDark: isDark, onTap: () => ps.playQueue(songs, initialIndex: index - 1), onMore: () => _showSongMenu(context, song, index - 1, songs)),
-                if (index < songs.length) Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 76, height: 1),
-              ],
+            return ValueListenableBuilder<AudioFile?>(
+              valueListenable: ps.currentSong,
+              builder: (ctx, currentSong, _) {
+                final isPlaying = currentSong?.path == song.path;
+                return Column(
+                  children: [
+                    _SongRow(
+                      song: song,
+                      isPlaying: isPlaying,
+                      isDark: isDark,
+                      onTap: () => ps.playQueue(songs, initialIndex: index - 1),
+                      onMore: () => _showSongMenu(context, song, index - 1, songs),
+                    ),
+                    if (index < songs.length)
+                      Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 76, height: 1),
+                  ],
+                );
+              },
             );
           },
         );
