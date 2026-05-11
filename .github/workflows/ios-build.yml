@@ -452,6 +452,8 @@ jobs:
             google_fonts: ^6.2.1
             share_plus: ^9.0.0
             cupertino_icons: ^1.0.8
+            shared_preferences: ^2.2.2
+            file_picker: ^8.0.0
             dsp_plugin:
               path: ./dsp_plugin
           dev_dependencies:
