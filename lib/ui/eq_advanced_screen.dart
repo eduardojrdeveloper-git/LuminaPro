@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'dart:math';
@@ -26,6 +27,16 @@ final List<EqPreset> kEqPresets = [
     {'fc': 3000.0, 'gain': 3.0, 'q': 1.2, 'type': 'PK'},
     {'fc': 100.0, 'gain': -3.0, 'q': 0.8, 'type': 'HSC'},
   ]),
+  EqPreset('Treble Boost', [
+    {'fc': 1000.0, 'gain': -1.0, 'q': 1.41, 'type': 'Preamp'},
+    {'fc': 8000.0, 'gain': 5.0, 'q': 1.0, 'type': 'PK'},
+    {'fc': 16000.0, 'gain': 3.0, 'q': 0.8, 'type': 'PK'},
+  ]),
+  EqPreset('Loudness', [
+    {'fc': 1000.0, 'gain': -3.0, 'q': 1.41, 'type': 'Preamp'},
+    {'fc': 60.0, 'gain': 5.0, 'q': 0.7, 'type': 'PK'},
+    {'fc': 12000.0, 'gain': 4.0, 'q': 0.9, 'type': 'PK'},
+  ]),
 ];
 
 class EqAdvancedScreen extends StatefulWidget {
@@ -38,23 +49,52 @@ class EqAdvancedScreen extends StatefulWidget {
 class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
   final PlayerService _ps = PlayerService();
   late List<Map<String, dynamic>> _bands;
-  final List<String> _filterTypes = ['Preamp', 'PK', 'LSC', 'HSC', 'LP', 'HP'];
-  
-  // Use a ValueNotifier to trigger real-time repaints of the painter
+  int _selectedPresetIndex = 0;
+  final GlobalKey<AnimatedListState> _listKey =
+      GlobalKey<AnimatedListState>();
+
+  // ValueNotifier for real-time visualizer repaints
   late final ValueNotifier<List<Map<String, dynamic>>> _bandsNotifier;
-  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
 
   @override
   void initState() {
     super.initState();
-    _bands = List.from(_ps.eqBands.map((b) => Map<String, dynamic>.from(b)));
+    _bands =
+        List.from(_ps.eqBands.map((b) => Map<String, dynamic>.from(b)));
     _bandsNotifier = ValueNotifier(_bands);
   }
 
   void _onBandChanged() {
-    _bandsNotifier.value = List.from(_bands); // Trigger repaint
+    _bandsNotifier.value = List.from(_bands);
     _ps.eqBands = _bands;
     _ps.applyCurrentEQ();
+  }
+
+  void _applyPreset(int index) {
+    setState(() {
+      _selectedPresetIndex = index;
+      final preset = kEqPresets[index];
+      // Clear existing list
+      for (int i = _bands.length - 1; i >= 0; i--) {
+        final removed = _bands[i];
+        _listKey.currentState?.removeItem(
+          i,
+          (context, anim) => _buildAnimatedBandRow(
+              removed, anim, i, Theme.of(context).brightness == Brightness.dark),
+        );
+      }
+      _bands.clear();
+      // Add preset bands
+      for (int i = 0; i < preset.bands.length; i++) {
+        _bands.add(Map<String, dynamic>.from(preset.bands[i]));
+        _listKey.currentState?.insertItem(i);
+      }
+      _onBandChanged();
+    });
+  }
+
+  void _resetEq() {
+    _applyPreset(0); // Reset to Flat
   }
 
   void _addBand() {
@@ -68,9 +108,11 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
 
   void _removeBand(int index) {
     final removed = _bands[index];
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     _listKey.currentState?.removeItem(
       index,
-      (context, animation) => _buildAnimatedBandRow(removed, animation, index, Theme.of(context).brightness == Brightness.dark),
+      (context, animation) =>
+          _buildAnimatedBandRow(removed, animation, index, isDark),
     );
     setState(() {
       _bands.removeAt(index);
@@ -85,37 +127,69 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
     return CupertinoPageScaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       navigationBar: CupertinoNavigationBar(
-        middle: Text('Parametric EQ', 
+        middle: Text(
+          'Parametric EQ',
           style: TextStyle(
             color: isDark ? Colors.white : Colors.black,
             fontWeight: FontWeight.w600,
             fontSize: 17,
-          )
+            letterSpacing: -0.3,
+          ),
         ),
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.8),
+        backgroundColor:
+            Theme.of(context).scaffoldBackgroundColor.withOpacity(0.88),
         border: null,
-        trailing: CupertinoButton(
+        leading: CupertinoButton(
           padding: EdgeInsets.zero,
-          onPressed: _addBand,
-          child: const Icon(CupertinoIcons.add_circled, size: 24),
+          onPressed: () => Navigator.pop(context),
+          child: const Icon(CupertinoIcons.chevron_backward,
+              color: LuminaColors.accent),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CupertinoButton(
+              padding: const EdgeInsets.only(right: 8),
+              onPressed: _resetEq,
+              child: const Text(
+                'Reset',
+                style: TextStyle(
+                    color: LuminaColors.accent,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w400),
+              ),
+            ),
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: _addBand,
+              child: const Icon(CupertinoIcons.add_circled,
+                  color: LuminaColors.accent, size: 22),
+            ),
+          ],
         ),
       ),
       child: SafeArea(
         child: Column(
           children: [
-            // ── Premium Real-time Visualizer ──────────────────────────────
+            // ── Real-time EQ Visualizer ──────────────────────────────────
             Container(
-              height: 180,
-              margin: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              height: 160,
+              margin: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.05)
+                      : Colors.black.withOpacity(0.04),
+                  width: 0.5,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(isDark ? 0.4 : 0.06),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
-                  )
+                    color: Colors.black.withOpacity(isDark ? 0.35 : 0.05),
+                    blurRadius: 20,
+                    offset: const Offset(0, 6),
+                  ),
                 ],
               ),
               child: ClipRRect(
@@ -124,20 +198,73 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
                   valueListenable: _bandsNotifier,
                   builder: (_, bands, __) => CustomPaint(
                     painter: EqVisualizerPainter(bands, isDark),
-                    child: Container(),
+                    child: const SizedBox.expand(),
                   ),
                 ),
               ),
             ),
 
-            // ── Animated Bands List ────────────────────────────────────────
+            // ── Presets — Horizontal Scroll Chips ────────────────────────
+            SizedBox(
+              height: 40,
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                scrollDirection: Axis.horizontal,
+                itemCount: kEqPresets.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, i) {
+                  final isSelected = _selectedPresetIndex == i;
+                  return GestureDetector(
+                    onTap: () => _applyPreset(i),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? LuminaColors.accent
+                            : (isDark ? LuminaColors.bg2 : LuminaColors.lightBg2),
+                        borderRadius: BorderRadius.circular(20),
+                        border: isSelected
+                            ? null
+                            : Border.all(
+                                color: isDark
+                                    ? Colors.white.withOpacity(0.1)
+                                    : Colors.black.withOpacity(0.08),
+                                width: 0.5,
+                              ),
+                      ),
+                      child: Text(
+                        kEqPresets[i].name,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: isSelected
+                              ? Colors.white
+                              : (isDark
+                                  ? Colors.white
+                                  : Colors.black87),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // ── Bands List ───────────────────────────────────────────────
             Expanded(
               child: AnimatedList(
                 key: _listKey,
                 initialItemCount: _bands.length,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemBuilder: (context, index, animation) {
-                  return _buildAnimatedBandRow(_bands[index], animation, index, isDark);
+                  return _buildAnimatedBandRow(
+                      _bands[index], animation, index, isDark);
                 },
               ),
             ),
@@ -147,7 +274,8 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
     );
   }
 
-  Widget _buildAnimatedBandRow(Map<String, dynamic> band, Animation<double> animation, int index, bool isDark) {
+  Widget _buildAnimatedBandRow(Map<String, dynamic> band,
+      Animation<double> animation, int index, bool isDark) {
     return FadeTransition(
       opacity: animation,
       child: SizeTransition(
@@ -157,17 +285,20 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
     );
   }
 
-  Widget _buildBandCard(Map<String, dynamic> band, int index, bool isDark) {
+  Widget _buildBandCard(
+      Map<String, dynamic> band, int index, bool isDark) {
     final isPreamp = band['type'] == 'Preamp';
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+          color: isDark
+              ? Colors.white.withOpacity(0.05)
+              : Colors.black.withOpacity(0.04),
           width: 0.5,
         ),
       ),
@@ -177,7 +308,8 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: LuminaColors.accent.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(6),
@@ -185,9 +317,9 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
                 child: Text(
                   band['type'].toUpperCase(),
                   style: const TextStyle(
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     fontSize: 10,
-                    letterSpacing: 1.0,
+                    letterSpacing: 0.8,
                     color: LuminaColors.accent,
                   ),
                 ),
@@ -196,50 +328,71 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
               if (!isPreamp)
                 Text(
                   '${band['fc'].toInt()} Hz',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: LuminaColors.labelSecondary,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.white70 : Colors.black54,
                   ),
                 ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               GestureDetector(
                 onTap: () => _removeBand(index),
-                child: const Icon(CupertinoIcons.minus_circle_fill, size: 20, color: LuminaColors.destructive),
+                behavior: HitTestBehavior.opaque,
+                child: const Padding(
+                  padding: EdgeInsets.all(4),
+                  child: Icon(CupertinoIcons.minus_circle_fill,
+                      size: 20, color: LuminaColors.destructive),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           if (!isPreamp)
-            _buildSliderRow('Frequency', band['fc'], 20, 20000, isDark, (v) {
-              setState(() { band['fc'] = v; _onBandChanged(); });
+            _buildSliderRow('Frequency', band['fc'], 20, 20000, isDark,
+                (v) {
+              setState(() {
+                band['fc'] = v;
+                _onBandChanged();
+              });
             }),
           _buildSliderRow('Gain', band['gain'], -20, 20, isDark, (v) {
-            setState(() { band['gain'] = v; _onBandChanged(); });
+            setState(() {
+              band['gain'] = v;
+              _onBandChanged();
+            });
           }, unit: 'dB'),
           if (!isPreamp)
             _buildSliderRow('Q Factor', band['q'], 0.1, 10, isDark, (v) {
-              setState(() { band['q'] = v; _onBandChanged(); });
+              setState(() {
+                band['q'] = v;
+                _onBandChanged();
+              });
             }),
         ],
       ),
     );
   }
 
-  Widget _buildSliderRow(String label, double value, double min, double max, bool isDark, ValueChanged<double> onChanged, {String unit = ''}) {
+  Widget _buildSliderRow(String label, double value, double min, double max,
+      bool isDark, ValueChanged<double> onChanged,
+      {String unit = ''}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: LuminaColors.labelSecondary)),
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: LuminaColors.labelSecondary)),
               Text(
                 '${value.toStringAsFixed(1)} $unit',
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                   color: isDark ? Colors.white : Colors.black,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
@@ -247,7 +400,7 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
             ],
           ),
           SizedBox(
-            height: 32,
+            height: 30,
             child: CupertinoSlider(
               value: value.clamp(min, max),
               min: min,
@@ -262,6 +415,7 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
   }
 }
 
+// ── EQ Visualizer ─────────────────────────────────────────────────────────────
 class EqVisualizerPainter extends CustomPainter {
   final List<Map<String, dynamic>> bands;
   final bool isDark;
@@ -269,40 +423,65 @@ class EqVisualizerPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Background Grid
+    // Grid lines
     final gridPaint = Paint()
-      ..color = isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04)
-      ..strokeWidth = 1.0;
-    
+      ..color = isDark
+          ? Colors.white.withOpacity(0.05)
+          : Colors.black.withOpacity(0.05)
+      ..strokeWidth = 0.5;
+
     for (final db in [-12.0, -6.0, 0.0, 6.0, 12.0]) {
       final y = _dbToY(db, size);
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    // Reference line (0dB)
+    // 0dB reference line — subtle accent
     canvas.drawLine(
       Offset(0, _dbToY(0, size)),
       Offset(size.width, _dbToY(0, size)),
-      Paint()..color = LuminaColors.accent.withOpacity(0.15)..strokeWidth = 1.0
+      Paint()
+        ..color = LuminaColors.accent.withOpacity(0.1)
+        ..strokeWidth = 1.0,
     );
 
+    // Frequency labels
+    const freqLabels = [
+      (20.0, '20'),
+      (100.0, '100'),
+      (1000.0, '1k'),
+      (10000.0, '10k'),
+      (20000.0, '20k'),
+    ];
+    final labelStyle = TextStyle(
+      color: (isDark ? Colors.white : Colors.black).withOpacity(0.25),
+      fontSize: 9,
+    );
+    for (final (freq, label) in freqLabels) {
+      final x = _freqToX(freq, size.width);
+      final tp = TextPainter(
+        text: TextSpan(text: label, style: labelStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(x - tp.width / 2, size.height - 14));
+    }
+
     double preamp = 0.0;
-    for (var b in bands) if (b['type'] == 'Preamp') preamp += b['gain'];
+    for (var b in bands) {
+      if (b['type'] == 'Preamp') preamp += (b['gain'] as double);
+    }
 
     final path = Path();
     final fillPath = Path();
     bool first = true;
-    
-    // High-fidelity curve sampling
-    for (double x = 0; x <= size.width; x += 1) {
-      final freq = exp(log(20.0) + (x / size.width) * (log(20000.0) - log(20.0)));
-      double totalDb = preamp;
 
+    for (double x = 0; x <= size.width; x += 1) {
+      final freq =
+          exp(log(20.0) + (x / size.width) * (log(20000.0) - log(20.0)));
+      double totalDb = preamp;
       for (var band in bands) {
         if (band['type'] == 'Preamp') continue;
         totalDb += _calcGain(band, freq);
       }
-
       final y = _dbToY(totalDb, size);
       if (first) {
         path.moveTo(x, y);
@@ -317,37 +496,48 @@ class EqVisualizerPainter extends CustomPainter {
     fillPath.lineTo(size.width, size.height);
     fillPath.close();
 
-    // Elegant Gradient Fill
+    // Gradient fill — neutral white/gray tone for technical graph
+    final gradientColor =
+        isDark ? Colors.white : Colors.black;
     final gradient = LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
       colors: [
-        LuminaColors.accent.withOpacity(0.25),
-        LuminaColors.accent.withOpacity(0.02),
+        gradientColor.withOpacity(0.18),
+        gradientColor.withOpacity(0.01),
       ],
     );
-    canvas.drawPath(fillPath, Paint()..shader = gradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height)));
-    
-    // Glow effect
     canvas.drawPath(
-      path, 
+      fillPath,
       Paint()
-        ..color = LuminaColors.accent.withOpacity(0.3)
-        ..strokeWidth = 5
-        ..style = PaintingStyle.stroke
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3)
+        ..shader =
+            gradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
     );
 
-    // Main Stroke
+    // Glow
     canvas.drawPath(
-      path, 
+      path,
+      Paint()
+        ..color = LuminaColors.accent.withOpacity(0.25)
+        ..strokeWidth = 6
+        ..style = PaintingStyle.stroke
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+    );
+
+    // Main stroke — Apple Music uses a bright accent for the EQ curve
+    canvas.drawPath(
+      path,
       Paint()
         ..color = LuminaColors.accent
-        ..strokeWidth = 2.5
+        ..strokeWidth = 2
         ..style = PaintingStyle.stroke
         ..strokeJoin = StrokeJoin.round
-        ..strokeCap = StrokeCap.round
+        ..strokeCap = StrokeCap.round,
     );
+  }
+
+  double _freqToX(double freq, double width) {
+    return (log(freq) - log(20.0)) / (log(20000.0) - log(20.0)) * width;
   }
 
   double _calcGain(Map<String, dynamic> band, double freq) {
@@ -357,19 +547,19 @@ class EqVisualizerPainter extends CustomPainter {
     final q = band['q'] as double;
     if (fc <= 0) return 0;
     final w0 = freq / fc;
-    
+
     if (type == 'PK') {
       final a = pow(10.0, gain / 40.0);
-      final n = 1.0 + pow(w0 - 1.0/w0, 2) * pow(q, 2) * pow(a, 2);
-      final d = 1.0 + pow(w0 - 1.0/w0, 2) * pow(q, 2) / pow(a, 2);
-      return 10 * log(n/d) / ln10;
+      final n = 1.0 + pow(w0 - 1.0 / w0, 2) * pow(q, 2) * pow(a, 2);
+      final d = 1.0 + pow(w0 - 1.0 / w0, 2) * pow(q, 2) / pow(a, 2);
+      return 10 * log(n / d) / ln10;
     }
-    // Note: Other filters (LSC, HSC) should be implemented for full precision
     return 0;
   }
 
-  double _dbToY(double db, Size size) => (size.height / 2) - (db / 24.0) * (size.height / 2);
+  double _dbToY(double db, Size size) =>
+      (size.height / 2) - (db / 24.0) * (size.height / 2);
 
   @override
-  bool shouldRepaint(covariant EqVisualizerPainter old) => true; 
+  bool shouldRepaint(covariant EqVisualizerPainter old) => true;
 }

@@ -5,17 +5,19 @@ import 'package:google_fonts/google_fonts.dart';
 import 'ui/library_screen.dart';
 import 'ui/player_screen.dart';
 import 'ui/settings_screen.dart';
+import 'ui/search_screen.dart';
 import 'services/player_service.dart';
 import 'services/library_service.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
 final ValueNotifier<bool> rotateArtworkNotifier = ValueNotifier(false);
 
-// ── Apple HIG Color System ────────────────────────────────────────────────────
+// ── Apple Music Color System ──────────────────────────────────────────────────
 class LuminaColors {
-  // iOS Blue accent
-  static const accent = Color(0xFF007AFF);
-  static const accentGlow = Color(0x44007AFF);
+  // Apple Music Red — primary accent
+  static const accent      = Color(0xFFFA233B);
+  static const accentGlow  = Color(0x55FA233B);
+  static const accentSoft  = Color(0x22FA233B);
 
   // Dark backgrounds (iOS layered grays)
   static const bg0 = Color(0xFF000000);       // deepest
@@ -150,6 +152,7 @@ class _MainNavigationState extends State<MainNavigation>
 
   final List<Widget> _screens = [
     LibraryScreen(),
+    const SearchScreen(),
     const PlayerScreen(),
     const SettingsScreen(),
   ];
@@ -169,7 +172,7 @@ class _MainNavigationState extends State<MainNavigation>
       mainAxisSize: MainAxisSize.min,
       children: [
         // ── Mini Player ──────────────────────────────────────────────────────
-        _MiniPlayer(onTap: () => setState(() => _currentIndex = 1)),
+        _MiniPlayer(onTap: () => setState(() => _currentIndex = 2)),
         // ── Frosted Tab Bar ──────────────────────────────────────────────────
         ClipRect(
           child: BackdropFilter(
@@ -177,12 +180,12 @@ class _MainNavigationState extends State<MainNavigation>
             child: Container(
               decoration: BoxDecoration(
                 color: isDark
-                    ? LuminaColors.bg0.withOpacity(0.8)
-                    : Colors.white.withOpacity(0.85),
+                    ? LuminaColors.bg0.withOpacity(0.82)
+                    : Colors.white.withOpacity(0.88),
                 border: Border(
                   top: BorderSide(
                     color: isDark
-                        ? LuminaColors.bg3.withOpacity(0.5)
+                        ? Colors.white.withOpacity(0.08)
                         : Colors.black.withOpacity(0.1),
                     width: 0.5,
                   ),
@@ -206,19 +209,28 @@ class _MainNavigationState extends State<MainNavigation>
                       _TabItem(
                         index: 1,
                         current: _currentIndex,
-                        icon: CupertinoIcons.play_circle,
-                        activeIcon: CupertinoIcons.play_circle_fill,
-                        label: 'Now Playing',
+                        icon: CupertinoIcons.search,
+                        activeIcon: CupertinoIcons.search,
+                        label: 'Search',
                         onTap: () => setState(() => _currentIndex = 1),
                         isDark: isDark,
                       ),
                       _TabItem(
                         index: 2,
                         current: _currentIndex,
+                        icon: CupertinoIcons.play_circle,
+                        activeIcon: CupertinoIcons.play_circle_fill,
+                        label: 'Now Playing',
+                        onTap: () => setState(() => _currentIndex = 2),
+                        isDark: isDark,
+                      ),
+                      _TabItem(
+                        index: 3,
+                        current: _currentIndex,
                         icon: CupertinoIcons.settings,
                         activeIcon: CupertinoIcons.settings_solid,
                         label: 'Settings',
-                        onTap: () => setState(() => _currentIndex = 2),
+                        onTap: () => setState(() => _currentIndex = 3),
                         isDark: isDark,
                       ),
                     ],
@@ -233,6 +245,7 @@ class _MainNavigationState extends State<MainNavigation>
   }
 }
 
+// ── Tab Item ─────────────────────────────────────────────────────────────────
 class _TabItem extends StatelessWidget {
   final int index;
   final int current;
@@ -257,7 +270,7 @@ class _TabItem extends StatelessWidget {
     final isActive = index == current;
     final color = isActive
         ? LuminaColors.accent
-        : (isDark ? LuminaColors.labelSecondary : LuminaColors.labelTertiary);
+        : (isDark ? LuminaColors.labelSecondary : const Color(0xFF8E8E93));
 
     return Expanded(
       child: GestureDetector(
@@ -266,15 +279,23 @@ class _TabItem extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(isActive ? activeIcon : icon, color: color, size: 24),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                isActive ? activeIcon : icon,
+                key: ValueKey(isActive),
+                color: color,
+                size: 24,
+              ),
+            ),
             const SizedBox(height: 3),
             Text(
               label,
               style: TextStyle(
                 color: color,
                 fontSize: 10,
-                fontWeight:
-                    isActive ? FontWeight.w600 : FontWeight.normal,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                letterSpacing: -0.2,
               ),
             ),
           ],
@@ -301,102 +322,150 @@ class _MiniPlayer extends StatelessWidget {
 
         return GestureDetector(
           onTap: onTap,
-          child: ClipRRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? LuminaColors.bg1.withOpacity(0.92)
-                      : Colors.white.withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isDark
-                        ? LuminaColors.bg3.withOpacity(0.5)
-                        : Colors.black.withOpacity(0.08),
-                    width: 0.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(isDark ? 0.4 : 0.12),
-                      blurRadius: 20,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(8, 4, 8, 2),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(isDark ? 0.45 : 0.15),
+                  blurRadius: 24,
+                  offset: const Offset(0, 6),
                 ),
-                child: Row(
-                  children: [
-                    // Artwork
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: SizedBox(
-                        width: 44,
-                        height: 44,
-                        child: song.coverArt != null
-                            ? Image.memory(song.coverArt!, fit: BoxFit.cover)
-                            : Container(
-                                color: LuminaColors.bg2,
-                                child: const Icon(
-                                  CupertinoIcons.music_note,
-                                  color: LuminaColors.labelSecondary,
-                                  size: 20,
-                                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? LuminaColors.bg2.withOpacity(0.95)
+                        : Colors.white.withOpacity(0.92),
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white.withOpacity(0.07)
+                          : Colors.black.withOpacity(0.06),
+                      width: 0.5,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        child: Row(
+                          children: [
+                            // Artwork
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: SizedBox(
+                                width: 44,
+                                height: 44,
+                                child: song.coverArt != null
+                                    ? Image.memory(song.coverArt!,
+                                        fit: BoxFit.cover)
+                                    : Container(
+                                        color: LuminaColors.bg3,
+                                        child: const Icon(
+                                          CupertinoIcons.music_note,
+                                          color: LuminaColors.labelSecondary,
+                                          size: 20,
+                                        ),
+                                      ),
                               ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Title / Artist
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            song.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: isDark ? Colors.white : Colors.black,
                             ),
-                          ),
-                          Text(
-                            song.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: LuminaColors.accent,
+                            const SizedBox(width: 12),
+                            // Title / Artist
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    song.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 15,
+                                      color:
+                                          isDark ? Colors.white : Colors.black,
+                                      letterSpacing: -0.3,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 1),
+                                  Text(
+                                    song.artist,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: LuminaColors.accent,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                            // Controls
+                            ValueListenableBuilder<bool>(
+                              valueListenable: playerService.playingNotifier,
+                              builder: (_, isPlaying, __) => Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _MiniButton(
+                                    icon: isPlaying
+                                        ? CupertinoIcons.pause_fill
+                                        : CupertinoIcons.play_fill,
+                                    isDark: isDark,
+                                    onTap: playerService.playPause,
+                                  ),
+                                  _MiniButton(
+                                    icon: CupertinoIcons.forward_fill,
+                                    isDark: isDark,
+                                    onTap: playerService.skipToNext,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    // Controls
-                    ValueListenableBuilder<bool>(
-                      valueListenable: playerService.playingNotifier,
-                      builder: (_, isPlaying, __) => Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _MiniButton(
-                            icon: isPlaying
-                                ? CupertinoIcons.pause_fill
-                                : CupertinoIcons.play_fill,
-                            isDark: isDark,
-                            onTap: playerService.playPause,
-                          ),
-                          _MiniButton(
-                            icon: CupertinoIcons.forward_fill,
-                            isDark: isDark,
-                            onTap: playerService.skipToNext,
-                          ),
-                        ],
+                      // ── Progress Bar ─────────────────────────────────────
+                      ValueListenableBuilder<Duration?>(
+                        valueListenable: playerService.durationNotifier,
+                        builder: (_, duration, __) {
+                          return ValueListenableBuilder<Duration>(
+                            valueListenable: playerService.positionNotifier,
+                            builder: (_, position, __) {
+                              final total = duration?.inMilliseconds ?? 1;
+                              final current = position.inMilliseconds
+                                  .clamp(0, total)
+                                  .toDouble();
+                              final progress =
+                                  total > 0 ? current / total : 0.0;
+                              return SizedBox(
+                                height: 2,
+                                child: LinearProgressIndicator(
+                                  value: progress,
+                                  backgroundColor: isDark
+                                      ? Colors.white.withOpacity(0.1)
+                                      : Colors.black.withOpacity(0.08),
+                                  valueColor: const AlwaysStoppedAnimation(
+                                      LuminaColors.accent),
+                                  minHeight: 2,
+                                ),
+                              );
+                            },
+                          );
+                        },
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -419,12 +488,13 @@ class _MiniButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         child: Icon(
           icon,
           size: 22,
-          color: isDark ? Colors.white : Colors.black,
+          color: isDark ? Colors.white : Colors.black87,
         ),
       ),
     );
