@@ -19,10 +19,10 @@ class _LibraryScreenState extends State<LibraryScreen>
   List<AudioFile> _filtered = [];
   bool _isLoading = true;
   bool _showSearch = false;
-  bool _albumsGrid = true;
   SortMode _sortMode = SortMode.title;
   late TabController _tabController;
   final TextEditingController _searchCtrl = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
 
   @override
   void initState() {
@@ -37,6 +37,7 @@ class _LibraryScreenState extends State<LibraryScreen>
   void dispose() {
     _tabController.dispose();
     _searchCtrl.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -146,7 +147,6 @@ class _LibraryScreenState extends State<LibraryScreen>
           ),
         ],
         cancelButton: CupertinoActionSheetAction(
-          isDestructiveAction: false,
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
@@ -162,139 +162,116 @@ class _LibraryScreenState extends State<LibraryScreen>
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          SliverAppBar(
-            pinned: true,
-            floating: true,
-            snap: true,
-            expandedHeight: 100,
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            surfaceTintColor: Colors.transparent,
-            flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
-              title: Text(
-                'Library',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : Colors.black,
-                ),
+          CupertinoSliverNavigationBar(
+            largeTitle: Text(
+              'Library',
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black,
+                fontFamily: '.SF Pro Display',
               ),
             ),
-            actions: [
-              IconButton(
-                icon: Icon(
-                  _showSearch
-                      ? Icons.cancel
-                      : Icons.search,
-                  color: LuminaColors.accent,
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.8),
+            border: null,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _showSearch = true;
+                      _searchFocus.requestFocus();
+                    });
+                  },
+                  child: const Icon(CupertinoIcons.search, color: LuminaColors.accent),
                 ),
-                onPressed: () {
-                  setState(() {
-                    _showSearch = !_showSearch;
-                    if (!_showSearch) {
-                      _searchCtrl.clear();
-                    }
-                  });
-                },
-              ),
-              IconButton(
-                icon: const Icon(Icons.sort,
-                    color: LuminaColors.accent),
-                onPressed: _showSortMenu,
-              ),
-              IconButton(
-                icon: const Icon(Icons.refresh,
-                    color: LuminaColors.accent),
-                onPressed: _refreshLibrary,
-              ),
-            ],
-            bottom: PreferredSize(
-              preferredSize: Size.fromHeight(_showSearch ? 100 : 48),
-              child: Column(
-                children: [
-                  if (_showSearch)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                      child: Container(
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? LuminaColors.bg2
-                              : LuminaColors.lightBg2,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: TextField(
-                          controller: _searchCtrl,
-                          autofocus: true,
-                          style: TextStyle(
-                            color: isDark ? Colors.white : Colors.black,
-                            fontSize: 15,
+                const SizedBox(width: 16),
+                GestureDetector(
+                  onTap: _showSortMenu,
+                  child: const Icon(CupertinoIcons.sort_down, color: LuminaColors.accent),
+                ),
+                const SizedBox(width: 16),
+                GestureDetector(
+                  onTap: _refreshLibrary,
+                  child: const Icon(CupertinoIcons.arrow_2_circlepath, color: LuminaColors.accent),
+                ),
+              ],
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Column(
+              children: [
+                // ── Animated Search Bar ────────────────────────────────────
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  height: _showSearch ? 52 : 0,
+                  child: _showSearch
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: CupertinoSearchTextField(
+                                  controller: _searchCtrl,
+                                  focusNode: _searchFocus,
+                                  placeholder: 'Search music...',
+                                  style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _showSearch = false;
+                                    _searchCtrl.clear();
+                                    _searchFocus.unfocus();
+                                  });
+                                },
+                                child: const Text(
+                                  'Cancel',
+                                  style: TextStyle(color: LuminaColors.accent),
+                                ),
+                              ),
+                            ],
                           ),
-                          decoration: InputDecoration(
-                            hintText: 'Search songs, artists, albums…',
-                            hintStyle: const TextStyle(
-                              color: LuminaColors.labelSecondary,
-                              fontSize: 15,
-                            ),
-                            prefixIcon: const Icon(
-                              Icons.search,
-                              color: LuminaColors.labelSecondary,
-                              size: 18,
-                            ),
-                            border: InputBorder.none,
-                            contentPadding:
-                                const EdgeInsets.symmetric(vertical: 10),
-                          ),
-                        ),
-                      ),
-                    ),
-                  TabBar(
-                    controller: _tabController,
-                    indicatorColor: LuminaColors.accent,
-                    labelColor: LuminaColors.accent,
-                    unselectedLabelColor: LuminaColors.labelSecondary,
-                    indicatorWeight: 2,
-                    labelStyle: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    tabs: const [
-                      Tab(text: 'Songs'),
-                      Tab(text: 'Artists'),
-                      Tab(text: 'Albums'),
-                    ],
+                        )
+                      : const SizedBox.shrink(),
+                ),
+                // ── Tabs ───────────────────────────────────────────────────
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  width: double.infinity,
+                  child: CupertinoSlidingSegmentedControl<int>(
+                    groupValue: _tabController.index,
+                    children: const {
+                      0: Text('Songs', style: TextStyle(fontSize: 13)),
+                      1: Text('Artists', style: TextStyle(fontSize: 13)),
+                      2: Text('Albums', style: TextStyle(fontSize: 13)),
+                    },
+                    onValueChanged: (v) {
+                      if (v != null) setState(() => _tabController.index = v);
+                    },
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
         body: _isLoading
-            ? Center(
-                child: CupertinoActivityIndicator(
-                  color: LuminaColors.accent,
-                  radius: 14,
+            ? const Center(child: CupertinoActivityIndicator(radius: 14))
+            : Padding(
+                padding: const EdgeInsets.only(bottom: 100), // Avoid MiniPlayer
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildSongsList(),
+                    _buildGroupedList(groupBy: (s) => s.artist, icon: CupertinoIcons.person_fill),
+                    _buildAlbumsView(),
+                  ],
                 ),
-              )
-            : TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildSongsList(),
-                  _buildGroupedList(
-                      groupBy: (s) => s.artist,
-                      icon: Icons.person),
-                  _buildAlbumsView(),
-                ],
               ),
       ),
     );
-  }
-
-  String _formatDuration(Duration? d) {
-    if (d == null) return '';
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return d.inHours > 0 ? '${d.inHours}:$m:$s' : '$m:$s';
   }
 
   Widget _buildSongsList() {
@@ -314,24 +291,17 @@ class _LibraryScreenState extends State<LibraryScreen>
         final song = songs[index];
         final isPlaying = PlayerService().currentSong.value?.path == song.path;
         return ListTile(
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
           leading: ClipRRect(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(8),
             child: SizedBox(
-              width: 50,
-              height: 50,
+              width: 48,
+              height: 48,
               child: song.coverArt != null
                   ? Image.memory(song.coverArt!, fit: BoxFit.cover)
                   : Container(
-                      color: isDark
-                          ? LuminaColors.bg2
-                          : LuminaColors.lightBg2,
-                      child: const Icon(
-                        Icons.music_note,
-                        color: LuminaColors.labelSecondary,
-                        size: 20,
-                      ),
+                      color: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2,
+                      child: const Icon(CupertinoIcons.music_note, color: LuminaColors.labelSecondary, size: 20),
                     ),
             ),
           ),
@@ -339,64 +309,25 @@ class _LibraryScreenState extends State<LibraryScreen>
             song.title,
             style: TextStyle(
               fontWeight: FontWeight.w600,
-              fontSize: 15,
-              color: isPlaying
-                  ? LuminaColors.accent
-                  : (isDark ? Colors.white : Colors.black87),
+              fontSize: 16,
+              color: isPlaying ? LuminaColors.accent : (isDark ? Colors.white : Colors.black87),
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
           subtitle: Text(
             '${song.artist} · ${song.album}',
-            style: const TextStyle(
-                color: LuminaColors.labelSecondary, fontSize: 13),
+            style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 13),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          trailing: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              if (song.formatBadge.isNotEmpty)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: LuminaColors.accent.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    song.format.toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: LuminaColors.accent,
-                    ),
-                  ),
-                ),
-              if (song.duration != null)
-                Text(
-                  _formatDuration(song.duration),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: LuminaColors.labelSecondary,
-                  ),
-                ),
-            ],
-          ),
-          onTap: () {
-            PlayerService().playQueue(_displayedSongs, initialIndex: index);
-          },
+          onTap: () => PlayerService().playQueue(_displayedSongs, initialIndex: index),
         );
       },
     );
   }
 
-  Widget _buildGroupedList({
-    required String Function(AudioFile) groupBy,
-    required IconData icon,
-  }) {
+  Widget _buildGroupedList({required String Function(AudioFile) groupBy, required IconData icon}) {
     final songs = _displayedSongs;
     if (songs.isEmpty) return _buildEmptyState();
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -420,28 +351,19 @@ class _LibraryScreenState extends State<LibraryScreen>
         final groupName = keys[index];
         final groupSongs = grouped[groupName]!;
         Uint8List? cover;
-        for (var s in groupSongs) {
-          if (s.coverArt != null) {
-            cover = s.coverArt;
-            break;
-          }
-        }
+        for (var s in groupSongs) { if (s.coverArt != null) { cover = s.coverArt; break; } }
 
         return ListTile(
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
           leading: ClipOval(
             child: SizedBox(
-              width: 50,
-              height: 50,
+              width: 48,
+              height: 48,
               child: cover != null
                   ? Image.memory(cover, fit: BoxFit.cover)
                   : Container(
-                      color: isDark
-                          ? LuminaColors.bg2
-                          : LuminaColors.lightBg2,
-                      child: Icon(icon,
-                          color: LuminaColors.labelSecondary, size: 22),
+                      color: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2,
+                      child: Icon(icon, color: LuminaColors.labelSecondary, size: 22),
                     ),
             ),
           ),
@@ -449,28 +371,17 @@ class _LibraryScreenState extends State<LibraryScreen>
             groupName,
             style: TextStyle(
               fontWeight: FontWeight.w600,
-              fontSize: 15,
+              fontSize: 16,
               color: isDark ? Colors.white : Colors.black87,
             ),
           ),
           subtitle: Text(
-            '${groupSongs.length} ${groupSongs.length == 1 ? 'song' : 'songs'}',
-            style: const TextStyle(
-                color: LuminaColors.labelSecondary, fontSize: 13),
+            '${groupSongs.length} songs',
+            style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 13),
           ),
-          trailing:
-              const Icon(Icons.chevron_right, color: LuminaColors.labelSecondary, size: 16),
+          trailing: const Icon(CupertinoIcons.chevron_right, color: LuminaColors.labelSecondary, size: 14),
           onTap: () {
-            Navigator.push(
-              context,
-              CupertinoPageRoute(
-                builder: (_) => DetailScreen(
-                  title: groupName,
-                  songs: groupSongs,
-                  coverArt: cover,
-                ),
-              ),
-            );
+            Navigator.push(context, CupertinoPageRoute(builder: (_) => DetailScreen(title: groupName, songs: groupSongs, coverArt: cover)));
           },
         );
       },
@@ -483,186 +394,58 @@ class _LibraryScreenState extends State<LibraryScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final Map<String, List<AudioFile>> grouped = {};
-    for (var song in songs) {
-      grouped.putIfAbsent(song.album, () => []).add(song);
-    }
+    for (var song in songs) { grouped.putIfAbsent(song.album, () => []).add(song); }
     final keys = grouped.keys.toList()..sort();
 
-    return Column(
-      children: [
-        // Grid/List toggle
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+    return GridView.builder(
+      padding: const EdgeInsets.all(20),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 20,
+        childAspectRatio: 0.8,
+      ),
+      itemCount: keys.length,
+      itemBuilder: (context, index) {
+        final albumName = keys[index];
+        final albumSongs = grouped[albumName]!;
+        Uint8List? cover;
+        for (var s in albumSongs) { if (s.coverArt != null) { cover = s.coverArt; break; } }
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(context, CupertinoPageRoute(builder: (_) => DetailScreen(title: albumName, songs: albumSongs, coverArt: cover)));
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              GestureDetector(
-                onTap: () => setState(() => _albumsGrid = !_albumsGrid),
-                child: Icon(
-                  _albumsGrid
-                      ? Icons.list
-                      : Icons.grid_view,
-                  color: LuminaColors.accent,
-                  size: 20,
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: cover != null
+                      ? Image.memory(cover, fit: BoxFit.cover, width: double.infinity)
+                      : Container(
+                          color: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2,
+                          child: const Center(child: Icon(CupertinoIcons.music_albums, color: LuminaColors.labelSecondary, size: 40)),
+                        ),
                 ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                albumName,
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                albumSongs.first.artist,
+                style: const TextStyle(fontSize: 12, color: LuminaColors.labelSecondary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
-        ),
-        Expanded(
-          child: _albumsGrid
-              ? GridView.builder(
-                  padding: const EdgeInsets.all(12),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.82,
-                  ),
-                  itemCount: keys.length,
-                  itemBuilder: (context, index) {
-                    final albumName = keys[index];
-                    final albumSongs = grouped[albumName]!;
-                    Uint8List? cover;
-                    for (var s in albumSongs) {
-                      if (s.coverArt != null) {
-                        cover = s.coverArt;
-                        break;
-                      }
-                    }
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          CupertinoPageRoute(
-                            builder: (_) => DetailScreen(
-                              title: albumName,
-                              songs: albumSongs,
-                              coverArt: cover,
-                            ),
-                          ),
-                        );
-                      },
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: SizedBox(
-                                width: double.infinity,
-                                child: cover != null
-                                    ? Image.memory(cover,
-                                        fit: BoxFit.cover)
-                                    : Container(
-                                        color: isDark
-                                            ? LuminaColors.bg2
-                                            : LuminaColors.lightBg2,
-                                        child: const Icon(
-                                          Icons.album,
-                                          color: LuminaColors.labelSecondary,
-                                          size: 40,
-                                        ),
-                                      ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            albumName,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: isDark ? Colors.white : Colors.black87,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            albumSongs.first.artist,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: LuminaColors.labelSecondary,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                )
-              : ListView.separated(
-                  padding: EdgeInsets.zero,
-                  itemCount: keys.length,
-                  separatorBuilder: (_, __) => Divider(
-                    color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3,
-                    indent: 76,
-                    height: 1,
-                  ),
-                  itemBuilder: (context, index) {
-                    final albumName = keys[index];
-                    final albumSongs = grouped[albumName]!;
-                    Uint8List? cover;
-                    for (var s in albumSongs) {
-                      if (s.coverArt != null) {
-                        cover = s.coverArt;
-                        break;
-                      }
-                    }
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 6),
-                      leading: ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: SizedBox(
-                          width: 50,
-                          height: 50,
-                          child: cover != null
-                              ? Image.memory(cover, fit: BoxFit.cover)
-                              : Container(
-                                  color: isDark
-                                      ? LuminaColors.bg2
-                                      : LuminaColors.lightBg2,
-                                  child: const Icon(
-                                    Icons.album,
-                                    color: LuminaColors.labelSecondary,
-                                    size: 22,
-                                  ),
-                                ),
-                        ),
-                      ),
-                      title: Text(albumName,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                            color: isDark ? Colors.white : Colors.black87,
-                          )),
-                      subtitle: Text(
-                        '${albumSongs.first.artist} · ${albumSongs.length} songs',
-                        style: const TextStyle(
-                            color: LuminaColors.labelSecondary, fontSize: 13),
-                      ),
-                      trailing: const Icon(Icons.chevron_right,
-                          color: LuminaColors.labelSecondary, size: 16),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          CupertinoPageRoute(
-                            builder: (_) => DetailScreen(
-                              title: albumName,
-                              songs: albumSongs,
-                              coverArt: cover,
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -671,26 +454,11 @@ class _LibraryScreenState extends State<LibraryScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.library_music,
-              size: 64, color: LuminaColors.labelTertiary),
+          const Icon(CupertinoIcons.music_note_list, size: 64, color: LuminaColors.labelTertiary),
           const SizedBox(height: 16),
-          const Text(
-            'No Music Found',
-            style: TextStyle(
-              color: LuminaColors.labelSecondary,
-              fontSize: 17,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          const Text('No Music Found', style: TextStyle(color: LuminaColors.labelSecondary, fontSize: 17, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          const Text(
-            'Add FLAC · WAV · MP3 files to your\nDocuments folder via the Files app.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: LuminaColors.labelTertiary,
-              fontSize: 14,
-            ),
-          ),
+          const Text('Transfer songs via the Files app.', textAlign: TextAlign.center, style: TextStyle(color: LuminaColors.labelTertiary, fontSize: 14)),
         ],
       ),
     );

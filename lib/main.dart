@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'ui/library_screen.dart';
 import 'ui/player_screen.dart';
@@ -65,6 +66,9 @@ class LuminaProApp extends StatelessWidget {
       brightness: Brightness.light,
       scaffoldBackgroundColor: LuminaColors.lightBg0,
       primaryColor: LuminaColors.accent,
+      cupertinoOverrideTheme: const CupertinoThemeData(
+        primaryColor: LuminaColors.accent,
+      ),
       colorScheme: const ColorScheme.light(
         primary: LuminaColors.accent,
         secondary: LuminaColors.accent,
@@ -99,6 +103,10 @@ class LuminaProApp extends StatelessWidget {
       brightness: Brightness.dark,
       scaffoldBackgroundColor: LuminaColors.bg0,
       primaryColor: LuminaColors.accent,
+      cupertinoOverrideTheme: const CupertinoThemeData(
+        primaryColor: LuminaColors.accent,
+        brightness: Brightness.dark,
+      ),
       colorScheme: const ColorScheme.dark(
         primary: LuminaColors.accent,
         secondary: LuminaColors.accent,
@@ -189,8 +197,8 @@ class _MainNavigationState extends State<MainNavigation>
                       _TabItem(
                         index: 0,
                         current: _currentIndex,
-                        icon: Icons.library_music_outlined,
-                        activeIcon: Icons.library_music,
+                        icon: CupertinoIcons.music_albums,
+                        activeIcon: CupertinoIcons.music_albums_fill,
                         label: 'Library',
                         onTap: () => setState(() => _currentIndex = 0),
                         isDark: isDark,
@@ -198,8 +206,8 @@ class _MainNavigationState extends State<MainNavigation>
                       _TabItem(
                         index: 1,
                         current: _currentIndex,
-                        icon: Icons.play_circle_outline,
-                        activeIcon: Icons.play_circle,
+                        icon: CupertinoIcons.play_circle,
+                        activeIcon: CupertinoIcons.play_circle_fill,
                         label: 'Now Playing',
                         onTap: () => setState(() => _currentIndex = 1),
                         isDark: isDark,
@@ -207,8 +215,8 @@ class _MainNavigationState extends State<MainNavigation>
                       _TabItem(
                         index: 2,
                         current: _currentIndex,
-                        icon: Icons.settings_outlined,
-                        activeIcon: Icons.settings,
+                        icon: CupertinoIcons.settings,
+                        activeIcon: CupertinoIcons.settings_solid,
                         label: 'Settings',
                         onTap: () => setState(() => _currentIndex = 2),
                         isDark: isDark,
@@ -331,7 +339,7 @@ class _MiniPlayer extends StatelessWidget {
                             : Container(
                                 color: LuminaColors.bg2,
                                 child: const Icon(
-                                  Icons.music_note_rounded,
+                                  CupertinoIcons.music_note,
                                   color: LuminaColors.labelSecondary,
                                   size: 20,
                                 ),
@@ -367,7 +375,7 @@ class _MiniPlayer extends StatelessWidget {
                         ],
                       ),
                     ),
-                    // Prev
+                    // Controls
                     ValueListenableBuilder<bool>(
                       valueListenable: playerService.playingNotifier,
                       builder: (_, isPlaying, __) => Row(
@@ -375,13 +383,13 @@ class _MiniPlayer extends StatelessWidget {
                         children: [
                           _MiniButton(
                             icon: isPlaying
-                                ? Icons.pause_rounded
-                                : Icons.play_arrow_rounded,
+                                ? CupertinoIcons.pause_fill
+                                : CupertinoIcons.play_fill,
                             isDark: isDark,
                             onTap: playerService.playPause,
                           ),
                           _MiniButton(
-                            icon: Icons.skip_next_rounded,
+                            icon: CupertinoIcons.forward_fill,
                             isDark: isDark,
                             onTap: playerService.skipToNext,
                           ),
