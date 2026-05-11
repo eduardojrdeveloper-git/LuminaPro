@@ -5,6 +5,7 @@ import '../services/library_service.dart';
 import '../services/player_service.dart';
 import '../main.dart' show LuminaColors, MainNavigation, MainNavigationState;
 import 'detail_screen.dart';
+import 'library_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -61,7 +62,23 @@ class _SearchScreenState extends State<SearchScreen> {
     final nav = context.findAncestorStateOfType<MainNavigationState>();
     if (nav != null) {
       nav.setIndex(0); // Switch to Library
-      // Future: Pass sub-tab index to LibraryState
+      
+      // Delay slightly to allow IndexedStack to build the LibraryScreen
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (!mounted) return;
+        // Use a recursive search to find the state
+        void findAndSwitch(Element element) {
+          if (element.widget is LibraryScreen) {
+            final state = (element as StatefulElement).state;
+            if (state is LibraryScreenState) {
+              state.switchTab(tabIndex);
+            }
+          } else {
+            element.visitChildren(findAndSwitch);
+          }
+        }
+        context.visitChildElements(findAndSwitch);
+      });
     }
   }
 
@@ -164,10 +181,6 @@ class _SearchScreenState extends State<SearchScreen> {
         children: [
           _CategoryHeader('Browse Categories', isDark),
           _CategoryGrid(isDark: isDark, onCategoryTap: _navigateAndSwitch),
-          if (_allSongs.isNotEmpty) ...[
-            _CategoryHeader('Recently Added', isDark),
-            _RecentList(songs: _allSongs.take(6).toList(), isDark: isDark),
-          ],
         ],
       ),
     );
@@ -193,7 +206,7 @@ class _CategoryGrid extends StatelessWidget {
     ('Songs', CupertinoIcons.music_note, [Color(0xFFFA233B), Color(0xFFFF5263)], 0),
     ('Albums', CupertinoIcons.music_albums, [Color(0xFFFF9500), Color(0xFFFFCC00)], 2),
     ('Artists', CupertinoIcons.person_fill, [Color(0xFF5856D6), Color(0xFF8989EB)], 1),
-    ('Playlists', CupertinoIcons.music_note_list, [Color(0xFF32ADE6), Color(0xFF007AFF)], 0),
+    ('Loved', CupertinoIcons.heart_fill, [Color(0xFF32ADE6), Color(0xFF007AFF)], 3),
   ];
 
   @override
@@ -245,16 +258,6 @@ class _CategoryCard extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _RecentList extends StatelessWidget {
-  final List<AudioFile> songs;
-  final bool isDark;
-  const _RecentList({required this.songs, required this.isDark});
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(height: 180, child: ListView.separated(padding: const EdgeInsets.symmetric(horizontal: 16), scrollDirection: Axis.horizontal, itemCount: songs.length, separatorBuilder: (_, __) => const SizedBox(width: 14), itemBuilder: (context, index) { final song = songs[index]; return GestureDetector(onTap: () => PlayerService().playQueue(songs, initialIndex: index), child: SizedBox(width: 130, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.4 : 0.15), blurRadius: 12, offset: const Offset(0, 4))]), child: ClipRRect(borderRadius: BorderRadius.circular(10), child: song.coverArt != null ? Image.memory(song.coverArt!, fit: BoxFit.cover, width: 130) : Container(color: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2, child: const Center(child: Icon(CupertinoIcons.music_note, color: LuminaColors.labelSecondary, size: 32)))))), const SizedBox(height: 6), Text(song.title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis), Text(song.artist, style: const TextStyle(fontSize: 12, color: LuminaColors.labelSecondary), maxLines: 1, overflow: TextOverflow.ellipsis)]))); }));
   }
 }
 

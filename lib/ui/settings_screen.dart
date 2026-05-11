@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import '../main.dart' show LuminaColors, themeNotifier, rotateArtworkNotifier;
 import '../services/player_service.dart';
 import 'eq_advanced_screen.dart';
@@ -25,14 +26,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           CupertinoSliverNavigationBar(
             largeTitle: Text(
               'Settings',
-              style: TextStyle(
-                color: isDark ? Colors.white : Colors.black,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.5,
-              ),
+              style: TextStyle(color: isDark ? Colors.white : Colors.black),
             ),
-            backgroundColor:
-                Theme.of(context).scaffoldBackgroundColor.withOpacity(0.85),
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.8),
             border: null,
           ),
 
@@ -40,63 +36,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.only(bottom: 120),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                // ── PLAYBACK ────────────────────────────────────────────────
-                _SectionHeader('PLAYBACK'),
-                _GroupedSection(
-                  isDark: isDark,
-                  children: [
-                    // Crossfade
-                    StatefulBuilder(builder: (context, setRowState) {
-                      return _SettingRow(
-                        isDark: isDark,
-                        icon: CupertinoIcons.arrow_right_arrow_left,
-                        iconColor: const Color(0xFFFF9500),
-                        title: 'Crossfade',
-                        subtitle:
-                            '${_ps.crossfadeDuration.toStringAsFixed(1)}s',
-                        trailing: SizedBox(
-                          width: 130,
-                          child: CupertinoSlider(
-                            value: _ps.crossfadeDuration,
-                            min: 0,
-                            max: 12,
-                            activeColor: LuminaColors.accent,
-                            onChanged: (v) => setRowState(
-                                () => _ps.crossfadeDuration = v),
-                          ),
-                        ),
-                      );
-                    }),
-                    const _Divider(),
-                    // Gapless
-                    _SettingRow(
-                      isDark: isDark,
-                      icon: CupertinoIcons.waveform_path,
-                      iconColor: const Color(0xFF34C759),
-                      title: 'Gapless Playback',
-                      trailing: CupertinoSwitch(
-                        value: true,
-                        activeColor: LuminaColors.accent,
-                        onChanged: (_) {},
-                      ),
-                    ),
-                    const _Divider(),
-                    // High Quality
-                    _SettingRow(
-                      isDark: isDark,
-                      icon: CupertinoIcons.antenna_radiowaves_left_right,
-                      iconColor: const Color(0xFF007AFF),
-                      title: 'High Quality Streaming',
-                      trailing: CupertinoSwitch(
-                        value: true,
-                        activeColor: LuminaColors.accent,
-                        onChanged: (_) {},
-                      ),
-                    ),
-                  ],
-                ),
-
-                // ── AUDIO ENGINE ─────────────────────────────────────────────
+                // ── AUDIO ENGINE ───────────────────────────────────────────
                 _SectionHeader('AUDIO ENGINE'),
                 _GroupedSection(
                   isDark: isDark,
@@ -109,33 +49,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       subtitle: 'Customize frequency response',
                       onTap: () => Navigator.push(
                         context,
-                        CupertinoPageRoute(
-                            builder: (_) => const EqAdvancedScreen()),
+                        CupertinoPageRoute(builder: (_) => const EqAdvancedScreen()),
                       ),
                       showChevron: true,
                     ),
                     const _Divider(),
                     _SettingRow(
                       isDark: isDark,
-                      icon: CupertinoIcons.waveform,
-                      iconColor: const Color(0xFFFF2D55),
-                      title: 'Sound Check',
-                      subtitle: 'Normalize song volume',
-                      trailing: CupertinoSwitch(
-                        value: false,
-                        activeColor: LuminaColors.accent,
-                        onChanged: (_) {},
+                      icon: CupertinoIcons.arrow_right_arrow_left,
+                      iconColor: const Color(0xFFFF9500),
+                      title: 'Crossfade',
+                      trailing: SizedBox(
+                        width: 120,
+                        child: CupertinoSlider(
+                          value: _ps.crossfadeDuration,
+                          min: 0,
+                          max: 12,
+                          onChanged: (v) => setState(() => _ps.crossfadeDuration = v),
+                        ),
                       ),
                     ),
                   ],
                 ),
 
-                // ── INTERFACE ─────────────────────────────────────────────────
+                // ── INTERFACE ──────────────────────────────────────────────
                 _SectionHeader('INTERFACE'),
                 _GroupedSection(
                   isDark: isDark,
                   children: [
-                    // Appearance
                     ValueListenableBuilder<ThemeMode>(
                       valueListenable: themeNotifier,
                       builder: (_, mode, __) {
@@ -152,14 +93,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(label,
-                                  style: const TextStyle(
-                                      color: LuminaColors.labelSecondary,
-                                      fontSize: 14)),
+                              Text(label, style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 14)),
                               const SizedBox(width: 4),
-                              const Icon(CupertinoIcons.chevron_right,
-                                  color: LuminaColors.labelSecondary,
-                                  size: 14),
+                              const Icon(CupertinoIcons.chevron_right, color: LuminaColors.labelSecondary, size: 14),
                             ],
                           ),
                           onTap: () => _showThemePicker(context),
@@ -167,7 +103,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       },
                     ),
                     const _Divider(),
-                    // Rotating Album Art
                     ValueListenableBuilder<bool>(
                       valueListenable: rotateArtworkNotifier,
                       builder: (_, rotate, __) {
@@ -176,12 +111,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           icon: CupertinoIcons.circle_grid_hex_fill,
                           iconColor: const Color(0xFF007AFF),
                           title: 'Rotating Album Art',
-                          subtitle: 'Vinyl disc style in Now Playing',
                           trailing: CupertinoSwitch(
                             value: rotate,
                             activeColor: LuminaColors.accent,
-                            onChanged: (v) =>
-                                rotateArtworkNotifier.value = v,
+                            onChanged: (v) => rotateArtworkNotifier.value = v,
                           ),
                         );
                       },
@@ -189,7 +122,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
 
-                // ── ABOUT ────────────────────────────────────────────────────
+                // ── ABOUT ──────────────────────────────────────────────────
                 _SectionHeader('ABOUT'),
                 _GroupedSection(
                   isDark: isDark,
@@ -206,18 +139,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       isDark: isDark,
                       icon: CupertinoIcons.heart_fill,
                       iconColor: const Color(0xFFFF3B30),
-                      title: 'Rate on App Store',
+                      title: 'Share Feedback',
                       showChevron: true,
-                      onTap: () {},
+                      onTap: () => Share.share('Lumina Pro is the best bit-perfect audio player for iOS! Download it now.'),
                     ),
                     const _Divider(),
                     _SettingRow(
                       isDark: isDark,
                       icon: CupertinoIcons.lock_shield_fill,
                       iconColor: const Color(0xFF34C759),
-                      title: 'Privacy Policy',
+                      title: 'Support & Help',
                       showChevron: true,
-                      onTap: () {},
+                      onTap: () => _showSupportDialog(context),
                     ),
                   ],
                 ),
@@ -228,10 +161,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Text(
                     'Lumina Pro 1.0.0\nMade with ♥ for audio enthusiasts',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: LuminaColors.labelTertiary,
                       fontSize: 12,
-                      height: 1.6,
+                      height: 1.5,
                     ),
                   ),
                 ),
@@ -249,32 +182,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (_) => CupertinoActionSheet(
         title: const Text('Appearance'),
         actions: [
-          CupertinoActionSheetAction(
-            onPressed: () {
-              themeNotifier.value = ThemeMode.system;
-              Navigator.pop(context);
-            },
-            child: const Text('System Default'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              themeNotifier.value = ThemeMode.light;
-              Navigator.pop(context);
-            },
-            child: const Text('Light'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              themeNotifier.value = ThemeMode.dark;
-              Navigator.pop(context);
-            },
-            child: const Text('Dark'),
+          CupertinoActionSheetAction(onPressed: () { themeNotifier.value = ThemeMode.system; Navigator.pop(context); }, child: const Text('System Default')),
+          CupertinoActionSheetAction(onPressed: () { themeNotifier.value = ThemeMode.light; Navigator.pop(context); }, child: const Text('Light')),
+          CupertinoActionSheetAction(onPressed: () { themeNotifier.value = ThemeMode.dark; Navigator.pop(context); }, child: const Text('Dark')),
+        ],
+        cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+      ),
+    );
+  }
+
+  void _showSupportDialog(BuildContext context) {
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Support'),
+        content: const Text('Need help or have a suggestion? Contact us at support@luminapro.com'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('OK'),
+            onPressed: () => Navigator.pop(ctx),
           ),
         ],
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
       ),
     );
   }
@@ -286,16 +214,8 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 28, 20, 8),
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: LuminaColors.labelSecondary,
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-          letterSpacing: 0.4,
-        ),
-      ),
+      padding: const EdgeInsets.fromLTRB(20, 32, 20, 10),
+      child: Text(title, style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
     );
   }
 }
@@ -307,16 +227,10 @@ class _GroupedSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
         color: isDark ? LuminaColors.bg1 : LuminaColors.lightBg1,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withOpacity(0.05)
-              : Colors.black.withOpacity(0.04),
-          width: 0.5,
-        ),
       ),
       child: Column(children: children),
     );
@@ -328,13 +242,7 @@ class _Divider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Divider(
-      height: 1,
-      indent: 56,
-      color: isDark
-          ? Colors.white.withOpacity(0.07)
-          : Colors.black.withOpacity(0.07),
-    );
+    return Divider(height: 1, indent: 56, color: isDark ? LuminaColors.bg3.withOpacity(0.5) : LuminaColors.lightBg3);
   }
 }
 
@@ -348,16 +256,7 @@ class _SettingRow extends StatelessWidget {
   final VoidCallback? onTap;
   final bool showChevron;
 
-  const _SettingRow({
-    required this.isDark,
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    this.subtitle,
-    this.trailing,
-    this.onTap,
-    this.showChevron = false,
-  });
+  const _SettingRow({required this.isDark, required this.icon, required this.iconColor, required this.title, this.subtitle, this.trailing, this.onTap, this.showChevron = false});
 
   @override
   Widget build(BuildContext context) {
@@ -368,45 +267,23 @@ class _SettingRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            // Icon container — standard iOS size 30×30
             Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: iconColor,
-                borderRadius: BorderRadius.circular(7),
-              ),
-              child: Icon(icon, color: Colors.white, size: 17),
+              width: 30, height: 30,
+              decoration: BoxDecoration(color: iconColor, borderRadius: BorderRadius.circular(7)),
+              child: Icon(icon, color: Colors.white, size: 18),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: isDark ? Colors.white : Colors.black,
-                      fontWeight: FontWeight.w400,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                  if (subtitle != null)
-                    Text(
-                      subtitle!,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: LuminaColors.labelSecondary,
-                      ),
-                    ),
+                  Text(title, style: TextStyle(fontSize: 16, color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w400)),
+                  if (subtitle != null) Text(subtitle!, style: const TextStyle(fontSize: 12, color: LuminaColors.labelSecondary)),
                 ],
               ),
             ),
             if (trailing != null) trailing!,
-            if (showChevron && trailing == null)
-              const Icon(CupertinoIcons.chevron_right,
-                  color: LuminaColors.labelTertiary, size: 14),
+            if (showChevron) const Icon(CupertinoIcons.chevron_right, color: LuminaColors.labelSecondary, size: 14),
           ],
         ),
       ),

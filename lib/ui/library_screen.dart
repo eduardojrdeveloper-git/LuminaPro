@@ -9,11 +9,13 @@ import 'detail_screen.dart';
 enum SortMode { title, artist, album }
 
 class LibraryScreen extends StatefulWidget {
+  const LibraryScreen({super.key});
+  
   @override
-  _LibraryScreenState createState() => _LibraryScreenState();
+  LibraryScreenState createState() => LibraryScreenState();
 }
 
-class _LibraryScreenState extends State<LibraryScreen>
+class LibraryScreenState extends State<LibraryScreen>
     with SingleTickerProviderStateMixin {
   List<AudioFile> _allSongs = [];
   List<AudioFile> _filtered = [];
@@ -26,7 +28,7 @@ class _LibraryScreenState extends State<LibraryScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(() => setState(() {}));
     _refreshLibrary();
     _searchCtrl.addListener(_applyFilter);
@@ -131,6 +133,12 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
+  void switchTab(int index) {
+    if (index >= 0 && index < _tabController.length) {
+      setState(() => _tabController.index = index);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -192,18 +200,22 @@ class _LibraryScreenState extends State<LibraryScreen>
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    child: CupertinoSlidingSegmentedControl<int>(
-                      groupValue: _tabController.index,
-                      thumbColor: isDark ? LuminaColors.bg3 : Colors.white,
-                      backgroundColor: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2,
-                      children: {
-                        0: _segLabel('Songs', _tabController.index == 0, isDark),
-                        1: _segLabel('Artists', _tabController.index == 1, isDark),
-                        2: _segLabel('Albums', _tabController.index == 2, isDark),
-                      },
-                      onValueChanged: (v) {
-                        if (v != null) setState(() => _tabController.index = v);
-                      },
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: CupertinoSlidingSegmentedControl<int>(
+                        groupValue: _tabController.index,
+                        thumbColor: isDark ? LuminaColors.bg3 : Colors.white,
+                        backgroundColor: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2,
+                        children: {
+                          0: _segLabel('Songs', _tabController.index == 0, isDark),
+                          1: _segLabel('Artists', _tabController.index == 1, isDark),
+                          2: _segLabel('Albums', _tabController.index == 2, isDark),
+                          3: _segLabel('Loved', _tabController.index == 3, isDark),
+                        },
+                        onValueChanged: (v) {
+                          if (v != null) setState(() => _tabController.index = v);
+                        },
+                      ),
                     ),
                   ),
                 ],
@@ -220,9 +232,10 @@ class _LibraryScreenState extends State<LibraryScreen>
                   child: TabBarView(
                     controller: _tabController,
                     children: [
-                      _buildSongsList(),
+                      _buildSongsList(filterLoved: false),
                       _buildGroupedList(groupBy: (s) => s.artist, icon: CupertinoIcons.person_fill),
                       _buildAlbumsView(),
+                      _buildSongsList(filterLoved: true),
                     ],
                   ),
                 ),
@@ -233,7 +246,7 @@ class _LibraryScreenState extends State<LibraryScreen>
 
   Widget _segLabel(String text, bool isActive, bool isDark) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: Text(
         text,
         style: TextStyle(
@@ -245,39 +258,58 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  Widget _buildSongsList() {
-    final songs = _displayedSongs;
-    if (songs.isEmpty) return _buildEmptyState();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  Widget _buildSongsList({required bool filterLoved}) {
+    final ps = PlayerService();
+    return ValueListenableBuilder<Set<String>>(
+      valueListenable: ps.favoritesNotifier,
+      builder: (context, favs, _) {
+        final rawSongs = _displayedSongs;
+        final songs = filterLoved 
+            ? rawSongs.where((s) => favs.contains(s.path)).toList() 
+            : rawSongs;
 
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 120), // Essential to scroll past MiniPlayer
-      itemCount: songs.length + 1,
-      itemBuilder: (context, index) {
-        if (index == 0) return _ShuffleHeroButton(songs: songs);
-        final song = songs[index - 1];
-        final isPlaying = PlayerService().currentSong.value?.path == song.path;
-        return Column(
-          children: [
-            _SongRow(song: song, isPlaying: isPlaying, isDark: isDark, onTap: () => PlayerService().playQueue(_displayedSongs, initialIndex: index - 1), onMore: () => _showSongMenu(context, song, index - 1)),
-            if (index < songs.length) Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 76, height: 1),
-          ],
+        if (songs.isEmpty) return _buildEmptyState(isLoved: filterLoved);
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
+        return ListView.builder(
+          padding: const EdgeInsets.only(bottom: 120),
+          itemCount: songs.length + 1,
+          itemBuilder: (context, index) {
+            if (index == 0) return _ShuffleHeroButton(songs: songs);
+            final song = songs[index - 1];
+            final isPlaying = ps.currentSong.value?.path == song.path;
+            return Column(
+              children: [
+                _SongRow(song: song, isPlaying: isPlaying, isDark: isDark, onTap: () => ps.playQueue(songs, initialIndex: index - 1), onMore: () => _showSongMenu(context, song, index - 1, songs)),
+                if (index < songs.length) Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 76, height: 1),
+              ],
+            );
+          },
         );
       },
     );
   }
 
-  // ... (Other helper methods remain identical)
-  void _showSongMenu(BuildContext context, AudioFile song, int index) {
+  void _showSongMenu(BuildContext context, AudioFile song, int index, List<AudioFile> currentList) {
+    final ps = PlayerService();
     showCupertinoModalPopup(
       context: context,
       builder: (_) => CupertinoActionSheet(
         title: Text(song.title, style: const TextStyle(fontWeight: FontWeight.w600)),
         message: Text(song.artist),
         actions: [
-          CupertinoActionSheetAction(onPressed: () { Navigator.pop(context); PlayerService().playQueue(_displayedSongs, initialIndex: index); }, child: const Text('Play Now')),
+          CupertinoActionSheetAction(onPressed: () { Navigator.pop(context); ps.playQueue(currentList, initialIndex: index); }, child: const Text('Play Now')),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              ps.toggleFavorite(song.path);
+            },
+            child: ValueListenableBuilder<Set<String>>(
+              valueListenable: ps.favoritesNotifier,
+              builder: (_, favs, __) => Text(favs.contains(song.path) ? 'Unlove' : 'Love'),
+            ),
+          ),
           CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Add to Playlist')),
-          CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Love')),
           CupertinoActionSheetAction(isDestructiveAction: true, onPressed: () => Navigator.pop(context), child: const Text('Delete from Library')),
         ],
         cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
@@ -345,8 +377,8 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(CupertinoIcons.music_note_list, size: 64, color: LuminaColors.labelTertiary), const SizedBox(height: 16), const Text('No Music Found', style: TextStyle(color: LuminaColors.labelSecondary, fontSize: 17, fontWeight: FontWeight.w600)), const SizedBox(height: 8), const Text('Transfer songs via the Files app.', textAlign: TextAlign.center, style: TextStyle(color: LuminaColors.labelTertiary, fontSize: 14))]));
+  Widget _buildEmptyState({bool isLoved = false}) {
+    return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(isLoved ? CupertinoIcons.heart_fill : CupertinoIcons.music_note_list, size: 64, color: LuminaColors.labelTertiary), const SizedBox(height: 16), Text(isLoved ? 'No Loved Songs' : 'No Music Found', style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 17, fontWeight: FontWeight.w600)), const SizedBox(height: 8), Text(isLoved ? 'Songs you mark with a heart will appear here.' : 'Transfer songs via the Files app.', textAlign: TextAlign.center, style: const TextStyle(color: LuminaColors.labelTertiary, fontSize: 14))]));
   }
 }
 
