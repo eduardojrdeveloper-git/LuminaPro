@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../services/library_service.dart';
 import '../services/player_service.dart';
+import '../services/google_drive_service.dart';
 import '../main.dart' show LuminaColors, MainNavigation, MainNavigationState;
 import 'detail_screen.dart';
 
@@ -412,9 +413,23 @@ class LibraryScreenState extends State<LibraryScreen>
       context: context,
       builder: (_) => CupertinoActionSheet(
         title: Text(song.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        message: Text(song.artist),
+        message: Text(song.albumArtist),
         actions: [
-          CupertinoActionSheetAction(onPressed: () { Navigator.pop(context); ps.playQueue(currentList, initialIndex: index); }, child: const Text('Play Now')),
+          CupertinoActionSheetAction(onPressed: () { Navigator.pop(context); ps.playQueue(currentList, initialIndex: index); }, child: Text(song.isLocal ? 'Play Now' : 'Stream Now')),
+          if (!song.isLocal)
+            CupertinoActionSheetAction(
+              onPressed: () async {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Downloading from Google Drive...')));
+                final path = await GoogleDriveService().downloadFile(song.driveFileId!, '${song.title}.flac');
+                if (path != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloaded: ${song.title}.flac to local storage.')));
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Download failed.')));
+                }
+              },
+              child: const Text('Download FLAC'),
+            ),
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.pop(context);
@@ -633,11 +648,33 @@ class _SongRow extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 2),
-                    Text(song.albumArtist,
-                        style: const TextStyle(
-                            color: LuminaColors.labelSecondary, fontSize: 14),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis)
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: song.isLocal ? (isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF2F2F7)) : const Color(0xFF34A853).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            song.isLocal ? 'Local' : 'Drive',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: song.isLocal ? LuminaColors.labelSecondary : const Color(0xFF34A853),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(song.albumArtist,
+                              style: const TextStyle(
+                                  color: LuminaColors.labelSecondary, fontSize: 14),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                      ],
+                    )
                   ])),
               GestureDetector(
                   onTap: onMore,

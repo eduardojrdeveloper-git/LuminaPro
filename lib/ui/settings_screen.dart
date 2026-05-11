@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import '../main.dart' show LuminaColors, themeNotifier, rotateArtworkNotifier;
 import '../services/player_service.dart';
 import '../services/library_service.dart';
+import '../services/google_drive_service.dart';
 import 'eq_advanced_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -101,6 +102,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: 'Music Folders',
                       subtitle: '${LibraryService.scanPaths.length} folders included',
                       onTap: _manageFolders,
+                      showChevron: true,
+                    ),
+                    const _Divider(),
+                    _SettingRow(
+                      isDark: isDark,
+                      icon: CupertinoIcons.cloud_fill,
+                      iconColor: const Color(0xFF34A853),
+                      title: 'Google Drive',
+                      subtitle: 'Stream or download FLACs from cloud',
+                      onTap: () {
+                        showCupertinoModalPopup(
+                          context: context,
+                          builder: (ctx) => _GoogleDriveSheet(onUpdate: () => setState(() {})),
+                        );
+                      },
                       showChevron: true,
                     ),
                   ],
@@ -452,6 +468,106 @@ class _FolderManagerSheetState extends State<_FolderManagerSheet> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _GoogleDriveSheet extends StatefulWidget {
+  final VoidCallback onUpdate;
+  const _GoogleDriveSheet({required this.onUpdate});
+  @override
+  State<_GoogleDriveSheet> createState() => _GoogleDriveSheetState();
+}
+
+class _GoogleDriveSheetState extends State<_GoogleDriveSheet> {
+  final GoogleDriveService _driveService = GoogleDriveService();
+  bool _isLoading = false;
+  List<dynamic> _folders = [];
+
+  @override
+  void initState() {
+    super.initState();
+    if (_driveService.isSignedIn) {
+      _loadFolders();
+    }
+  }
+
+  Future<void> _loadFolders() async {
+    setState(() => _isLoading = true);
+    try {
+      final folders = await _driveService.listFolders();
+      setState(() => _folders = folders);
+    } catch (e) {
+      // Handle error
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleSignIn() async {
+    setState(() => _isLoading = true);
+    try {
+      await _driveService.signIn();
+      await _loadFolders();
+    } catch (e) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleSignOut() async {
+    await _driveService.signOut();
+    setState(() => _folders = []);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return CupertinoPageScaffold(
+      navigationBar: CupertinoNavigationBar(
+        middle: const Text('Google Drive'),
+        trailing: _driveService.isSignedIn
+            ? CupertinoButton(
+                padding: EdgeInsets.zero,
+                child: const Text('Sign Out', style: TextStyle(color: LuminaColors.destructive)),
+                onPressed: _handleSignOut,
+              )
+            : null,
+      ),
+      child: SafeArea(
+        child: _isLoading
+            ? const Center(child: CupertinoActivityIndicator())
+            : !_driveService.isSignedIn
+                ? Center(
+                    child: CupertinoButton.filled(
+                      child: const Text('Sign in with Google'),
+                      onPressed: _handleSignIn,
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: _folders.length,
+                    itemBuilder: (context, i) {
+                      final folder = _folders[i];
+                      return Material(
+                        color: Colors.transparent,
+                        child: ListTile(
+                          leading: const Icon(CupertinoIcons.folder_fill, color: Color(0xFF007AFF)),
+                          title: Text(folder.name ?? 'Unknown', style: TextStyle(color: isDark ? Colors.white : Colors.black)),
+                          trailing: CupertinoButton(
+                            padding: EdgeInsets.zero,
+                            child: const Text('Scan'),
+                            onPressed: () async {
+                              setState(() => _isLoading = true);
+                              final songs = await _driveService.scanFolderForFlacs(folder.id!, folder.name ?? 'Drive Folder');
+                              LibraryService.addDriveSongs(songs);
+                              widget.onUpdate();
+                              Navigator.pop(context);
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                  ),
       ),
     );
   }

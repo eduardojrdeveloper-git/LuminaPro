@@ -18,6 +18,9 @@ class AudioFile {
   final int? sampleRate;
   final int? bitDepth;
   final String format;
+  final bool isLocal;
+  final String? driveFileId;
+  final String? driveStreamUrl;
 
   AudioFile({
     required this.path,
@@ -31,6 +34,9 @@ class AudioFile {
     this.sampleRate,
     this.bitDepth,
     this.format = '',
+    this.isLocal = true,
+    this.driveFileId,
+    this.driveStreamUrl,
   });
 
   /// e.g. "FLAC · 44.1kHz · 24-bit"
@@ -49,6 +55,7 @@ class AudioFile {
 class LibraryService {
   static bool _initialized = false;
   static List<String> _includePaths = [];
+  static List<AudioFile> _driveSongs = [];
 
   static Future<void> initialize() async {
     if (_initialized) return;
@@ -56,6 +63,9 @@ class LibraryService {
       MetadataGod.initialize();
       final prefs = await SharedPreferences.getInstance();
       _includePaths = prefs.getStringList('include_paths') ?? [];
+      // To persist drive songs, we would normally serialize them.
+      // For this implementation, we will rely on re-scanning if needed,
+      // or we can just hold them in memory.
       
       // Default to documents directory if empty
       if (_includePaths.isEmpty) {
@@ -77,8 +87,14 @@ class LibraryService {
 
   static List<String> get scanPaths => List.unmodifiable(_includePaths);
 
+  static void addDriveSongs(List<AudioFile> songs) {
+    _driveSongs.addAll(songs);
+  }
+
   static Future<List<AudioFile>> scanMusic() async {
     final List<AudioFile> songs = [];
+    songs.addAll(_driveSongs);
+
     try {
       await initialize();
       
