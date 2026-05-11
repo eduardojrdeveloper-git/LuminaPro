@@ -389,7 +389,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.pop(ctx);
-              _ps.toggleFavorite(song.path);
+              _ps.toggleFavoriteByPath(song.path);
             },
             child: ValueListenableBuilder<Set<String>>(
               valueListenable: _ps.favoritesNotifier,

@@ -149,6 +149,10 @@ class PlayerService {
     }
   }
 
+  // Support for playQueue (used in DetailScreen)
+  void playQueue(List<AudioFile> songs, {int initialIndex = 0}) => 
+      setQueue(songs, initialIndex: initialIndex);
+
   void setQueue(List<AudioFile> songs, {int initialIndex = 0}) {
     _originalQueue = List.from(songs);
     _queue = _shuffle ? (List.from(songs)..shuffle()) : List.from(songs);
@@ -229,6 +233,8 @@ class PlayerService {
     }
   }
 
+  bool get shuffle => _shuffle;
+
   Future<void> toggleShuffle() async {
     _shuffle = !_shuffle;
     shuffleNotifier.value = _shuffle;
@@ -250,6 +256,8 @@ class PlayerService {
     queueNotifier.value = _queue;
   }
 
+  void cycleRepeat() => toggleRepeat();
+
   void toggleRepeat() {
     if (_repeat == RepeatMode.off) _repeat = RepeatMode.all;
     else if (_repeat == RepeatMode.all) _repeat = RepeatMode.one;
@@ -262,6 +270,13 @@ class PlayerService {
   void toggleFavorite(AudioFile song) {
     if (_favorites.contains(song.path)) _favorites.remove(song.path);
     else _favorites.add(song.path);
+    favoritesNotifier.value = Set.from(_favorites);
+  }
+
+  // For backward compatibility or if only path is available
+  void toggleFavoriteByPath(String path) {
+    if (_favorites.contains(path)) _favorites.remove(path);
+    else _favorites.add(path);
     favoritesNotifier.value = Set.from(_favorites);
   }
 
