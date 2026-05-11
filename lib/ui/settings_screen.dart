@@ -666,7 +666,7 @@ class _GoogleDriveSheetState extends State<_GoogleDriveSheet> {
                           });
                         },
                         child: Icon(
-                          isSelected ? CupertinoIcons.check_mark_circle_fill : CupertinoIcons.circle,
+                          isSelected ? CupertinoIcons.check_mark_circled_solid : CupertinoIcons.circle,
                           color: isSelected ? LuminaColors.accent : LuminaColors.labelTertiary,
                         ),
                       ),
