@@ -117,17 +117,19 @@ class GoogleDriveService {
   Future<String?> downloadFile(String fileId, String fileName) async {
     if (!isSignedIn) throw Exception('Not signed in');
     try {
-      final media = await _driveApi!.files.get(
+      // Use dynamic to avoid type conflicts with different versions of googleapis
+      final dynamic media = await _driveApi!.files.get(
         fileId,
         downloadOptions: drive.DownloadOptions.fullMedia,
-      ) as drive.Media;
+      );
 
       final dir = await getApplicationDocumentsDirectory();
       final savePath = p.join(dir.path, fileName);
       final file = File(savePath);
       final sink = file.openWrite();
       
-      await media.stream.forEach((chunk) {
+      // The stream is typically Stream<List<int>>
+      await (media.stream as Stream<List<int>>).forEach((chunk) {
         sink.add(chunk);
       });
       await sink.close();

@@ -1,0 +1,5 @@
+commit b2997743ec4761432b761e13fb1e6b15808501e6
+Author: Eduardo <eduardo.jr.gdrive@gmail.com>
+Date:   Mon May 11 17:09:43 2026 -0500
+
+    fix(ci): update workflow pubspec
