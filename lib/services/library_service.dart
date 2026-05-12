@@ -234,12 +234,12 @@ class LibraryService {
     try {
       await initialize();
       
+      final List<String> filesToProcess = [];
       for (var path in _includePaths) {
         final dir = Directory(path);
         if (!await dir.exists()) continue;
 
-        final List<FileSystemEntity> entities =
-            await dir.list(recursive: true).toList();
+        final List<FileSystemEntity> entities = await dir.list(recursive: true).toList();
 
         for (var entity in entities) {
           if (entity is File) {
@@ -250,77 +250,82 @@ class LibraryService {
                 ext == '.m4a' ||
                 ext == '.aiff' ||
                 ext == '.aif') {
-              
-              // Default info from filename
-              String title = p.basenameWithoutExtension(entity.path);
-              String artist = 'Unknown Artist';
-              String albumArtist = 'Unknown Artist';
-              String album = 'Unknown Album';
-              String genre = 'Unknown Genre';
-              Uint8List? coverArt;
-              Duration? duration;
-              int? sampleRate;
-              int? bitDepth;
-              int? bitrate;
-              final format = ext.replaceFirst('.', '').toUpperCase();
-
-              try {
-                final metadata = await MetadataGod.readMetadata(file: entity.path);
-                
-                if (metadata.title != null && metadata.title!.trim().isNotEmpty) {
-                  title = metadata.title!.trim();
-                }
-                if (metadata.artist != null && metadata.artist!.trim().isNotEmpty) {
-                  artist = metadata.artist!.trim();
-                }
-                if (metadata.albumArtist != null && metadata.albumArtist!.trim().isNotEmpty) {
-                  albumArtist = metadata.albumArtist!.trim();
-                } else if (artist != 'Unknown Artist') {
-                  albumArtist = artist;
-                }
-                if (metadata.album != null && metadata.album!.trim().isNotEmpty) {
-                  album = metadata.album!.trim();
-                }
-                if (metadata.genre != null && metadata.genre!.trim().isNotEmpty) {
-                  genre = metadata.genre!.trim();
-                }
-                if (metadata.picture != null) coverArt = metadata.picture!.data;
-                if (metadata.durationMs != null) {
-                  duration = Duration(milliseconds: metadata.durationMs!.toInt());
-                }
-                
-                // New high-fidelity fields (Safe extraction)
-                // Note: If these fields are missing in the current version of metadata_god,
-                // we skip them to avoid build errors.
-              } catch (e) {
-                // Fallback to folder-structure if metadata fails
-                final parts = p.split(entity.path);
-                if (parts.length >= 3) {
-                  album = parts[parts.length - 2];
-                  artist = parts[parts.length - 3];
-                  albumArtist = artist;
-                }
-              }
-
-              songs.add(AudioFile(
-                path: entity.path,
-                title: title,
-                artist: artist,
-                albumArtist: albumArtist,
-                album: album,
-                genre: genre,
-                coverArt: coverArt,
-                duration: duration,
-                sampleRate: sampleRate,
-                bitDepth: bitDepth,
-                bitrate: bitrate,
-                format: format,
-                isLocal: true,
-              ));
+              filesToProcess.add(entity.path);
             }
           }
         }
       }
+
+      final List<AudioFile> localSongs = await Isolate.run(() async {
+        MetadataGod.initialize();
+        final List<AudioFile> isolateSongs = [];
+        for (final filePath in filesToProcess) {
+          final ext = p.extension(filePath).toLowerCase();
+          final format = ext.replaceFirst('.', '').toUpperCase();
+          String title = p.basenameWithoutExtension(filePath);
+          String artist = 'Unknown Artist';
+          String albumArtist = 'Unknown Artist';
+          String album = 'Unknown Album';
+          String genre = 'Unknown Genre';
+          Uint8List? coverArt;
+          Duration? duration;
+          int? sampleRate;
+          int? bitDepth;
+          int? bitrate;
+
+          try {
+            final metadata = await MetadataGod.readMetadata(file: filePath);
+            
+            if (metadata.title != null && metadata.title!.trim().isNotEmpty) {
+              title = metadata.title!.trim();
+            }
+            if (metadata.artist != null && metadata.artist!.trim().isNotEmpty) {
+              artist = metadata.artist!.trim();
+            }
+            if (metadata.albumArtist != null && metadata.albumArtist!.trim().isNotEmpty) {
+              albumArtist = metadata.albumArtist!.trim();
+            } else if (artist != 'Unknown Artist') {
+              albumArtist = artist;
+            }
+            if (metadata.album != null && metadata.album!.trim().isNotEmpty) {
+              album = metadata.album!.trim();
+            }
+            if (metadata.genre != null && metadata.genre!.trim().isNotEmpty) {
+              genre = metadata.genre!.trim();
+            }
+            if (metadata.picture != null) coverArt = metadata.picture!.data;
+            if (metadata.durationMs != null) {
+              duration = Duration(milliseconds: metadata.durationMs!.toInt());
+            }
+          } catch (e) {
+            final parts = p.split(filePath);
+            if (parts.length >= 3) {
+              album = parts[parts.length - 2];
+              artist = parts[parts.length - 3];
+              albumArtist = artist;
+            }
+          }
+
+          isolateSongs.add(AudioFile(
+            path: filePath,
+            title: title,
+            artist: artist,
+            albumArtist: albumArtist,
+            album: album,
+            genre: genre,
+            coverArt: coverArt,
+            duration: duration,
+            sampleRate: sampleRate,
+            bitDepth: bitDepth,
+            bitrate: bitrate,
+            format: format,
+            isLocal: true,
+          ));
+        }
+        return isolateSongs;
+      });
+
+      songs.addAll(localSongs);
     } catch (e) {
       debugPrint('LibraryService: scan error: $e');
     }
@@ -328,6 +333,13 @@ class LibraryService {
     // Deduplicate: If we have a local file, hide the GDrive version
     final localSignatures = songs.where((s) => s.isLocal).map((s) => '${s.title}_${s.albumArtist}').toSet();
     songs.removeWhere((s) => !s.isLocal && localSignatures.contains('${s.title}_${s.albumArtist}'));
+
+    // Sort alphabetically by title case-insensitive
+    songs.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    return songs;
+  }
+}
+itle}_${s.albumArtist}'));
 
     // Sort alphabetically by title case-insensitive
     songs.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));

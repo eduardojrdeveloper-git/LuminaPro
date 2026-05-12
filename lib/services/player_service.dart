@@ -490,10 +490,21 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
   }
 
   void removeQueueItem(int index) {
-    if (index >= 0 && index < queueNotifier.value.length) {
-      final list = List<AudioFile>.from(queueNotifier.value);
-      list.removeAt(index);
-      queueNotifier.value = list;
+    if (index >= 0 && index < _queue.length) {
+      final item = _queue[index];
+      _queue.removeAt(index);
+      _originalQueue.remove(item);
+      
+      if (index < _currentIndex) {
+        _currentIndex--;
+      } else if (index == _currentIndex && _queue.isNotEmpty) {
+        if (_currentIndex >= _queue.length) {
+          _currentIndex = 0;
+        }
+      } else if (_queue.isEmpty) {
+        _currentIndex = 0;
+      }
+      queueNotifier.value = List.from(_queue);
     }
   }
 
@@ -501,10 +512,20 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
     if (oldIndex < newIndex) {
       newIndex -= 1;
     }
-    final list = List<AudioFile>.from(queueNotifier.value);
-    final item = list.removeAt(oldIndex);
-    list.insert(newIndex, item);
-    queueNotifier.value = list;
+    if (oldIndex < 0 || oldIndex >= _queue.length || newIndex < 0 || newIndex >= _queue.length) return;
+
+    final item = _queue.removeAt(oldIndex);
+    _queue.insert(newIndex, item);
+    
+    if (_currentIndex == oldIndex) {
+      _currentIndex = newIndex;
+    } else if (oldIndex < _currentIndex && newIndex >= _currentIndex) {
+      _currentIndex--;
+    } else if (oldIndex > _currentIndex && newIndex <= _currentIndex) {
+      _currentIndex++;
+    }
+    
+    queueNotifier.value = List.from(_queue);
   }
 
   Future<void> setAudioOutput(String route) async {

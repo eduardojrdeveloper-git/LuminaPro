@@ -260,13 +260,16 @@ class GoogleDriveService {
             final file = File(cachePath);
             final sink = file.openWrite();
             
-            driveResponse.stream.listen(
+            StreamSubscription? subscription;
+            subscription = driveResponse.stream.listen(
               (chunk) {
                 sink.add(chunk);
                 try {
                   request.response.add(chunk);
                 } catch (_) {
-                  // Ignore if client disconnects, continue buffering
+                  // Ignore if client disconnects, abort buffering
+                  subscription?.cancel();
+                  sink.close();
                 }
               },
               onDone: () async {
