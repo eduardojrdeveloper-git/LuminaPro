@@ -256,22 +256,37 @@ class GoogleDriveService {
           final cachePath = await _cachePathFor(fileId, ext);
 
           if (isFullRequest && driveResponse.statusCode == 200) {
-            // Write to cache and stream to player simultaneously
+            // Write to cache and stream to player simultaneously without blocking download
             final file = File(cachePath);
             final sink = file.openWrite();
             
-            await for (var chunk in driveResponse.stream) {
-              sink.add(chunk);
-              request.response.add(chunk);
-            }
-            
-            await sink.flush();
-            await sink.close();
-            await request.response.close();
-            LogService.log('Proxy fully cached stream to: $cachePath');
+            driveResponse.stream.listen(
+              (chunk) {
+                sink.add(chunk);
+                try {
+                  request.response.add(chunk);
+                } catch (_) {
+                  // Ignore if client disconnects, continue buffering
+                }
+              },
+              onDone: () async {
+                await sink.flush();
+                await sink.close();
+                try { await request.response.close(); } catch (_) {}
+                LogService.log('Proxy fully cached stream to: $cachePath');
+              },
+              onError: (e) async {
+                LogService.log('Stream download error: $e');
+                await sink.close();
+                try { await request.response.close(); } catch (_) {}
+              },
+              cancelOnError: true,
+            );
           } else {
             // Just proxy the stream (e.g., seeking)
-            await driveResponse.stream.pipe(request.response);
+            try {
+              await driveResponse.stream.pipe(request.response);
+            } catch (_) {}
           }
         } catch (e) {
           LogService.log('Proxy error: $e');

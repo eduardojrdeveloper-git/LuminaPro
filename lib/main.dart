@@ -282,7 +282,7 @@ class _MiniPlayerState extends State<_MiniPlayer> {
                           borderRadius: BorderRadius.circular(6),
                           child: SizedBox(
                             width: 40, height: 40,
-                            child: song.coverArt != null ? Image.memory(song.coverArt!, fit: BoxFit.cover) : Container(color: LuminaColors.bg3, child: const Icon(CupertinoIcons.music_note, color: LuminaColors.labelSecondary, size: 20)),
+                            child: song.coverArt != null && song.coverArt!.isNotEmpty ? Image.memory(song.coverArt!, fit: BoxFit.cover) : Container(color: LuminaColors.bg3, child: const Icon(CupertinoIcons.music_note, color: LuminaColors.labelSecondary, size: 20)),
                           ),
                         ),
                         const SizedBox(width: 12),

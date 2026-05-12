@@ -107,10 +107,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         return Padding(
                           padding: const EdgeInsets.all(16),
                           child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _PathRow(label: 'SOURCE', value: path['Source']!, isDark: isDark),
-                              _PathRow(label: 'ENGINE', value: path['DSP']!, isDark: isDark),
-                              _PathRow(label: 'OUTPUT', value: path['Output']!, isDark: isDark, isLast: true),
+                              _PathRow(label: 'SOURCE DECODING', value: path['Source'] != '---' ? '${path['Source']} (Native FLAC/ALAC Decoder)' : '---', isDark: isDark),
+                              _PathRow(label: 'DSP ENGINE', value: path['DSP'] != '---' ? '${path['DSP']} (Biquad.cpp FFI / AVAudioEngine)' : '---', isDark: isDark),
+                              _PathRow(label: 'AUDIO OUTPUT', value: path['Output'] != '---' ? '${path['Output']} (CoreAudio HAL Bypass / Auto Sample Rate)' : '---', isDark: isDark, isLast: true),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Audio Routing Details: Audio is decoded using native FLAC/ALAC decoders and processed by a custom C++ FFI Biquad DSP engine before being routed directly to the CoreAudio HAL (Hardware Abstraction Layer) using AVAudioEngine, completely bypassing system mixer resampling for bit-perfect audio delivery.',
+                                style: TextStyle(color: LuminaColors.labelSecondary.withOpacity(0.8), fontSize: 11, height: 1.4),
+                              ),
                             ],
                           ),
                         );
@@ -222,14 +228,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       icon: CupertinoIcons.arrow_right_arrow_left,
                       iconColor: const Color(0xFFFF9500),
                       title: 'Crossfade',
-                      trailing: SizedBox(
-                        width: 120,
-                        child: CupertinoSlider(
-                          value: _ps.crossfadeDuration,
-                          min: 0,
-                          max: 12,
-                          onChanged: (v) => setState(() => _ps.crossfadeDuration = v),
-                        ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${_ps.crossfadeDuration.toInt()}s',
+                            style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 14),
+                          ),
+                          SizedBox(
+                            width: 120,
+                            child: CupertinoSlider(
+                              value: _ps.crossfadeDuration,
+                              min: 0,
+                              max: 5,
+                              divisions: 5,
+                              onChanged: (v) => setState(() => _ps.crossfadeDuration = v),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

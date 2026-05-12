@@ -5,6 +5,8 @@ import 'package:share_plus/share_plus.dart';
 import '../services/player_service.dart';
 import '../services/library_service.dart';
 import '../main.dart' show LuminaColors, rotateArtworkNotifier, showQualityInPlayerNotifier;
+import 'queue_screen.dart';
+import 'lyrics_screen.dart';
 
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({super.key});
@@ -110,7 +112,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             children: [
               // ── Blurred Background ─────────────────────────────────────────
               Positioned.fill(
-                child: song.coverArt != null
+                child: song.coverArt != null && song.coverArt!.isNotEmpty
                     ? Image.memory(song.coverArt!, fit: BoxFit.cover)
                     : Container(
                         color: isDark ? LuminaColors.bg1 : LuminaColors.lightBg2),
@@ -193,7 +195,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                             valueListenable: rotateArtworkNotifier,
                             builder: (_, isRotating, __) {
                               final Widget artworkImage =
-                                  song.coverArt != null
+                                  song.coverArt != null && song.coverArt!.isNotEmpty
                                       ? Image.memory(
                                           song.coverArt!,
                                           fit: BoxFit.cover,
@@ -390,19 +392,25 @@ class _PlayerScreenState extends State<PlayerScreen>
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Icon(
-                                CupertinoIcons.hifispeaker,
-                                color: isDark
-                                    ? Colors.white.withOpacity(0.55)
-                                    : Colors.black.withOpacity(0.35),
-                                size: 20,
+                              GestureDetector(
+                                onTap: () => _showAudioRouting(context),
+                                child: Icon(
+                                  CupertinoIcons.hifispeaker,
+                                  color: isDark
+                                      ? Colors.white.withOpacity(0.55)
+                                      : Colors.black.withOpacity(0.35),
+                                  size: 20,
+                                ),
                               ),
-                              Icon(
-                                CupertinoIcons.quote_bubble,
-                                color: isDark
-                                    ? Colors.white.withOpacity(0.55)
-                                    : Colors.black.withOpacity(0.35),
-                                size: 20,
+                              GestureDetector(
+                                onTap: () => _showLyrics(context, song),
+                                child: Icon(
+                                  CupertinoIcons.quote_bubble,
+                                  color: isDark
+                                      ? Colors.white.withOpacity(0.55)
+                                      : Colors.black.withOpacity(0.35),
+                                  size: 20,
+                                ),
                               ),
                               GestureDetector(
                                 onTap: () => _showQueue(context),
@@ -483,7 +491,54 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _showQueue(BuildContext context) {
-    // Already implemented in library but player screen could use its own or common bottom sheet
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => const QueueScreen(),
+    );
+  }
+
+  void _showLyrics(BuildContext context, AudioFile song) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => LyricsScreen(song: song),
+    );
+  }
+
+  void _showAudioRouting(BuildContext context) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('Audio Output', style: TextStyle(fontWeight: FontWeight.w600)),
+        message: const Text('Select the destination for audio playback. Note: On iOS, this should preferably use the native AVRoutePickerView.'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              _ps.setAudioOutput('DAC');
+              Navigator.pop(ctx);
+            },
+            child: const Text('DAC / Amp (Bit-Perfect)'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              _ps.setAudioOutput('Speaker');
+              Navigator.pop(ctx);
+            },
+            child: const Text('iPhone Speaker'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              _ps.setAudioOutput('Bluetooth');
+              Navigator.pop(ctx);
+            },
+            child: const Text('Bluetooth Device'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
   }
 }
 

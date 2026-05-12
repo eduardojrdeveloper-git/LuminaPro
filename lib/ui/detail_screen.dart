@@ -85,7 +85,7 @@ class DetailScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(16),
                         child: AspectRatio(
                           aspectRatio: 1,
-                          child: coverArt != null
+                          child: coverArt != null && coverArt!.isNotEmpty
                               ? Image.memory(coverArt!, fit: BoxFit.cover)
                               : Container(
                                   color: isDark

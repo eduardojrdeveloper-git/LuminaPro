@@ -109,6 +109,7 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
   final ValueNotifier<double> volumeNotifier = ValueNotifier(0.8);
   final ValueNotifier<double> panNotifier = ValueNotifier(0.0);
   final ValueNotifier<bool> monoNotifier = ValueNotifier(false);
+  final ValueNotifier<bool> invertLRNotifier = ValueNotifier(false);
   final ValueNotifier<bool> bufferingNotifier = ValueNotifier(false);
 
   // ── Streams ──────────────────────────────────────────────────────────────────
@@ -427,6 +428,42 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
       await _channel.invokeMethod('setMono', {'mono': monoNotifier.value});
     } catch (e) {
       LogService.log('Error setting mono: $e');
+    }
+  }
+
+  Future<void> toggleInvertLR() async {
+    invertLRNotifier.value = !invertLRNotifier.value;
+    try {
+      await _channel.invokeMethod('setInvertLR', {'invert': invertLRNotifier.value});
+    } catch (e) {
+      LogService.log('Error setting invert LR: $e');
+    }
+  }
+
+  void removeQueueItem(int index) {
+    if (index >= 0 && index < queueNotifier.value.length) {
+      final list = List<AudioFile>.from(queueNotifier.value);
+      list.removeAt(index);
+      queueNotifier.value = list;
+    }
+  }
+
+  void reorderQueue(int oldIndex, int newIndex) {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    final list = List<AudioFile>.from(queueNotifier.value);
+    final item = list.removeAt(oldIndex);
+    list.insert(newIndex, item);
+    queueNotifier.value = list;
+  }
+
+  Future<void> setAudioOutput(String route) async {
+    try {
+      await _channel.invokeMethod('setAudioOutput', {'route': route});
+      LogService.log('Audio output route set to: $route');
+    } catch (e) {
+      LogService.log('Failed to set audio output: $e');
     }
   }
 

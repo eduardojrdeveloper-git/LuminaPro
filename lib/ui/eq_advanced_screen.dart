@@ -571,6 +571,21 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Invert L/R', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: LuminaColors.labelSecondary, decoration: TextDecoration.none)),
+              ValueListenableBuilder<bool>(
+                valueListenable: _ps.invertLRNotifier,
+                builder: (ctx, invert, _) => CupertinoSwitch(
+                  value: invert,
+                  activeColor: LuminaColors.accent,
+                  onChanged: (v) => _ps.toggleInvertLR(),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
