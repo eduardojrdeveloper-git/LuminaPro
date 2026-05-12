@@ -418,61 +418,6 @@ class _PathRow extends StatelessWidget {
   }
 }
 
-class _FolderManagerSheet extends StatefulWidget {
-  final VoidCallback onUpdate;
-  const _FolderManagerSheet({required this.onUpdate});
-  @override
-  State<_FolderManagerSheet> createState() => _FolderManagerSheetState();
-}
-
-class _FolderManagerSheetState extends State<_FolderManagerSheet> {
-  late List<String> _paths;
-  @override
-  void initState() {
-    super.initState();
-    _paths = List.from(LibraryService.scanPaths);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: const Text('Music Folders'),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          child: const Text('Add'),
-          onPressed: () async {
-            String? path = await FilePicker.platform.getDirectoryPath();
-            if (path != null) {
-              setState(() => _paths.add(path));
-              await LibraryService.updateScanPaths(_paths);
-              widget.onUpdate();
-            }
-          },
-        ),
-      ),
-      child: SafeArea(
-        child: ListView.builder(
-          itemCount: _paths.length,
-          itemBuilder: (context, i) => ListTile(
-            title: Text(_paths[i], style: TextStyle(fontSize: 14, color: isDark ? Colors.white : Colors.black)),
-            trailing: CupertinoButton(
-              padding: EdgeInsets.zero,
-              child: const Icon(CupertinoIcons.delete, color: LuminaColors.destructive, size: 20),
-              onPressed: () async {
-                setState(() => _paths.removeAt(i));
-                await LibraryService.updateScanPaths(_paths);
-                widget.onUpdate();
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _GoogleDriveSheet extends StatefulWidget {
   final VoidCallback onUpdate;
   const _GoogleDriveSheet({required this.onUpdate});
@@ -483,10 +428,8 @@ class _GoogleDriveSheet extends StatefulWidget {
 class _GoogleDriveSheetState extends State<_GoogleDriveSheet> {
   final GoogleDriveService _driveService = GoogleDriveService();
   bool _isLoading = false;
-  
-  // Navigation stack: List of {id, name}
   final List<Map<String, String>> _navStack = [{'id': 'root', 'name': 'My Drive'}];
-  List<dynamic> _currentFolders = [];
+  List<dynamic> _currentContents = [];
   final Set<String> _selectedFolderIds = {};
 
   @override
@@ -498,8 +441,8 @@ class _GoogleDriveSheetState extends State<_GoogleDriveSheet> {
   Future<void> _fetchCurrentLevel() async {
     setState(() => _isLoading = true);
     try {
-      final folders = await _driveService.listFolders(parentId: _navStack.last['id']!);
-      setState(() => _currentFolders = folders);
+      final contents = await _driveService.listContents(parentId: _navStack.last['id']!);
+      setState(() => _currentContents = contents);
     } catch (e) {
       _showToast('Error loading folders: $e');
     } finally {
@@ -538,7 +481,7 @@ class _GoogleDriveSheetState extends State<_GoogleDriveSheet> {
     try {
       final songs = await _driveService.scanFoldersForFlacs(_selectedFolderIds.toList());
       LibraryService.addDriveSongs(songs);
-      _showToast('Successfully indexed ${songs.length} cloud files');
+      _showToast('Indexed ${songs.length} cloud files');
       widget.onUpdate();
       Navigator.pop(context);
     } catch (e) {
@@ -561,19 +504,10 @@ class _GoogleDriveSheetState extends State<_GoogleDriveSheet> {
           backgroundColor: (isDark ? LuminaColors.bg1 : LuminaColors.lightBg1).withOpacity(0.8),
           middle: Text(currentDir['name']!, style: TextStyle(color: isDark ? Colors.white : Colors.black)),
           leading: _navStack.length > 1 
-              ? CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  child: const Icon(CupertinoIcons.back),
-                  onPressed: _popFolder,
-                )
+              ? CupertinoButton(padding: EdgeInsets.zero, child: const Icon(CupertinoIcons.back), onPressed: _popFolder)
               : null,
           trailing: _driveService.isSignedIn 
-              ? CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: _startScan,
-                  child: Text('Add (${_selectedFolderIds.length})', 
-                      style: const TextStyle(fontWeight: FontWeight.w600, color: LuminaColors.accent)),
-                )
+              ? CupertinoButton(padding: EdgeInsets.zero, onPressed: _startScan, child: Text('Add (${_selectedFolderIds.length})', style: const TextStyle(fontWeight: FontWeight.w600, color: LuminaColors.accent)))
               : null,
         ),
         child: SafeArea(
@@ -581,7 +515,7 @@ class _GoogleDriveSheetState extends State<_GoogleDriveSheet> {
               ? const Center(child: CupertinoActivityIndicator())
               : !_driveService.isSignedIn
                   ? _buildLoginView(isDark)
-                  : _buildFolderList(isDark),
+                  : _buildListView(isDark),
         ),
       ),
     );
@@ -598,99 +532,105 @@ class _GoogleDriveSheetState extends State<_GoogleDriveSheet> {
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Text('Select folders from your cloud storage to stream or download FLAC files directly to your library.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: LuminaColors.labelSecondary, fontSize: 14)),
+            child: Text('Select folders to index music. Lumina scans subfolders recursively.', textAlign: TextAlign.center, style: TextStyle(color: LuminaColors.labelSecondary, fontSize: 14)),
           ),
           const SizedBox(height: 32),
-          CupertinoButton.filled(
-            borderRadius: BorderRadius.circular(25),
-            onPressed: _handleSignIn,
-            child: const Text('Sign in with Google', style: TextStyle(fontWeight: FontWeight.w600)),
-          ),
+          CupertinoButton.filled(borderRadius: BorderRadius.circular(25), onPressed: _handleSignIn, child: const Text('Sign in with Google', style: TextStyle(fontWeight: FontWeight.w600))),
         ],
       ),
     );
   }
 
-  Widget _buildFolderList(bool isDark) {
-    if (_currentFolders.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(CupertinoIcons.folder_badge_minus, size: 48, color: LuminaColors.labelTertiary),
-            const SizedBox(height: 12),
-            Text('Empty folder', style: TextStyle(color: LuminaColors.labelSecondary)),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        if (_navStack.length == 1)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Row(
-              children: [
-                const Icon(CupertinoIcons.info_circle, size: 16, color: LuminaColors.accent),
-                const SizedBox(width: 8),
-                Expanded(child: Text('Tap folder to open, check circle to select for scanning.', 
-                    style: TextStyle(fontSize: 12, color: LuminaColors.labelSecondary))),
-              ],
-            ),
-          ),
-        Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            itemCount: _currentFolders.length,
-            separatorBuilder: (_, __) => Divider(height: 1, indent: 60, color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3),
-            itemBuilder: (context, i) {
-              final folder = _currentFolders[i];
-              final isSelected = _selectedFolderIds.contains(folder.id);
-              
-              return Material(
-                color: Colors.transparent,
-                child: ListTile(
-                  onTap: () => _pushFolder(folder.id!, folder.name ?? 'Unknown'),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  leading: const Icon(CupertinoIcons.folder_fill, color: Color(0xFF007AFF), size: 28),
-                  title: Text(folder.name ?? 'Unknown', style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w500)),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CupertinoButton(
-                        padding: EdgeInsets.zero,
-                        onPressed: () {
-                          setState(() {
-                            if (isSelected) _selectedFolderIds.remove(folder.id);
-                            else _selectedFolderIds.add(folder.id!);
-                          });
-                        },
-                        child: Icon(
-                          isSelected ? CupertinoIcons.check_mark_circled_solid : CupertinoIcons.circle,
-                          color: isSelected ? LuminaColors.accent : LuminaColors.labelTertiary,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(CupertinoIcons.chevron_right, size: 14, color: LuminaColors.labelTertiary),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+  Widget _buildListView(bool isDark) {
+    if (_currentContents.isEmpty) return const Center(child: Text('Empty folder', style: TextStyle(color: LuminaColors.labelSecondary)));
+    
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      itemCount: _currentContents.length,
+      separatorBuilder: (_, __) => Divider(height: 1, indent: 60, color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3),
+      itemBuilder: (context, i) {
+        final item = _currentContents[i];
+        final isFolder = item.mimeType == 'application/vnd.google-apps.folder';
+        final isSelected = _selectedFolderIds.contains(item.id);
+        
+        return ListTile(
+          onTap: isFolder ? () => _pushFolder(item.id!, item.name ?? 'Unknown') : null,
+          leading: Icon(isFolder ? CupertinoIcons.folder_fill : CupertinoIcons.music_note, color: isFolder ? const Color(0xFF007AFF) : LuminaColors.labelSecondary, size: 28),
+          title: Text(item.name ?? 'Unknown', style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: isFolder ? FontWeight.w500 : FontWeight.w400)),
+          trailing: isFolder ? CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: () => setState(() => isSelected ? _selectedFolderIds.remove(item.id) : _selectedFolderIds.add(item.id!)),
+            child: Icon(isSelected ? CupertinoIcons.check_mark_circled_solid : CupertinoIcons.circle, color: isSelected ? LuminaColors.accent : LuminaColors.labelTertiary),
+          ) : null,
+        );
+      },
     );
   }
 
   void _showToast(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))));
+  }
+}
+
+class _FolderManagerSheet extends StatefulWidget {
+  final VoidCallback onUpdate;
+  const _FolderManagerSheet({required this.onUpdate});
+  @override
+  State<_FolderManagerSheet> createState() => _FolderManagerSheetState();
+}
+
+class _FolderManagerSheetState extends State<_FolderManagerSheet> {
+  late List<String> _paths;
+  @override
+  void initState() {
+    super.initState();
+    _paths = List.from(LibraryService.scanPaths);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: Colors.transparent,
+      child: CupertinoPageScaffold(
+        backgroundColor: isDark ? LuminaColors.bg1 : LuminaColors.lightBg1,
+        navigationBar: CupertinoNavigationBar(
+          backgroundColor: (isDark ? LuminaColors.bg1 : LuminaColors.lightBg1).withOpacity(0.8),
+          middle: const Text('Music Folders'),
+          trailing: CupertinoButton(
+            padding: EdgeInsets.zero,
+            child: const Text('Add', style: TextStyle(fontWeight: FontWeight.w600, color: LuminaColors.accent)),
+            onPressed: () async {
+              String? path = await FilePicker.platform.getDirectoryPath();
+              if (path != null) {
+                setState(() => _paths.add(path));
+                await LibraryService.updateScanPaths(_paths);
+                widget.onUpdate();
+              }
+            },
+          ),
+        ),
+        child: SafeArea(
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            itemCount: _paths.length,
+            separatorBuilder: (_, __) => Divider(height: 1, indent: 60, color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3),
+            itemBuilder: (context, i) => ListTile(
+              leading: const Icon(CupertinoIcons.folder_fill, color: Color(0xFF007AFF), size: 28),
+              title: Text(_paths[i], style: TextStyle(fontSize: 14, color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w500)),
+              trailing: CupertinoButton(
+                padding: EdgeInsets.zero,
+                child: const Icon(CupertinoIcons.minus_circle_fill, color: LuminaColors.destructive, size: 22),
+                onPressed: () async {
+                  setState(() => _paths.removeAt(i));
+                  await LibraryService.updateScanPaths(_paths);
+                  widget.onUpdate();
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
