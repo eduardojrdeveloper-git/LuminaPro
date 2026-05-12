@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'library_service.dart';
 import 'log_service.dart';
+import 'google_drive_service.dart';
 
 enum RepeatMode { off, one, all }
 
