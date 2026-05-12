@@ -590,6 +590,8 @@ class _GoogleDriveSheetState extends State<_GoogleDriveSheet> {
     }
     setState(() => _isLoading = true);
     try {
+      // Clear existing cloud songs to prevent duplicates on re-scan
+      LibraryService.clearDriveSongs();
       final songs = await _driveService.scanFoldersForFlacs(_selectedFolderIds.toList());
       LibraryService.addDriveSongs(songs);
       _showToast('Indexed ${songs.length} cloud files from GDrive');

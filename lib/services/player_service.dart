@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 import 'library_service.dart';
 import 'log_service.dart';
 import 'google_drive_service.dart';
@@ -108,6 +107,7 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
   final ValueNotifier<RepeatMode> repeatNotifier = ValueNotifier(RepeatMode.off);
   final ValueNotifier<List<AudioFile>> queueNotifier = ValueNotifier(const []);
   final ValueNotifier<double> volumeNotifier = ValueNotifier(0.8);
+  final ValueNotifier<bool> bufferingNotifier = ValueNotifier(false);
 
   // ── Streams ──────────────────────────────────────────────────────────────────
   late final Stream<Duration> positionStream;
@@ -234,33 +234,58 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
     if (_queue.isEmpty || _currentIndex < 0 || _currentIndex >= _queue.length) return;
     final song = _queue[_currentIndex];
     LogService.log('Playing: ${song.title} from ${song.path}');
-    
-    // Check if file exists ONLY if it's local. For Drive, we use the URL directly.
+
+    currentSong.value = song;
+    _emitPosition(Duration.zero);
+
+    String playPath;
+
     if (song.isLocal) {
+      // ── Local file ──
       if (!await File(song.path).exists()) {
         LogService.log('PlayerService: file not found: ${song.path}');
         _onTrackFinished(); // Skip to next
         return;
       }
+      playPath = song.path;
     } else {
-      LogService.log('PlayerService: streaming from Drive: ${song.driveStreamUrl}');
-    }
+      // ── Cloud file: stream via temp cache ──
+      if (song.driveFileId == null) {
+        LogService.log('PlayerService: cloud song has no driveFileId, skipping');
+        _onTrackFinished();
+        return;
+      }
 
-    currentSong.value = song;
-    _emitPosition(Duration.zero);
-    try {
-      String playPath = song.path;
-      if (!song.isLocal && song.driveStreamUrl != null) {
-        // Append access token to the URL so the native player can access the restricted file
-        final headers = await GoogleDriveService().getAuthHeaders();
-        final token = headers['Authorization']?.replaceAll('Bearer ', '');
-        if (token != null) {
-          playPath = '${song.driveStreamUrl}&access_token=$token';
-        } else {
-          playPath = song.driveStreamUrl!;
+      final ext = song.format.isNotEmpty ? song.format.toLowerCase() : 'flac';
+      final gdrive = GoogleDriveService();
+
+      // Check if already cached
+      String? cachedPath = await gdrive.getCachedPath(song.driveFileId!, ext);
+
+      if (cachedPath == null) {
+        // Need to download → show buffering
+        bufferingNotifier.value = true;
+        LogService.log('PlayerService: buffering cloud track ${song.title}...');
+
+        final fileName = '${song.title}.${ext}';
+        cachedPath = await gdrive.streamToTempCache(song.driveFileId!, fileName);
+
+        bufferingNotifier.value = false;
+
+        if (cachedPath == null) {
+          LogService.log('PlayerService: failed to cache cloud track');
+          _onTrackFinished();
+          return;
         }
       }
-      
+
+      playPath = cachedPath;
+
+      // Extract rich metadata in background after caching
+      _enrichMetadataInBackground(song, cachedPath);
+    }
+
+    try {
       await _channel.invokeMethod('play', {
         'path': playPath,
         'title': song.title,
@@ -275,6 +300,45 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
     } catch (e) {
       LogService.log('PlayerService: error native play: $e');
     }
+  }
+
+  /// After caching a cloud song, extract full metadata from the file and update the library.
+  void _enrichMetadataInBackground(AudioFile song, String cachedPath) async {
+    try {
+      if (song.driveFileId == null) return;
+      final gdrive = GoogleDriveService();
+      final updated = await gdrive.extractMetadataFromCachedFile(cachedPath, song);
+      if (updated != null) {
+        LibraryService.updateSongMetadata(song.driveFileId!, updated);
+        // Also update the current song notifier if it's still the same track
+        if (currentSong.value?.driveFileId == song.driveFileId) {
+          currentSong.value = updated;
+        }
+        // Update in queue too
+        for (int i = 0; i < _queue.length; i++) {
+          if (_queue[i].driveFileId == song.driveFileId) {
+            _queue[i] = updated;
+          }
+        }
+        queueNotifier.value = List.from(_queue);
+        LogService.log('Enriched metadata for: ${updated.title} by ${updated.artist}');
+      }
+    } catch (e) {
+      LogService.log('_enrichMetadataInBackground error: $e');
+    }
+  }
+
+  /// Download the current cloud song to permanent local storage.
+  /// If cached, promotes from temp cache (instant). Otherwise downloads fresh.
+  Future<String?> downloadCurrentToLocal() async {
+    final song = currentSong.value;
+    if (song == null || song.isLocal || song.driveFileId == null) return null;
+
+    final ext = song.format.isNotEmpty ? song.format.toLowerCase() : 'flac';
+    final fileName = '${song.title}.$ext';
+    final gdrive = GoogleDriveService();
+
+    return await gdrive.promoteFromCache(song.driveFileId!, fileName);
   }
 
   void skipToNext() {

@@ -7,6 +7,7 @@ import 'ui/player_screen.dart';
 import 'ui/settings_screen.dart';
 import 'services/player_service.dart';
 import 'services/library_service.dart';
+import 'services/google_drive_service.dart';
 import 'services/log_service.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.system);
@@ -42,6 +43,8 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await LogService.initialize();
   await LibraryService.initialize();
+  // Clear any leftover temp cache from a previous session/crash
+  GoogleDriveService().clearTempCache();
   runApp(const LuminaProApp());
 }
 
@@ -120,7 +123,7 @@ class MainNavigation extends StatefulWidget {
   State<MainNavigation> createState() => MainNavigationState();
 }
 
-class MainNavigationState extends State<MainNavigation> with TickerProviderStateMixin {
+class MainNavigationState extends State<MainNavigation> with TickerProviderStateMixin, WidgetsBindingObserver {
   int _currentIndex = 0;
 
   void setIndex(int index) => setState(() => _currentIndex = index);
@@ -130,6 +133,26 @@ class MainNavigationState extends State<MainNavigation> with TickerProviderState
     const PlayerScreen(),
     const SettingsScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.detached) {
+      // App is closing — clear all temp stream cache files
+      GoogleDriveService().clearTempCache();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

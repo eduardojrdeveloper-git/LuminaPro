@@ -420,19 +420,21 @@ class LibraryScreenState extends State<LibraryScreen>
         message: Text(song.albumArtist),
         actions: [
           CupertinoActionSheetAction(onPressed: () { Navigator.pop(context); ps.playQueue(currentList, initialIndex: index); }, child: Text(song.isLocal ? 'Play Now' : 'Stream Now')),
-          if (!song.isLocal)
+          if (!song.isLocal && song.driveFileId != null)
             CupertinoActionSheetAction(
               onPressed: () async {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Downloading from Google Drive...')));
-                final path = await GoogleDriveService().downloadFile(song.driveFileId!, '${song.title}.flac');
+                final ext = song.format.isNotEmpty ? song.format.toLowerCase() : 'flac';
+                final fileName = '${song.title}.$ext';
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloading ${song.title}...')));
+                final path = await GoogleDriveService().promoteFromCache(song.driveFileId!, fileName);
                 if (path != null) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloaded: ${song.title}.flac to local storage.')));
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloaded: $fileName to local storage.')));
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Download failed.')));
                 }
               },
-              child: const Text('Download FLAC'),
+              child: const Text('Download'),
             ),
           CupertinoActionSheetAction(
             onPressed: () {
@@ -621,7 +623,7 @@ class _SongRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
         onTap: onTap,
-        onLongPress: !song.isLocal ? () => _triggerDownload(context) : null,
+        onLongPress: !song.isLocal && song.driveFileId != null ? () => _triggerDownload(context) : null,
         behavior: HitTestBehavior.opaque,
         child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -642,16 +644,36 @@ class _SongRow extends StatelessWidget {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    Text(song.title,
-                        style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 16,
-                            color: isPlaying
-                                ? LuminaColors.accent
-                                : (isDark ? Colors.white : Colors.black87),
-                            letterSpacing: -0.2),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(song.title,
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 16,
+                                  color: isPlaying
+                                      ? LuminaColors.accent
+                                      : (isDark ? Colors.white : Colors.black87),
+                                  letterSpacing: -0.2),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                        // Buffering indicator for cloud songs
+                        if (!song.isLocal)
+                          ValueListenableBuilder<bool>(
+                            valueListenable: PlayerService().bufferingNotifier,
+                            builder: (_, buffering, __) {
+                              if (buffering && isPlaying) {
+                                return const Padding(
+                                  padding: EdgeInsets.only(left: 6),
+                                  child: CupertinoActivityIndicator(radius: 7),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
+                          ),
+                      ],
+                    ),
                     const SizedBox(height: 2),
                     Row(
                       children: [
@@ -708,8 +730,11 @@ class _SongRow extends StatelessWidget {
   }
 
   void _triggerDownload(BuildContext context) async {
+    if (song.driveFileId == null) return;
+    final ext = song.format.isNotEmpty ? song.format.toLowerCase() : 'flac';
+    final fileName = '${song.title}.$ext';
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloading: ${song.title}...')));
-    final path = await GoogleDriveService().downloadFile(song.driveFileId!, '${song.title}.flac');
+    final path = await GoogleDriveService().promoteFromCache(song.driveFileId!, fileName);
     if (path != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloaded: ${song.title} to local.')));
     } else {

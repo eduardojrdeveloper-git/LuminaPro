@@ -94,8 +94,39 @@ class LibraryService {
   static final ValueNotifier<int> libraryUpdateNotifier = ValueNotifier(0);
 
   static void addDriveSongs(List<AudioFile> songs) {
-    _driveSongs.addAll(songs);
+    for (final song in songs) {
+      // Deduplicate by driveFileId — skip if already present
+      if (song.driveFileId != null &&
+          _driveSongs.any((s) => s.driveFileId == song.driveFileId)) {
+        continue;
+      }
+      _driveSongs.add(song);
+    }
     libraryUpdateNotifier.value++;
+  }
+
+  /// Remove all cloud songs. Call before re-scanning to avoid stale data.
+  static void clearDriveSongs() {
+    _driveSongs.clear();
+    libraryUpdateNotifier.value++;
+  }
+
+  /// Remove a specific cloud song by driveFileId.
+  static void removeDriveSong(String driveFileId) {
+    _driveSongs.removeWhere((s) => s.driveFileId == driveFileId);
+    libraryUpdateNotifier.value++;
+  }
+
+  /// Replace a cloud song's metadata in-place after streaming/caching.
+  /// Returns true if the song was found and updated.
+  static bool updateSongMetadata(String driveFileId, AudioFile updated) {
+    final idx = _driveSongs.indexWhere((s) => s.driveFileId == driveFileId);
+    if (idx >= 0) {
+      _driveSongs[idx] = updated;
+      libraryUpdateNotifier.value++;
+      return true;
+    }
+    return false;
   }
 
   static Future<List<AudioFile>> scanMusic() async {

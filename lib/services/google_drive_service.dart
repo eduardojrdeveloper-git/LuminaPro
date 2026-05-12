@@ -1,14 +1,11 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
-import 'package:googleapis_auth/googleapis_auth.dart' as auth;
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:metadata_god/metadata_god.dart';
-import '../main.dart' show extractCloudCoversNotifier;
 import 'log_service.dart';
 import 'library_service.dart';
 
@@ -40,6 +37,9 @@ class GoogleDriveService {
   GoogleSignInAccount? _currentUser;
   drive.DriveApi? _driveApi;
 
+  /// Track already-indexed driveFileIds to prevent duplicates across scans.
+  final Set<String> _indexedFileIds = {};
+
   Future<void> signIn() async {
     try {
       _currentUser = await _googleSignIn.signIn();
@@ -59,6 +59,7 @@ class GoogleDriveService {
     await _googleSignIn.signOut();
     _currentUser = null;
     _driveApi = null;
+    _indexedFileIds.clear();
     LogService.log('Google Drive signed out.');
   }
 
@@ -69,36 +70,110 @@ class GoogleDriveService {
     return await _currentUser!.authHeaders;
   }
 
-  /// Fetches a small chunk of the file to extract metadata without downloading everything.
-  Future<AudioFile?> fetchMetadataHeader(drive.File driveFile, String folderName) async {
-    if (!isSignedIn) return null;
+  // ── Temp Cache Management ─────────────────────────────────────────────────
+
+  /// Returns the path where a cached stream file would live.
+  Future<String> _cachePathFor(String fileId, String ext) async {
+    final tempDir = await getTemporaryDirectory();
+    return p.join(tempDir.path, 'stream_$fileId.$ext');
+  }
+
+  /// Check if a file is already cached in the temp directory.
+  Future<String?> getCachedPath(String fileId, String ext) async {
+    final path = await _cachePathFor(fileId, ext);
+    if (await File(path).exists()) return path;
+    return null;
+  }
+
+  /// Downloads the full file from Google Drive to the temp cache directory.
+  /// Returns the local temp file path for playback.
+  /// If the file is already cached, returns immediately.
+  Future<String?> streamToTempCache(String fileId, String fileName) async {
+    if (!isSignedIn) throw Exception('Not signed in');
+
+    final ext = fileName.split('.').last.toLowerCase();
+    final existing = await getCachedPath(fileId, ext);
+    if (existing != null) {
+      LogService.log('Stream cache HIT: $existing');
+      return existing;
+    }
+
     try {
-      // 1MB is usually enough for most audio tags
+      LogService.log('Stream cache MISS — downloading $fileId ($fileName)...');
       final dynamic media = await _driveApi!.files.get(
-        driveFile.id!,
+        fileId,
         downloadOptions: drive.DownloadOptions.fullMedia,
       );
 
-      final List<int> headerBytes = [];
-      int totalReceived = 0;
-      const int maxHeaderSize = 1 * 1024 * 1024; // 1MB
+      final cachePath = await _cachePathFor(fileId, ext);
+      final file = File(cachePath);
+      final sink = file.openWrite();
 
       await for (var chunk in (media.stream as Stream<List<int>>)) {
-        headerBytes.addAll(chunk);
-        totalReceived += chunk.length;
-        if (totalReceived >= maxHeaderSize) break;
+        sink.add(chunk);
       }
+      await sink.flush();
+      await sink.close();
 
-      // Save to temp file for metadata_god
+      LogService.log('Stream cached to: $cachePath');
+      return cachePath;
+    } catch (e) {
+      LogService.log('streamToTempCache error: $e');
+      return null;
+    }
+  }
+
+  /// Copies a cached temp file to the permanent Documents directory.
+  /// Returns the permanent local path, or null on failure.
+  Future<String?> promoteFromCache(String fileId, String fileName) async {
+    if (!isSignedIn) throw Exception('Not signed in');
+
+    final ext = fileName.split('.').last.toLowerCase();
+    final cached = await getCachedPath(fileId, ext);
+
+    if (cached != null) {
+      // File is in cache — instant copy
+      try {
+        final docDir = await getApplicationDocumentsDirectory();
+        final destPath = p.join(docDir.path, fileName);
+        await File(cached).copy(destPath);
+        LogService.log('Promoted from cache: $cached → $destPath');
+        return destPath;
+      } catch (e) {
+        LogService.log('promoteFromCache copy error: $e');
+        return null;
+      }
+    } else {
+      // File not cached — download fresh to permanent storage
+      return await downloadFile(fileId, fileName);
+    }
+  }
+
+  /// Deletes ALL stream_* temp cache files. Called on app close.
+  Future<void> clearTempCache() async {
+    try {
       final tempDir = await getTemporaryDirectory();
-      final tempPath = p.join(tempDir.path, 'header_${driveFile.id}');
-      final tempFile = File(tempPath);
-      await tempFile.writeAsBytes(headerBytes);
+      final entities = await tempDir.list().toList();
+      int count = 0;
+      for (var entity in entities) {
+        if (entity is File && p.basename(entity.path).startsWith('stream_')) {
+          await entity.delete();
+          count++;
+        }
+      }
+      LogService.log('Cleared $count temp cache files.');
+    } catch (e) {
+      LogService.log('clearTempCache error: $e');
+    }
+  }
 
-      final metadata = await MetadataGod.readMetadata(file: tempPath);
-      
-      // Clean up temp file
-      await tempFile.delete();
+  // ── Metadata Extraction from Cached File ──────────────────────────────────
+
+  /// Reads full metadata (tags, cover art, duration) from a cached temp file.
+  /// Returns an updated AudioFile with rich metadata, or null on failure.
+  Future<AudioFile?> extractMetadataFromCachedFile(String cachedPath, AudioFile original) async {
+    try {
+      final metadata = await MetadataGod.readMetadata(file: cachedPath);
 
       final dynamic safeMeta = metadata;
       int? sRate;
@@ -109,26 +184,66 @@ class GoogleDriveService {
       try { bRate = safeMeta.bitrate?.toInt(); } catch (_) {}
 
       return AudioFile(
-        path: driveFile.webContentLink ?? '',
-        title: (metadata.title != null && metadata.title!.trim().isNotEmpty) ? metadata.title!.trim() : (driveFile.name?.replaceAll(RegExp(r'\.(flac|wav|mp3|m4a)$', caseSensitive: false), '') ?? 'Unknown'),
-        artist: metadata.artist?.trim() ?? 'GDrive',
-        albumArtist: metadata.albumArtist?.trim() ?? metadata.artist?.trim() ?? 'GDrive',
-        album: metadata.album?.trim() ?? folderName,
-        genre: metadata.genre?.trim() ?? 'Cloud',
-        coverArt: (extractCloudCoversNotifier.value) ? metadata.picture?.data : null,
-        duration: metadata.durationMs != null ? Duration(milliseconds: metadata.durationMs!.toInt()) : null,
-        sampleRate: sRate,
-        bitDepth: bDepth,
-        bitrate: bRate,
-        format: driveFile.name?.split('.').last.toUpperCase() ?? 'FLAC',
+        path: original.path,
+        title: (metadata.title != null && metadata.title!.trim().isNotEmpty)
+            ? metadata.title!.trim()
+            : original.title,
+        artist: (metadata.artist != null && metadata.artist!.trim().isNotEmpty)
+            ? metadata.artist!.trim()
+            : original.artist,
+        albumArtist: (metadata.albumArtist != null && metadata.albumArtist!.trim().isNotEmpty)
+            ? metadata.albumArtist!.trim()
+            : (metadata.artist != null && metadata.artist!.trim().isNotEmpty)
+                ? metadata.artist!.trim()
+                : original.albumArtist,
+        album: (metadata.album != null && metadata.album!.trim().isNotEmpty)
+            ? metadata.album!.trim()
+            : original.album,
+        genre: (metadata.genre != null && metadata.genre!.trim().isNotEmpty)
+            ? metadata.genre!.trim()
+            : original.genre,
+        coverArt: metadata.picture?.data ?? original.coverArt,
+        duration: metadata.durationMs != null
+            ? Duration(milliseconds: metadata.durationMs!.toInt())
+            : original.duration,
+        sampleRate: sRate ?? original.sampleRate,
+        bitDepth: bDepth ?? original.bitDepth,
+        bitrate: bRate ?? original.bitrate,
+        format: original.format,
         isLocal: false,
-        driveFileId: driveFile.id,
-        driveStreamUrl: driveFile.webContentLink,
+        driveFileId: original.driveFileId,
+        driveStreamUrl: original.driveStreamUrl,
       );
     } catch (e) {
-      LogService.log('fetchMetadataHeader error: $e');
+      LogService.log('extractMetadataFromCachedFile error: $e');
       return null;
     }
+  }
+
+  // ── Fast Indexing (filename/folder based, no download) ────────────────────
+
+  /// Creates an AudioFile from Google Drive file metadata only (no download).
+  /// Uses filename parsing for title and folder name for album.
+  AudioFile _audioFileFromDriveMeta(drive.File driveFile, String folderName) {
+    final rawName = driveFile.name ?? 'Unknown';
+    final ext = rawName.split('.').last.toUpperCase();
+    // Strip extension and track number prefix (e.g. "01 - ", "01. ", "1 ")
+    String title = rawName.replaceAll(RegExp(r'\.(flac|wav|mp3|m4a|aiff|aif)$', caseSensitive: false), '');
+    title = title.replaceFirst(RegExp(r'^\d+[\s.\-_]+'), '').trim();
+    if (title.isEmpty) title = rawName;
+
+    return AudioFile(
+      path: driveFile.webContentLink ?? '',
+      title: title,
+      artist: folderName,
+      albumArtist: folderName,
+      album: folderName,
+      genre: 'Cloud',
+      format: ext,
+      isLocal: false,
+      driveFileId: driveFile.id,
+      driveStreamUrl: driveFile.webContentLink,
+    );
   }
 
   Future<List<drive.File>> listContents({String parentId = 'root'}) async {
@@ -149,6 +264,10 @@ class GoogleDriveService {
 
   Future<List<AudioFile>> scanFoldersForFlacs(List<String> folderIds) async {
     if (!isSignedIn) throw Exception('Not signed in');
+
+    // Clear previously indexed IDs so re-scanning replaces data
+    _indexedFileIds.clear();
+
     final List<AudioFile> allSongs = [];
     for (final id in folderIds) {
       final songs = await _scanRecursive(id, 'Cloud Folder');
@@ -161,7 +280,7 @@ class GoogleDriveService {
     final List<AudioFile> driveSongs = [];
     String? pageToken;
     try {
-      // 1. Get audio files in current folder
+      // 1. Get audio files in current folder (fast — no file download)
       do {
         final fileList = await _driveApi!.files.list(
           q: "'$folderId' in parents and trashed=false and (mimeType contains 'audio/' or name contains '.flac' or name contains '.wav' or name contains '.m4a' or name contains '.mp3')",
@@ -173,23 +292,16 @@ class GoogleDriveService {
           final isAudio = file.mimeType?.startsWith('audio/') == true || 
                           file.name?.toLowerCase().endsWith('.flac') == true ||
                           file.name?.toLowerCase().endsWith('.wav') == true ||
-                          file.name?.toLowerCase().endsWith('.mp3') == true;
+                          file.name?.toLowerCase().endsWith('.mp3') == true ||
+                          file.name?.toLowerCase().endsWith('.m4a') == true;
           
-          if (isAudio) {
-            // Attempt to fetch real metadata for each cloud file
-            final metaSong = await fetchMetadataHeader(file, folderName);
-            driveSongs.add(metaSong ?? AudioFile(
-              path: file.webContentLink ?? '',
-              title: file.name?.replaceAll(RegExp(r'\.(flac|wav|mp3|m4a)$', caseSensitive: false), '') ?? 'Unknown',
-              artist: 'GDrive',
-              albumArtist: 'GDrive',
-              album: folderName,
-              genre: 'Cloud',
-              format: file.name?.split('.').last.toUpperCase() ?? 'FLAC',
-              isLocal: false,
-              driveFileId: file.id,
-              driveStreamUrl: file.webContentLink,
-            ));
+          if (isAudio && file.id != null) {
+            // Skip duplicates (same driveFileId seen in this scan)
+            if (_indexedFileIds.contains(file.id)) continue;
+            _indexedFileIds.add(file.id!);
+
+            // Fast: use filename/folder metadata only — no download
+            driveSongs.add(_audioFileFromDriveMeta(file, folderName));
           }
         }
         pageToken = fileList.nextPageToken;
@@ -209,6 +321,7 @@ class GoogleDriveService {
     return driveSongs;
   }
 
+  /// Full download to permanent storage (Documents directory).
   Future<String?> downloadFile(String fileId, String fileName) async {
     if (!isSignedIn) throw Exception('Not signed in');
     try {
