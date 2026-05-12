@@ -50,6 +50,7 @@ jobs:
               
               var currentTitle: String = "Unknown"
               var currentArtist: String = "Unknown"
+              var currentAlbum: String = "Unknown"
               var currentPath: String = ""
               var isSeeking = false
               
@@ -110,6 +111,7 @@ jobs:
                           if let args = call.arguments as? [String: Any], let path = args["path"] as? String {
                               self.currentTitle = args["title"] as? String ?? "Unknown"
                               self.currentArtist = args["artist"] as? String ?? "Unknown"
+                              self.currentAlbum = args["album"] as? String ?? "Unknown"
                               self.currentPath = path
                               self.playAudio(path: path)
                               result(nil)
@@ -258,6 +260,7 @@ jobs:
                   
                   nowPlayingInfo[MPMediaItemPropertyTitle]  = currentTitle
                   nowPlayingInfo[MPMediaItemPropertyArtist] = currentArtist
+                  nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = currentAlbum
                   
                   let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
                   nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = duration

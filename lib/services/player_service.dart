@@ -278,7 +278,8 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
       await _channel.invokeMethod('play', {
         'path': playPath,
         'title': song.title,
-        'artist': song.albumArtist
+        'artist': song.albumArtist,
+        'album': song.album
       });
       _emitPlaying(true);
       

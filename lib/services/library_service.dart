@@ -54,6 +54,41 @@ class AudioFile {
     if (bitrate != null && bitrate! > 0) parts.add('${bitrate} kbps');
     return parts.join(' · ');
   }
+
+  Map<String, dynamic> toJson() => {
+    'path': path,
+    'title': title,
+    'artist': artist,
+    'albumArtist': albumArtist,
+    'album': album,
+    'genre': genre,
+    'durationMs': duration?.inMilliseconds,
+    'sampleRate': sampleRate,
+    'bitDepth': bitDepth,
+    'bitrate': bitrate,
+    'format': format,
+    'isLocal': isLocal,
+    'driveFileId': driveFileId,
+    'driveStreamUrl': driveStreamUrl,
+    // coverArt is skipped to save space in shared_preferences
+  };
+
+  factory AudioFile.fromJson(Map<String, dynamic> json) => AudioFile(
+    path: json['path'] as String,
+    title: json['title'] as String,
+    artist: json['artist'] as String,
+    albumArtist: json['albumArtist'] as String,
+    album: json['album'] as String,
+    genre: json['genre'] as String,
+    duration: json['durationMs'] != null ? Duration(milliseconds: json['durationMs'] as int) : null,
+    sampleRate: json['sampleRate'] as int?,
+    bitDepth: json['bitDepth'] as int?,
+    bitrate: json['bitrate'] as int?,
+    format: json['format'] as String,
+    isLocal: json['isLocal'] as bool? ?? false,
+    driveFileId: json['driveFileId'] as String?,
+    driveStreamUrl: json['driveStreamUrl'] as String?,
+  );
 }
 
 class LibraryService {
@@ -67,9 +102,17 @@ class LibraryService {
       MetadataGod.initialize();
       final prefs = await SharedPreferences.getInstance();
       _includePaths = prefs.getStringList('include_paths') ?? [];
-      // To persist drive songs, we would normally serialize them.
-      // For this implementation, we will rely on re-scanning if needed,
-      // or we can just hold them in memory.
+      
+      // Load persisted drive songs
+      final driveSongsJson = prefs.getString('drive_songs');
+      if (driveSongsJson != null) {
+        try {
+          final List<dynamic> decoded = jsonDecode(driveSongsJson);
+          _driveSongs = decoded.map((e) => AudioFile.fromJson(e as Map<String, dynamic>)).toList();
+        } catch (e) {
+          debugPrint('LibraryService: Failed to decode drive_songs: $e');
+        }
+      }
       
       // Default to documents directory if empty
       if (_includePaths.isEmpty) {
@@ -80,6 +123,16 @@ class LibraryService {
       _initialized = true;
     } catch (e) {
       debugPrint('LibraryService: MetadataGod initialization failed: $e');
+    }
+  }
+
+  static Future<void> _saveDriveSongs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(_driveSongs.map((e) => e.toJson()).toList());
+      await prefs.setString('drive_songs', encoded);
+    } catch (e) {
+      debugPrint('LibraryService: _saveDriveSongs error: $e');
     }
   }
 
@@ -107,18 +160,21 @@ class LibraryService {
       }
       _driveSongs.add(song);
     }
+    _saveDriveSongs();
     libraryUpdateNotifier.value++;
   }
 
   /// Remove all cloud songs. Call before re-scanning to avoid stale data.
   static void clearDriveSongs() {
     _driveSongs.clear();
+    _saveDriveSongs();
     libraryUpdateNotifier.value++;
   }
 
   /// Remove a specific cloud song by driveFileId.
   static void removeDriveSong(String driveFileId) {
     _driveSongs.removeWhere((s) => s.driveFileId == driveFileId);
+    _saveDriveSongs();
     libraryUpdateNotifier.value++;
   }
 
