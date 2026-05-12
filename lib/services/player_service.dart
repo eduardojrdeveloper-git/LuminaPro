@@ -413,11 +413,9 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
     final song = currentSong.value;
     if (song == null || song.isLocal || song.driveFileId == null) return null;
 
-    final ext = song.format.isNotEmpty ? song.format.toLowerCase() : 'flac';
-    final fileName = '${song.title}.$ext';
     final gdrive = GoogleDriveService();
 
-    return await gdrive.promoteFromCache(song.driveFileId!, fileName);
+    return await gdrive.promoteFromCache(song);
   }
 
   void skipToNext() {

@@ -6,6 +6,7 @@ import '../services/player_service.dart';
 import '../services/google_drive_service.dart';
 import '../main.dart' show LuminaColors, MainNavigation, MainNavigationState, showQualityInLibraryNotifier;
 import 'detail_screen.dart';
+import 'folder_browser_screen.dart';
 
 enum SortMode { title, artist, album }
 
@@ -283,7 +284,7 @@ class LibraryScreenState extends State<LibraryScreen>
                         child: TabBarView(
                           controller: _tabController,
                           children: [
-                            _buildFolderBrowser(isDark),
+                            _buildCategories(isDark),
                             _buildSongsList(filterLoved: false),
                             _buildGroupedList(groupBy: (s) => s.albumArtist, icon: CupertinoIcons.person_fill),
                             _buildAlbumsView(),
@@ -422,7 +423,7 @@ class LibraryScreenState extends State<LibraryScreen>
                   isPlaying: isPlaying,
                   isDark: isDark,
                   onTap: () => ps.playQueue(songs, initialIndex: index),
-                  onMore: () => _showSongMenu(context, song, index, songs),
+                  onMore: () => showSongMenuGlobal(context, song, index, songs),
                 ),
                 if (index < songs.length - 1)
                   Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 76, height: 1),
@@ -525,7 +526,7 @@ class LibraryScreenState extends State<LibraryScreen>
                   isPlaying: isPlaying,
                   isDark: isDark,
                   onTap: () => ps.playQueue(songs, initialIndex: index),
-                  onMore: () => _showSongMenu(context, song, index, songs),
+                  onMore: () => showSongMenuGlobal(context, song, index, songs),
                 ),
                 if (index < songs.length - 1)
                   Divider(
@@ -570,7 +571,7 @@ class LibraryScreenState extends State<LibraryScreen>
                       isPlaying: isPlaying,
                       isDark: isDark,
                       onTap: () => ps.playQueue(songs, initialIndex: index - 1),
-                      onMore: () => _showSongMenu(context, song, index - 1, songs),
+                      onMore: () => showSongMenuGlobal(context, song, index - 1, songs),
                     ),
                     if (index < songs.length)
                       Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 76, height: 1),
@@ -581,58 +582,6 @@ class LibraryScreenState extends State<LibraryScreen>
           },
         );
       },
-    );
-  }
-
-  void _showSongMenu(BuildContext context, AudioFile song, int index, List<AudioFile> currentList) {
-    final ps = PlayerService();
-    showCupertinoModalPopup(
-      context: context,
-      builder: (_) => CupertinoActionSheet(
-        title: Text(song.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        message: Text(song.albumArtist),
-        actions: [
-          CupertinoActionSheetAction(onPressed: () { Navigator.pop(context); ps.playQueue(currentList, initialIndex: index); }, child: Text(song.isLocal ? 'Play Now' : 'Stream Now')),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.pop(context);
-              ps.addToQueue(song);
-            },
-            child: const Text('Add to Queue'),
-          ),
-          if (!song.isLocal && song.driveFileId != null)
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.pop(context);
-                final ext = song.format.isNotEmpty ? song.format.toLowerCase() : 'flac';
-                final fileName = '${song.title}.$ext';
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloading ${song.title}...')));
-                final path = await GoogleDriveService().promoteFromCache(song.driveFileId!, fileName);
-                if (path != null) {
-                  LibraryService.removeDriveSong(song.driveFileId!);
-                  ps.promoteSongToLocal(song.driveFileId!, path);
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloaded: $fileName to local storage.')));
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Download failed.')));
-                }
-              },
-              child: const Text('Download'),
-            ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.pop(context);
-              ps.toggleFavorite(song);
-            },
-            child: ValueListenableBuilder<Set<String>>(
-              valueListenable: ps.favoritesNotifier,
-              builder: (_, favs, __) => Text(favs.contains(song.path) ? 'Unlove' : 'Love'),
-            ),
-          ),
-          CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Add to Playlist')),
-          CupertinoActionSheetAction(isDestructiveAction: true, onPressed: () => Navigator.pop(context), child: const Text('Delete from Library')),
-        ],
-        cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-      ),
     );
   }
 
@@ -960,4 +909,64 @@ class _SongRow extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Download failed.')));
     }
   }
+}
+
+void showSongMenuGlobal(BuildContext context, AudioFile song, int index, List<AudioFile> currentList) {
+  final ps = PlayerService();
+  showCupertinoModalPopup(
+    context: context,
+    builder: (_) => CupertinoActionSheet(
+      title: Text(song.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+      message: Text(song.albumArtist),
+      actions: [
+        CupertinoActionSheetAction(onPressed: () { Navigator.pop(context); ps.playQueue(currentList, initialIndex: index); }, child: Text(song.isLocal ? 'Play Now' : 'Stream Now')),
+        CupertinoActionSheetAction(
+          onPressed: () {
+            Navigator.pop(context);
+            ps.addToQueue(song);
+          },
+          child: const Text('Add to Queue'),
+        ),
+        if (!song.isLocal && song.driveFileId != null)
+          CupertinoActionSheetAction(
+            onPressed: () async {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloading ${song.title}...')));
+              final path = await GoogleDriveService().promoteFromCache(song);
+              if (path != null) {
+                LibraryService.removeDriveSong(song.driveFileId!);
+                ps.promoteSongToLocal(song.driveFileId!, path);
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloaded: ${song.title} to local storage.')));
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Download failed.')));
+              }
+            },
+            child: const Text('Download'),
+          ),        CupertinoActionSheetAction(
+          onPressed: () {
+            Navigator.pop(context);
+            ps.toggleFavorite(song);
+          },
+          child: ValueListenableBuilder<Set<String>>(
+            valueListenable: ps.favoritesNotifier,
+            builder: (_, favs, __) => Text(favs.contains(song.path) ? 'Unlove' : 'Love'),
+          ),
+        ),
+        CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Add to Playlist')),
+        CupertinoActionSheetAction(isDestructiveAction: true, onPressed: () => Navigator.pop(context), child: const Text('Delete from Library')),
+      ],
+      cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+    ),
+  );
+}
+aylist')),
+        CupertinoActionSheetAction(isDestructiveAction: true, onPressed: () => Navigator.pop(context), child: const Text('Delete from Library')),
+      ],
+      cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+    ),
+  );
+}
+),
+    ),
+  );
 }

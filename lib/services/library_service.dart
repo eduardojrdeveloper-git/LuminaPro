@@ -326,6 +326,32 @@ class LibraryService {
         return isolateSongs;
       });
 
+      // Organize physical files
+      final docDir = await getApplicationDocumentsDirectory();
+      for (int i = 0; i < localSongs.length; i++) {
+        final song = localSongs[i];
+        final file = File(song.path);
+        if (!song.path.contains('${Platform.pathSeparator}GDrive${Platform.pathSeparator}') && !song.path.contains('${Platform.pathSeparator}Local${Platform.pathSeparator}')) {
+          // File is unorganized (probably dropped via iTunes)
+          final String safeArtist = (song.albumArtist.trim().isNotEmpty && song.albumArtist != 'Unknown Artist' && song.albumArtist != 'GDrive' && song.albumArtist != 'Cloud') ? song.albumArtist.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_') : 'No Metadata';
+          final String safeAlbum = (song.album.trim().isNotEmpty && song.album != 'Unknown Album' && song.album != 'GDrive' && song.album != 'Cloud') ? song.album.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_') : 'No Metadata';
+          final String fileName = p.basename(song.path).replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+          
+          final destDir = Directory(p.join(docDir.path, 'Local', safeArtist, safeAlbum));
+          if (!await destDir.exists()) {
+            await destDir.create(recursive: true);
+          }
+          final destPath = p.join(destDir.path, fileName);
+          try {
+            await file.copy(destPath);
+            await file.delete();
+            localSongs[i] = song.copyWith(path: destPath);
+          } catch (e) {
+            debugPrint('Failed to organize file ${song.path}: $e');
+          }
+        }
+      }
+
       songs.addAll(localSongs);
     } catch (e) {
       debugPrint('LibraryService: scan error: $e');

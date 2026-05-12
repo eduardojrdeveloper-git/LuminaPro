@@ -367,19 +367,29 @@ class GoogleDriveService {
     }
   }
 
-  /// Copies a cached temp file to the permanent Documents directory.
+  /// Copies a cached temp file to the permanent Documents directory in an organized structure.
   /// Returns the permanent local path, or null on failure.
-  Future<String?> promoteFromCache(String fileId, String fileName) async {
+  Future<String?> promoteFromCache(AudioFile song) async {
     if (!isSignedIn) throw Exception('Not signed in');
+    if (song.driveFileId == null) return null;
 
-    final ext = fileName.split('.').last.toLowerCase();
-    final cached = await getCachedPath(fileId, ext);
+    final ext = song.format.isNotEmpty ? song.format.toLowerCase() : 'flac';
+    final fileName = '${song.title}.$ext'.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+    final cached = await getCachedPath(song.driveFileId!, ext);
+
+    final String safeArtist = (song.albumArtist.trim().isNotEmpty && song.albumArtist != 'Unknown Artist' && song.albumArtist != 'GDrive' && song.albumArtist != 'Cloud') ? song.albumArtist.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_') : 'No Metadata';
+    final String safeAlbum = (song.album.trim().isNotEmpty && song.album != 'Unknown Album' && song.album != 'GDrive' && song.album != 'Cloud') ? song.album.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_') : 'No Metadata';
+
+    final docDir = await getApplicationDocumentsDirectory();
+    final destDir = Directory(p.join(docDir.path, 'GDrive', safeArtist, safeAlbum));
+    if (!await destDir.exists()) {
+      await destDir.create(recursive: true);
+    }
+    final destPath = p.join(destDir.path, fileName);
 
     if (cached != null) {
       // File is in cache — instant copy
       try {
-        final docDir = await getApplicationDocumentsDirectory();
-        final destPath = p.join(docDir.path, fileName);
         await File(cached).copy(destPath);
         LogService.log('Promoted from cache: $cached → $destPath');
         return destPath;
@@ -389,7 +399,7 @@ class GoogleDriveService {
       }
     } else {
       // File not cached — download fresh to permanent storage
-      return await downloadFile(fileId, fileName);
+      return await downloadFile(song);
     }
   }
 
@@ -583,18 +593,27 @@ class GoogleDriveService {
     return driveSongs;
   }
 
-  /// Full download to permanent storage (Documents directory).
-  Future<String?> downloadFile(String fileId, String fileName) async {
+  /// Full download to permanent storage (Documents directory) in organized structure.
+  Future<String?> downloadFile(AudioFile song) async {
     if (!isSignedIn) throw Exception('Not signed in');
+    if (song.driveFileId == null) return null;
     try {
-      // Use dynamic to avoid type conflicts with different versions of googleapis
+      final ext = song.format.isNotEmpty ? song.format.toLowerCase() : 'flac';
+      final fileName = '${song.title}.$ext'.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+      final String safeArtist = (song.albumArtist.trim().isNotEmpty && song.albumArtist != 'Unknown Artist' && song.albumArtist != 'GDrive' && song.albumArtist != 'Cloud') ? song.albumArtist.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_') : 'No Metadata';
+      final String safeAlbum = (song.album.trim().isNotEmpty && song.album != 'Unknown Album' && song.album != 'GDrive' && song.album != 'Cloud') ? song.album.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_') : 'No Metadata';
+
       final dynamic media = await _driveApi!.files.get(
-        fileId,
+        song.driveFileId!,
         downloadOptions: drive.DownloadOptions.fullMedia,
       );
 
-      final dir = await getApplicationDocumentsDirectory();
-      final savePath = p.join(dir.path, fileName);
+      final docDir = await getApplicationDocumentsDirectory();
+      final destDir = Directory(p.join(docDir.path, 'GDrive', safeArtist, safeAlbum));
+      if (!await destDir.exists()) {
+        await destDir.create(recursive: true);
+      }
+      final savePath = p.join(destDir.path, fileName);
       final file = File(savePath);
       final sink = file.openWrite();
       
