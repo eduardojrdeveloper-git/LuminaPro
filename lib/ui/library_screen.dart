@@ -171,6 +171,19 @@ class LibraryScreenState extends State<LibraryScreen>
               backgroundColor:
                   Theme.of(context).scaffoldBackgroundColor.withOpacity(0.85),
               border: null,
+              leading: _tabController.index == 0 && _libraryNavStack.isNotEmpty
+                  ? CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(CupertinoIcons.back, color: LuminaColors.accent),
+                          Text('Back', style: TextStyle(color: LuminaColors.accent)),
+                        ],
+                      ),
+                      onPressed: () => setState(() => _libraryNavStack.removeLast()),
+                    )
+                  : null,
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -269,7 +282,7 @@ class LibraryScreenState extends State<LibraryScreen>
                         child: TabBarView(
                           controller: _tabController,
                           children: [
-                            _buildCategories(isDark),
+                            _buildFolderBrowser(isDark),
                             _buildSongsList(filterLoved: false),
                             _buildGroupedList(groupBy: (s) => s.albumArtist, icon: CupertinoIcons.person_fill),
                             _buildAlbumsView(),
@@ -297,6 +310,126 @@ class LibraryScreenState extends State<LibraryScreen>
           color: isActive ? (isDark ? Colors.white : Colors.black) : LuminaColors.labelSecondary,
         ),
       ),
+    );
+  }
+
+  Widget _buildFolderBrowser(bool isDark) {
+    if (_libraryNavStack.isEmpty) {
+      // Level 0: Local vs GDrive
+      return ListView(
+        padding: const EdgeInsets.only(bottom: 130),
+        children: [
+          _FolderRow(
+            title: 'Local',
+            icon: CupertinoIcons.device_phone_portrait,
+            isDark: isDark,
+            onTap: () => setState(() => _libraryNavStack.add('Local')),
+          ),
+          Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 64, height: 1),
+          _FolderRow(
+            title: 'GDrive',
+            icon: CupertinoIcons.cloud,
+            isDark: isDark,
+            onTap: () => setState(() => _libraryNavStack.add('GDrive')),
+          ),
+        ],
+      );
+    }
+
+    final isLocal = _libraryNavStack[0] == 'Local';
+    var songs = _displayedSongs.where((s) => s.isLocal == isLocal).toList();
+
+    if (_libraryNavStack.length == 1) {
+      // Level 1: Group by Album Artist
+      final Map<String, List<AudioFile>> grouped = {};
+      for (var s in songs) {
+        var aa = (s.albumArtist.trim().isNotEmpty && s.albumArtist != 'Unknown Artist' && s.albumArtist != 'GDrive' && s.albumArtist != 'Cloud') ? s.albumArtist : 'No Metadata';
+        grouped.putIfAbsent(aa, () => []).add(s);
+      }
+      final keys = grouped.keys.toList()..sort();
+      return ListView.separated(
+        padding: const EdgeInsets.only(bottom: 130),
+        itemCount: keys.length,
+        separatorBuilder: (_, __) => Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 64, height: 1),
+        itemBuilder: (context, i) {
+          final aa = keys[i];
+          return _FolderRow(
+            title: aa,
+            subtitle: '${grouped[aa]!.length} songs',
+            icon: CupertinoIcons.person_2_fill,
+            isDark: isDark,
+            onTap: () => setState(() => _libraryNavStack.add(aa)),
+          );
+        },
+      );
+    }
+
+    // Filter by Album Artist
+    final targetAA = _libraryNavStack[1];
+    songs = songs.where((s) {
+      var aa = (s.albumArtist.trim().isNotEmpty && s.albumArtist != 'Unknown Artist' && s.albumArtist != 'GDrive' && s.albumArtist != 'Cloud') ? s.albumArtist : 'No Metadata';
+      return aa == targetAA;
+    }).toList();
+
+    if (_libraryNavStack.length == 2) {
+      // Level 2: Group by Album
+      final Map<String, List<AudioFile>> grouped = {};
+      for (var s in songs) {
+        var al = (s.album.trim().isNotEmpty && s.album != 'Unknown Album' && s.album != 'GDrive' && s.album != 'Cloud') ? s.album : 'No Metadata';
+        grouped.putIfAbsent(al, () => []).add(s);
+      }
+      final keys = grouped.keys.toList()..sort();
+      return ListView.separated(
+        padding: const EdgeInsets.only(bottom: 130),
+        itemCount: keys.length,
+        separatorBuilder: (_, __) => Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 64, height: 1),
+        itemBuilder: (context, i) {
+          final al = keys[i];
+          return _FolderRow(
+            title: al,
+            subtitle: '${grouped[al]!.length} songs',
+            icon: CupertinoIcons.music_albums,
+            isDark: isDark,
+            onTap: () => setState(() => _libraryNavStack.add(al)),
+          );
+        },
+      );
+    }
+
+    // Filter by Album
+    final targetAl = _libraryNavStack[2];
+    songs = songs.where((s) {
+      var al = (s.album.trim().isNotEmpty && s.album != 'Unknown Album' && s.album != 'GDrive' && s.album != 'Cloud') ? s.album : 'No Metadata';
+      return al == targetAl;
+    }).toList();
+
+    // Level 3: Songs List
+    final ps = PlayerService();
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 130),
+      itemCount: songs.length,
+      itemBuilder: (context, index) {
+        final song = songs[index];
+        return ValueListenableBuilder<AudioFile?>(
+          valueListenable: ps.currentSong,
+          builder: (ctx, currentSong, _) {
+            final isPlaying = currentSong?.path == song.path;
+            return Column(
+              children: [
+                _SongRow(
+                  song: song,
+                  isPlaying: isPlaying,
+                  isDark: isDark,
+                  onTap: () => ps.playQueue(songs, initialIndex: index),
+                  onMore: () => _showSongMenu(context, song, index, songs),
+                ),
+                if (index < songs.length - 1)
+                  Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 76, height: 1),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 

@@ -557,7 +557,12 @@ class GoogleDriveService {
             LibraryService.indexCurrentFileNotifier.value = 'Extracting metadata: ${file.name}';
             
             // Use fetchMetadataHeader for real metadata (Title, Artist, etc.)
-            final metaSong = await fetchMetadataHeader(file, folderName);
+            AudioFile? metaSong;
+            try {
+              metaSong = await fetchMetadataHeader(file, folderName);
+            } catch (e) {
+              LogService.log('Error fetching metadata header for ${file.name}: $e');
+            }
             driveSongs.add(metaSong ?? _audioFileFromDriveMeta(file, folderName));
           }
         }
