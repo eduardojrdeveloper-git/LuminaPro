@@ -92,6 +92,11 @@ class LibraryService {
   static List<String> get scanPaths => List.unmodifiable(_includePaths);
 
   static final ValueNotifier<int> libraryUpdateNotifier = ValueNotifier(0);
+  
+  // ── Indexing Progress State ──
+  static final ValueNotifier<bool> isIndexingNotifier = ValueNotifier(false);
+  static final ValueNotifier<String> indexCurrentFileNotifier = ValueNotifier('');
+  static final ValueNotifier<double> indexProgressNotifier = ValueNotifier(0.0);
 
   static void addDriveSongs(List<AudioFile> songs) {
     for (final song in songs) {

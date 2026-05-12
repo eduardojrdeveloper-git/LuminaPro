@@ -223,25 +223,64 @@ class LibraryScreenState extends State<LibraryScreen>
               ),
             ),
           ],
-          body: _isLoading
-              ? const Center(child: CupertinoActivityIndicator(radius: 14))
-              : NotificationListener<ScrollNotification>(
-                  onNotification: (notification) {
-                    if (notification is ScrollStartNotification) _searchFocus.unfocus();
-                    return false;
-                  },
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildCategories(isDark),
-                      _buildSongsList(filterLoved: false),
-                      _buildGroupedList(groupBy: (s) => s.albumArtist, icon: CupertinoIcons.person_fill),
-                      _buildAlbumsView(),
-                      _buildGroupedList(groupBy: (s) => s.genre, icon: CupertinoIcons.music_mic),
-                      _buildSongsList(filterLoved: true),
-                    ],
-                  ),
-                ),
+          body: Column(
+            children: [
+              ValueListenableBuilder<bool>(
+                valueListenable: LibraryService.isIndexingNotifier,
+                builder: (context, isIndexing, child) {
+                  if (!isIndexing) return const SizedBox.shrink();
+                  return Container(
+                    width: double.infinity,
+                    color: LuminaColors.accent.withOpacity(0.1),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      children: [
+                        const CupertinoActivityIndicator(radius: 8),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ValueListenableBuilder<String>(
+                            valueListenable: LibraryService.indexCurrentFileNotifier,
+                            builder: (context, msg, child) {
+                              return Text(
+                                msg,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark ? Colors.white70 : Colors.black87,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CupertinoActivityIndicator(radius: 14))
+                    : NotificationListener<ScrollNotification>(
+                        onNotification: (notification) {
+                          if (notification is ScrollStartNotification) _searchFocus.unfocus();
+                          return false;
+                        },
+                        child: TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _buildCategories(isDark),
+                            _buildSongsList(filterLoved: false),
+                            _buildGroupedList(groupBy: (s) => s.albumArtist, icon: CupertinoIcons.person_fill),
+                            _buildAlbumsView(),
+                            _buildGroupedList(groupBy: (s) => s.genre, icon: CupertinoIcons.music_mic),
+                            _buildSongsList(filterLoved: true),
+                          ],
+                        ),
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );

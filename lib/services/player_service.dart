@@ -249,40 +249,29 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
       }
       playPath = song.path;
     } else {
-      // ── Cloud file: stream via temp cache ──
-      if (song.driveFileId == null) {
-        LogService.log('PlayerService: cloud song has no driveFileId, skipping');
+      // ── Cloud file: Stream directly ──
+      if (song.driveFileId == null || song.driveStreamUrl == null) {
+        LogService.log('PlayerService: cloud song has no URL, skipping');
         _onTrackFinished();
         return;
       }
 
-      final ext = song.format.isNotEmpty ? song.format.toLowerCase() : 'flac';
+      bufferingNotifier.value = true;
+      LogService.log('PlayerService: preparing direct stream for ${song.title}...');
+
       final gdrive = GoogleDriveService();
-
-      // Check if already cached
-      String? cachedPath = await gdrive.getCachedPath(song.driveFileId!, ext);
-
-      if (cachedPath == null) {
-        // Need to download → show buffering
-        bufferingNotifier.value = true;
-        LogService.log('PlayerService: buffering cloud track ${song.title}...');
-
-        final fileName = '${song.title}.${ext}';
-        cachedPath = await gdrive.streamToTempCache(song.driveFileId!, fileName);
-
-        bufferingNotifier.value = false;
-
-        if (cachedPath == null) {
-          LogService.log('PlayerService: failed to cache cloud track');
-          _onTrackFinished();
-          return;
-        }
+      final headers = await gdrive.getAuthHeaders();
+      final token = headers['Authorization']?.replaceAll('Bearer ', '');
+      
+      if (token != null) {
+        // Append access_token to bypass cookie/login requirements for native AVPlayer
+        // Drive webContentLink format: https://drive.google.com/uc?id=...&export=download
+        playPath = '${song.driveStreamUrl}&access_token=$token';
+      } else {
+        playPath = song.driveStreamUrl!;
       }
 
-      playPath = cachedPath;
-
-      // Extract rich metadata in background after caching
-      _enrichMetadataInBackground(song, cachedPath);
+      bufferingNotifier.value = false;
     }
 
     try {

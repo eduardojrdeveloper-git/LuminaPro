@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:metadata_god/metadata_god.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../main.dart' show extractCloudCoversNotifier;
 import 'log_service.dart';
 import 'library_service.dart';
@@ -325,14 +326,21 @@ class GoogleDriveService {
   Future<List<AudioFile>> scanFoldersForFlacs(List<String> folderIds) async {
     if (!isSignedIn) throw Exception('Not signed in');
 
+    WakelockPlus.enable(); // Prevent device from sleeping during long scans
+    
     // Clear previously indexed IDs so re-scanning replaces data
     _indexedFileIds.clear();
 
     final List<AudioFile> allSongs = [];
-    for (final id in folderIds) {
-      final songs = await _scanRecursive(id, 'Cloud Folder');
-      allSongs.addAll(songs);
+    try {
+      for (final id in folderIds) {
+        final songs = await _scanRecursive(id, 'Cloud Folder');
+        allSongs.addAll(songs);
+      }
+    } finally {
+      WakelockPlus.disable(); // Allow device to sleep again
     }
+    
     return allSongs;
   }
 
@@ -340,6 +348,8 @@ class GoogleDriveService {
     final List<AudioFile> driveSongs = [];
     String? pageToken;
     try {
+      LibraryService.indexCurrentFileNotifier.value = 'Scanning folder: $folderName...';
+      
       // 1. Get audio files in current folder (fast — no file download)
       do {
         final fileList = await _driveApi!.files.list(
@@ -360,6 +370,8 @@ class GoogleDriveService {
             if (_indexedFileIds.contains(file.id)) continue;
             _indexedFileIds.add(file.id!);
 
+            LibraryService.indexCurrentFileNotifier.value = 'Extracting metadata: ${file.name}';
+            
             // Use fetchMetadataHeader for real metadata (Title, Artist, etc.)
             final metaSong = await fetchMetadataHeader(file, folderName);
             driveSongs.add(metaSong ?? _audioFileFromDriveMeta(file, folderName));

@@ -161,6 +161,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       },
                       showChevron: true,
                     ),
+                    const _Divider(),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: extractCloudCoversNotifier,
+                      builder: (_, extract, __) {
+                        return _SettingRow(
+                          isDark: isDark,
+                          icon: CupertinoIcons.photo_fill,
+                          iconColor: const Color(0xFFFF9500),
+                          title: 'Extract Cloud Covers',
+                          subtitle: 'Slower indexing, but shows artwork',
+                          trailing: CupertinoSwitch(
+                            value: extract,
+                            activeColor: LuminaColors.accent,
+                            onChanged: (v) => extractCloudCoversNotifier.value = v,
+                          ),
+                        );
+                      },
+                    ),
                   ],
                 ),
 
@@ -304,24 +322,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             value: show,
                             activeColor: LuminaColors.accent,
                             onChanged: (v) => showQualityInPlayerNotifier.value = v,
-                          ),
-                        );
-                      },
-                    ),
-                    const _Divider(),
-                    ValueListenableBuilder<bool>(
-                      valueListenable: extractCloudCoversNotifier,
-                      builder: (_, extract, __) {
-                        return _SettingRow(
-                          isDark: isDark,
-                          icon: CupertinoIcons.photo_fill,
-                          iconColor: const Color(0xFFFF9500),
-                          title: 'Extract Cloud Covers',
-                          subtitle: 'Slower indexing, but shows artwork',
-                          trailing: CupertinoSwitch(
-                            value: extract,
-                            activeColor: LuminaColors.accent,
-                            onChanged: (v) => extractCloudCoversNotifier.value = v,
                           ),
                         );
                       },
@@ -583,25 +583,35 @@ class _GoogleDriveSheetState extends State<_GoogleDriveSheet> {
     }
   }
 
-  Future<void> _startScan() async {
+  void _startScan() {
     if (_selectedFolderIds.isEmpty) {
       _showToast('Select at least one folder');
       return;
     }
-    setState(() => _isLoading = true);
-    try {
-      // Clear existing cloud songs to prevent duplicates on re-scan
-      LibraryService.clearDriveSongs();
-      final songs = await _driveService.scanFoldersForFlacs(_selectedFolderIds.toList());
-      LibraryService.addDriveSongs(songs);
-      _showToast('Indexed ${songs.length} cloud files from GDrive');
-      widget.onUpdate();
-      Navigator.pop(context);
-    } catch (e) {
-      _showToast('Scan failed: $e');
-    } finally {
-      setState(() => _isLoading = false);
-    }
+    
+    // Kick off background scan
+    final idsToScan = _selectedFolderIds.toList();
+    Navigator.pop(context);
+    
+    Future.microtask(() async {
+      try {
+        LibraryService.isIndexingNotifier.value = true;
+        LibraryService.indexCurrentFileNotifier.value = 'Starting scan...';
+        
+        LibraryService.clearDriveSongs();
+        final songs = await _driveService.scanFoldersForFlacs(idsToScan);
+        LibraryService.addDriveSongs(songs);
+        
+        LibraryService.indexCurrentFileNotifier.value = 'Indexed ${songs.length} cloud files from GDrive';
+      } catch (e) {
+        LibraryService.indexCurrentFileNotifier.value = 'Scan failed: $e';
+      } finally {
+        Future.delayed(const Duration(seconds: 3), () {
+          LibraryService.isIndexingNotifier.value = false;
+        });
+        widget.onUpdate();
+      }
+    });
   }
 
   @override
