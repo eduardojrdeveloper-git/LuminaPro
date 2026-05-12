@@ -205,46 +205,42 @@ class _PlayerScreenState extends State<PlayerScreen>
                                         )
                                       : _buildPlaceholderArt(isDark);
 
-                              return Stack(
-                                children: [
-                                  Positioned.fill(
-                                    child: ScaleTransition(
-                                      scale: _scaleAnim,
-                                      child: isRotating
-                                          ? RotationTransition(
-                                              turns: _artworkController,
-                                              child: ClipOval(
-                                                child: AspectRatio(
-                                                  aspectRatio: 1,
+                              return AspectRatio(
+                                aspectRatio: 1,
+                                child: Stack(
+                                  children: [
+                                    Positioned.fill(
+                                      child: ScaleTransition(
+                                        scale: _scaleAnim,
+                                        child: isRotating
+                                            ? RotationTransition(
+                                                turns: _artworkController,
+                                                child: ClipOval(
+                                                  child: artworkImage,
+                                                ),
+                                              )
+                                            : Container(
+                                                decoration: BoxDecoration(
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: Colors.black
+                                                          .withOpacity(0.45),
+                                                      blurRadius: 50,
+                                                      offset: const Offset(0, 24),
+                                                      spreadRadius: -4,
+                                                    ),
+                                                  ],
+                                                ),
+                                                child: ClipRRect(
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
                                                   child: artworkImage,
                                                 ),
                                               ),
-                                            )
-                                          : Container(
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: Colors.black
-                                                        .withOpacity(0.45),
-                                                    blurRadius: 50,
-                                                    offset: const Offset(0, 24),
-                                                    spreadRadius: -4,
-                                                  ),
-                                                ],
-                                              ),
-                                              child: ClipRRect(
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                                child: AspectRatio(
-                                                  aspectRatio: 1,
-                                                  child: artworkImage,
-                                                ),
-                                              ),
-                                            ),
+                                      ),
                                     ),
-                                  ),
                                   ValueListenableBuilder<bool>(
                                     valueListenable: _ps.bufferingNotifier,
                                     builder: (_, isBuffering, __) {
@@ -266,6 +262,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                                     },
                                   ),
                                 ],
+                              ),
                               );
                             },
                           ),

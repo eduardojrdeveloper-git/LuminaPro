@@ -116,6 +116,8 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
   final ValueNotifier<bool> monoNotifier = ValueNotifier(false);
   final ValueNotifier<bool> invertLRNotifier = ValueNotifier(false);
   final ValueNotifier<bool> bufferingNotifier = ValueNotifier(false);
+  final ValueNotifier<bool> eqEnabledNotifier = ValueNotifier(true);
+  int selectedPresetIndex = 0; // Persistent preset index
 
   // ── Streams ──────────────────────────────────────────────────────────────────
   late final Stream<Duration> positionStream;
@@ -270,13 +272,25 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
       }
 
       bufferingNotifier.value = true;
-      LogService.log('PlayerService: preparing direct stream for ${song.title}...');
+      LogService.log('PlayerService: preparing temp cache for ${song.title}...');
 
       final gdrive = GoogleDriveService();
       
-      // Use local HTTP proxy server to stream file directly from Google Drive
-      final proxyUrl = gdrive.getStreamProxyUrl(song.driveFileId!, song.path);
-      playPath = proxyUrl ?? song.driveStreamUrl!;
+      // Stop current playback before downloading
+      _engine.stop();
+
+      final ext = song.format.isNotEmpty ? song.format.toLowerCase() : 'flac';
+      final fileName = '${song.title}.$ext';
+      final path = await gdrive.streamToTempCache(song.driveFileId!, fileName);
+      
+      if (path != null) {
+        playPath = path;
+      } else {
+        LogService.log('Failed to cache stream for ${song.title}');
+        bufferingNotifier.value = false;
+        _onTrackFinished();
+        return;
+      }
 
       bufferingNotifier.value = false;
 
@@ -597,6 +611,12 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
   }
 
   Future<void> applyCurrentEQ() async {
+    if (!eqEnabledNotifier.value) {
+      // If disabled, send flat EQ to native engine
+      await updatePreamp(0.0);
+      await updateEQ([]);
+      return;
+    }
     double preamp = 0.0;
     List<Map<String, dynamic>> hw = [];
     for (var b in eqBands) {

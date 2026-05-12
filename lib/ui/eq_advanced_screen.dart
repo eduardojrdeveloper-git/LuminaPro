@@ -40,6 +40,7 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
     _bands =
         List.from(_ps.eqBands.map((b) => Map<String, dynamic>.from(b)));
     _bandsNotifier = ValueNotifier(_bands);
+    _selectedPresetIndex = _ps.selectedPresetIndex;
   }
 
   void _onBandChanged() {
@@ -49,10 +50,10 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
   }
 
   void _applyPreset(int index) {
-    _selectedPresetIndex = index;
-    final preset = kEqPresets[index];
-
     setState(() {
+      _selectedPresetIndex = index;
+      _ps.selectedPresetIndex = index;
+      final preset = kEqPresets[index];
       _bands.clear();
       for (int i = 0; i < preset.bands.length; i++) {
         _bands.add(Map<String, dynamic>.from(preset.bands[i]));
@@ -218,34 +219,59 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // ── Real-time EQ Visualizer ──────────────────────────────────
-              Container(
-                height: 160,
-                margin: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withOpacity(0.05)
-                        : Colors.black.withOpacity(0.04),
-                    width: 0.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(isDark ? 0.35 : 0.05),
-                      blurRadius: 20,
-                      offset: const Offset(0, 6),
+              // ── EQ Master Toggle & Visualizer ───────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Master Enable', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: LuminaColors.labelSecondary, decoration: TextDecoration.none)),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: _ps.eqEnabledNotifier,
+                      builder: (_, enabled, __) => CupertinoSwitch(
+                        value: enabled,
+                        activeColor: LuminaColors.accent,
+                        onChanged: (v) {
+                          _ps.eqEnabledNotifier.value = v;
+                          _ps.applyCurrentEQ();
+                          setState(() {}); // Repaint to dim visualizer if disabled
+                        },
+                      ),
                     ),
                   ],
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: ValueListenableBuilder<List<Map<String, dynamic>>>(
-                    valueListenable: _bandsNotifier,
-                    builder: (_, bands, __) => CustomPaint(
-                      painter: EqVisualizerPainter(bands, isDark),
-                      child: const SizedBox.expand(),
+              ),
+
+              Opacity(
+                opacity: _ps.eqEnabledNotifier.value ? 1.0 : 0.4,
+                child: Container(
+                  height: 160,
+                  margin: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white.withOpacity(0.05)
+                          : Colors.black.withOpacity(0.04),
+                      width: 0.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(isDark ? 0.35 : 0.05),
+                        blurRadius: 20,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: ValueListenableBuilder<List<Map<String, dynamic>>>(
+                      valueListenable: _bandsNotifier,
+                      builder: (_, bands, __) => CustomPaint(
+                        painter: EqVisualizerPainter(bands, isDark),
+                        child: const SizedBox.expand(),
+                      ),
                     ),
                   ),
                 ),

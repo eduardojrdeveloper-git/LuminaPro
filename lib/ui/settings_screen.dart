@@ -224,15 +224,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       showChevron: true,
                     ),
                     const _Divider(),
-                    _SettingRow(
-                      isDark: isDark,
-                      icon: CupertinoIcons.arrow_right_arrow_left,
-                      iconColor: const Color(0xFFFF9500),
-                      title: 'Crossfade',
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ValueListenableBuilder<bool>(
+                    Column(
+                      children: [
+                        _SettingRow(
+                          isDark: isDark,
+                          icon: CupertinoIcons.arrow_right_arrow_left,
+                          iconColor: const Color(0xFFFF9500),
+                          title: 'Crossfade',
+                          trailing: ValueListenableBuilder<bool>(
                             valueListenable: _ps.crossfadeEnabledNotifier,
                             builder: (context, enabled, _) {
                               return CupertinoSwitch(
@@ -242,33 +241,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               );
                             },
                           ),
-                          const SizedBox(width: 8),
-                          ValueListenableBuilder<bool>(
-                            valueListenable: _ps.crossfadeEnabledNotifier,
-                            builder: (context, enabled, _) {
-                              if (!enabled) return const SizedBox.shrink();
-                              return Row(
+                        ),
+                        ValueListenableBuilder<bool>(
+                          valueListenable: _ps.crossfadeEnabledNotifier,
+                          builder: (context, enabled, _) {
+                            if (!enabled) return const SizedBox.shrink();
+                            return Padding(
+                              padding: const EdgeInsets.fromLTRB(58, 0, 16, 12),
+                              child: Row(
                                 children: [
                                   Text(
-                                    '${_ps.crossfadeDuration.toInt()}s',
-                                    style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 14),
+                                    'Duration: ${_ps.crossfadeDuration.toInt()}s',
+                                    style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 13, decoration: TextDecoration.none),
                                   ),
-                                  SizedBox(
-                                    width: 80,
+                                  const SizedBox(width: 12),
+                                  Expanded(
                                     child: CupertinoSlider(
                                       value: _ps.crossfadeDuration,
                                       min: 0,
-                                      max: 5,
-                                      divisions: 5,
+                                      max: 10,
+                                      activeColor: LuminaColors.accent,
                                       onChanged: (v) => setState(() => _ps.crossfadeDuration = v),
                                     ),
                                   ),
                                 ],
-                              );
-                            },
-                          ),
-                        ],
-                      ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ],
                 ),
