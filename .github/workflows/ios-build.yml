@@ -33,6 +33,7 @@ jobs:
           import Flutter
           import AVFoundation
           import MediaPlayer
+          import Accelerate
 
           @main
           @objc class AppDelegate: FlutterAppDelegate {
@@ -52,6 +53,7 @@ jobs:
               var currentArtist: String = "Unknown"
               var currentAlbum: String = "Unknown"
               var currentPath: String = ""
+              var currentCoverArt: Data?
               var isSeeking = false
               
               // FIX: Track seek offset so position reports are correct after playerNode.stop()
@@ -113,6 +115,11 @@ jobs:
                               self.currentArtist = args["artist"] as? String ?? "Unknown"
                               self.currentAlbum = args["album"] as? String ?? "Unknown"
                               self.currentPath = path
+                              if let coverData = args["coverArt"] as? FlutterStandardTypedData {
+                                  self.currentCoverArt = coverData.data
+                              } else {
+                                  self.currentCoverArt = nil
+                              }
                               self.playAudio(path: path)
                               result(nil)
                           } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
@@ -167,6 +174,38 @@ jobs:
                           if let args = call.arguments as? [String: Any], let volume = args["volume"] as? Double {
                               self.playerNode.volume = Float(volume)
                               result(nil)
+                          } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
+                      case "setPan":
+                          if let args = call.arguments as? [String: Any], let pan = args["pan"] as? Double {
+                              self.playerNode.pan = Float(pan)
+                              result(nil)
+                          } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
+                      case "setMono":
+                          if let args = call.arguments as? [String: Any], let mono = args["mono"] as? Bool {
+                              let wasPlaying = self.playerNode.isPlaying
+                              if wasPlaying { self.playerNode.pause() }
+                              
+                              self.engine.disconnectNodeInput(self.eqNode)
+                              if mono {
+                                  let hwFormat = self.engine.outputNode.outputFormat(forBus: 0)
+                                  let monoFormat = AVAudioFormat(standardFormatWithSampleRate: hwFormat.sampleRate, channels: 1)
+                                  self.engine.connect(self.playerNode, to: self.eqNode, format: monoFormat)
+                              } else {
+                                  self.engine.connect(self.playerNode, to: self.eqNode, format: nil)
+                              }
+                              
+                              if wasPlaying { self.playerNode.play() }
+                              result(nil)
+                          } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
+                      case "generateSpek":
+                          if let args = call.arguments as? [String: Any], let path = args["path"] as? String {
+                              DispatchQueue.global(qos: .userInitiated).async {
+                                  if let imageBytes = self.generateSpectrogram(from: path) {
+                                      DispatchQueue.main.async { result(FlutterStandardTypedData(bytes: imageBytes)) }
+                                  } else {
+                                      DispatchQueue.main.async { result(FlutterError(code: "SPEK_ERROR", message: "Failed to generate", details: nil)) }
+                                  }
+                              }
                           } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
                       default:
                           result(FlutterMethodNotImplemented)
@@ -277,12 +316,92 @@ jobs:
                   nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = elapsedSeconds
                   nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPause ? 0.0 : 1.0
                   
-                  if let artwork = extractArtwork(from: currentPath) {
+                  if let coverArtData = self.currentCoverArt, let image = UIImage(data: coverArtData) {
+                      nowPlayingInfo[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in return image }
+                  } else if let artwork = extractArtwork(from: currentPath) {
                       nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
                   }
                   
                   MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
               }
+
+              func generateSpectrogram(from path: String) -> Data? {
+                  guard let file = try? AVAudioFile(forReading: URL(fileURLWithPath: path)) else { return nil }
+                  let format = file.processingFormat
+                  let frameCount = UInt32(file.length)
+                  guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else { return nil }
+                  try? file.read(into: buffer)
+                  
+                  guard let channelData = buffer.floatChannelData?[0] else { return nil }
+                  let fftSize = 1024
+                  let fftHalf = fftSize / 2
+                  let chunkCount = Int(frameCount) / fftSize
+                  
+                  let width = min(chunkCount, 2048) // prevent huge images
+                  let height = 512
+                  let bytesPerPixel = 4
+                  let bytesPerRow = width * bytesPerPixel
+                  var pixelData = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
+                  
+                  let log2n = vDSP_Length(log2(Float(fftSize)))
+                  guard let setup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2)) else { return nil }
+                  
+                  var window = [Float](repeating: 0, count: fftSize)
+                  vDSP_hann_window(&window, vDSP_Length(fftSize), Int32(vDSP_HANN_NORM))
+                  
+                  for x in 0..<width {
+                      let chunkIndex = (x * chunkCount) / width
+                      let offset = chunkIndex * fftSize
+                      
+                      var real = [Float](repeating: 0, count: fftHalf)
+                      var imag = [Float](repeating: 0, count: fftHalf)
+                      
+                      var chunk = [Float](repeating: 0, count: fftSize)
+                      for i in 0..<fftSize {
+                          if offset + i < Int(frameCount) {
+                              chunk[i] = channelData[offset + i] * window[i]
+                          }
+                      }
+                      
+                      chunk.withUnsafeBufferPointer { ptr in
+                          ptr.baseAddress!.withMemoryRebound(to: DSPComplex.self, capacity: fftHalf) { complexPtr in
+                              var splitComplex = DSPSplitComplex(realp: &real, imagp: &imag)
+                              vDSP_ctoz(complexPtr, 2, &splitComplex, 1, vDSP_Length(fftHalf))
+                              vDSP_fft_zrip(setup, &splitComplex, 1, log2n, FFTDirection(FFT_FORWARD))
+                              
+                              var magnitudes = [Float](repeating: 0, count: fftHalf)
+                              vDSP_zvmags(&splitComplex, 1, &magnitudes, 1, vDSP_Length(fftHalf))
+                              
+                              for y in 0..<height {
+                                  let bin = (y * fftHalf) / height
+                                  let mag = magnitudes[fftHalf - 1 - bin]
+                                  let db = 10 * log10f(mag + 1e-10)
+                                  
+                                  let normalized = max(0, min(1, (db + 80) / 80))
+                                  // Heatmap color
+                                  let r = UInt8(normalized * 255)
+                                  let g = UInt8(sin(normalized * .pi) * 255)
+                                  let b = UInt8(max(0, 1 - normalized * 2) * 255)
+                                  
+                                  let pixelIndex = (y * bytesPerRow) + (x * bytesPerPixel)
+                                  pixelData[pixelIndex] = r
+                                  pixelData[pixelIndex + 1] = g
+                                  pixelData[pixelIndex + 2] = b
+                                  pixelData[pixelIndex + 3] = 255
+                              }
+                          }
+                      }
+                  }
+                  vDSP_destroy_fftsetup(setup)
+                  
+                  let colorSpace = CGColorSpaceCreateDeviceRGB()
+                  let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+                  guard let context = CGContext(data: &pixelData, width: width, height: height, bitsPerComponent: 8, bytesPerRow: bytesPerRow, space: colorSpace, bitmapInfo: bitmapInfo.rawValue),
+                        let cgImage = context.makeImage() else { return nil }
+                  
+                  return UIImage(cgImage: cgImage).pngData()
+              }
+
               func updateAudioPathInfo() {
                   guard let audioFile = audioFile else { return }
                   let srcFormat = audioFile.processingFormat

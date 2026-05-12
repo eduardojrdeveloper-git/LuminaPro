@@ -468,6 +468,8 @@ class LibraryScreenState extends State<LibraryScreen>
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloading ${song.title}...')));
                 final path = await GoogleDriveService().promoteFromCache(song.driveFileId!, fileName);
                 if (path != null) {
+                  LibraryService.removeDriveSong(song.driveFileId!);
+                  ps.promoteSongToLocal(song.driveFileId!, path);
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloaded: $fileName to local storage.')));
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Download failed.')));
@@ -776,6 +778,7 @@ class _SongRow extends StatelessWidget {
     final path = await GoogleDriveService().promoteFromCache(song.driveFileId!, fileName);
     if (path != null) {
       LibraryService.removeDriveSong(song.driveFileId!);
+      PlayerService().promoteSongToLocal(song.driveFileId!, path);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloaded: ${song.title} to local.')));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Download failed.')));

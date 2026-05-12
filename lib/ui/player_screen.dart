@@ -202,41 +202,67 @@ class _PlayerScreenState extends State<PlayerScreen>
                                         )
                                       : _buildPlaceholderArt(isDark);
 
-                              return ScaleTransition(
-                                scale: _scaleAnim,
-                                child: isRotating
-                                    ? RotationTransition(
-                                        turns: _artworkController,
-                                        child: ClipOval(
-                                          child: AspectRatio(
-                                            aspectRatio: 1,
-                                            child: artworkImage,
-                                          ),
-                                        ),
-                                      )
-                                    : Container(
-                                        decoration: BoxDecoration(
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black
-                                                  .withOpacity(0.45),
-                                              blurRadius: 50,
-                                              offset: const Offset(0, 24),
-                                              spreadRadius: -4,
+                              return Stack(
+                                children: [
+                                  Positioned.fill(
+                                    child: ScaleTransition(
+                                      scale: _scaleAnim,
+                                      child: isRotating
+                                          ? RotationTransition(
+                                              turns: _artworkController,
+                                              child: ClipOval(
+                                                child: AspectRatio(
+                                                  aspectRatio: 1,
+                                                  child: artworkImage,
+                                                ),
+                                              ),
+                                            )
+                                          : Container(
+                                              decoration: BoxDecoration(
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: Colors.black
+                                                        .withOpacity(0.45),
+                                                    blurRadius: 50,
+                                                    offset: const Offset(0, 24),
+                                                    spreadRadius: -4,
+                                                  ),
+                                                ],
+                                              ),
+                                              child: ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                                child: AspectRatio(
+                                                  aspectRatio: 1,
+                                                  child: artworkImage,
+                                                ),
+                                              ),
                                             ),
-                                          ],
-                                        ),
-                                        child: ClipRRect(
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                          child: AspectRatio(
-                                            aspectRatio: 1,
-                                            child: artworkImage,
+                                    ),
+                                  ),
+                                  ValueListenableBuilder<bool>(
+                                    valueListenable: _ps.bufferingNotifier,
+                                    builder: (_, isBuffering, __) {
+                                      if (!isBuffering) return const SizedBox.shrink();
+                                      return Positioned.fill(
+                                        child: ScaleTransition(
+                                          scale: _scaleAnim,
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withOpacity(0.4),
+                                              borderRadius: BorderRadius.circular(isRotating ? 1000 : 20),
+                                            ),
+                                            child: const Center(
+                                              child: CupertinoActivityIndicator(radius: 20, color: Colors.white),
+                                            ),
                                           ),
                                         ),
-                                      ),
+                                      );
+                                    },
+                                  ),
+                                ],
                               );
                             },
                           ),
@@ -489,14 +515,27 @@ class _Controls extends StatelessWidget {
           behavior: HitTestBehavior.opaque,
           child: Padding(padding: const EdgeInsets.all(4), child: Icon(CupertinoIcons.backward_fill, size: 36, color: baseColor)),
         ),
-        GestureDetector(
-          onTap: playerService.playPause,
-          behavior: HitTestBehavior.opaque,
-          child: ValueListenableBuilder<bool>(
-            valueListenable: playerService.playingNotifier,
-            builder: (_, isPlaying, __) => AnimatedSwitcher(
-              duration: const Duration(milliseconds: 180),
-              child: Icon(isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill, key: ValueKey(isPlaying), size: 52, color: baseColor),
+        ValueListenableBuilder<bool>(
+          valueListenable: playerService.bufferingNotifier,
+          builder: (_, isBuffering, __) => GestureDetector(
+            onTap: isBuffering ? null : playerService.playPause,
+            behavior: HitTestBehavior.opaque,
+            child: ValueListenableBuilder<bool>(
+              valueListenable: playerService.playingNotifier,
+              builder: (_, isPlaying, __) => AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: isBuffering
+                    ? const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: CupertinoActivityIndicator(radius: 14),
+                      )
+                    : Icon(
+                        isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
+                        key: ValueKey(isPlaying),
+                        size: 52,
+                        color: isBuffering ? baseColor.withOpacity(0.3) : baseColor,
+                      ),
+              ),
             ),
           ),
         ),

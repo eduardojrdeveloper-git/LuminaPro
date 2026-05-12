@@ -158,6 +158,45 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
     );
   }
 
+  Future<void> _showTypePicker(int index, String currentType) async {
+    final types = ['PK', 'LSC', 'HSC', 'LP', 'HP'];
+    int selected = types.indexOf(currentType);
+    if (selected == -1) selected = 0;
+
+    await showCupertinoModalPopup(
+      context: context,
+      builder: (_) => Container(
+        height: 250,
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                CupertinoButton(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
+                CupertinoButton(child: const Text('Done'), onPressed: () {
+                  setState(() {
+                    _bands[index]['type'] = types[selected];
+                    _onBandChanged();
+                  });
+                  Navigator.pop(context);
+                }),
+              ],
+            ),
+            Expanded(
+              child: CupertinoPicker(
+                scrollController: FixedExtentScrollController(initialItem: selected),
+                itemExtent: 32.0,
+                onSelectedItemChanged: (int i) => selected = i,
+                children: types.map((t) => Center(child: Text(t))).toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -300,14 +339,32 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
 
               // ── Bands List ───────────────────────────────────────────────
               Expanded(
-                child: AnimatedList(
-                  key: _listKey,
-                  initialItemCount: _bands.length,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemBuilder: (context, index, animation) {
-                    return _buildAnimatedBandRow(
-                        _bands[index], animation, index, isDark);
-                  },
+                child: CustomScrollView(
+                  slivers: [
+                    SliverAnimatedList(
+                      key: _listKey,
+                      initialItemCount: _bands.length,
+                      itemBuilder: (context, index, animation) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: _buildAnimatedBandRow(_bands[index], animation, index, isDark),
+                        );
+                      },
+                    ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Environment Controls', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: LuminaColors.labelSecondary, decoration: TextDecoration.none)),
+                            const SizedBox(height: 12),
+                            _buildEnvironmentCard(isDark),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -350,21 +407,34 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
         children: [
           Row(
             children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: LuminaColors.accent.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  band['type'].toUpperCase(),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 10,
-                    letterSpacing: 0.8,
-                    color: LuminaColors.accent,
-                    decoration: TextDecoration.none,
+              GestureDetector(
+                onTap: () {
+                  if (!isPreamp) _showTypePicker(index, band['type']);
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: LuminaColors.accent.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    children: [
+                      Text(
+                        band['type'].toUpperCase(),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 10,
+                          letterSpacing: 0.8,
+                          color: LuminaColors.accent,
+                          decoration: TextDecoration.none,
+                        ),
+                      ),
+                      if (!isPreamp) ...[
+                        const SizedBox(width: 2),
+                        const Icon(CupertinoIcons.chevron_down, size: 10, color: LuminaColors.accent),
+                      ]
+                    ],
                   ),
                 ),
               ),
@@ -461,6 +531,45 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
               activeColor: LuminaColors.accent,
               onChanged: onChanged,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEnvironmentCard(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.04),
+          width: 0.5,
+        ),
+      ),
+      child: Column(
+        children: [
+          ValueListenableBuilder<double>(
+            valueListenable: _ps.panNotifier,
+            builder: (ctx, pan, _) => _buildSliderRow(-1, 'Pan (L/R)', pan, -1.0, 1.0, isDark, (v) {
+              _ps.setPan(v);
+            }),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Mono Downmix', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: LuminaColors.labelSecondary, decoration: TextDecoration.none)),
+              ValueListenableBuilder<bool>(
+                valueListenable: _ps.monoNotifier,
+                builder: (ctx, mono, _) => CupertinoSwitch(
+                  value: mono,
+                  activeColor: LuminaColors.accent,
+                  onChanged: (v) => _ps.toggleMono(),
+                ),
+              ),
+            ],
           ),
         ],
       ),

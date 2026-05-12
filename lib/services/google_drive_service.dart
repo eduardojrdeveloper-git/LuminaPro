@@ -8,6 +8,9 @@ import 'package:path/path.dart' as p;
 import 'package:metadata_god/metadata_god.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../main.dart' show extractCloudCoversNotifier;
+import 'dart:async';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'log_service.dart';
 import 'library_service.dart';
 
@@ -40,7 +43,13 @@ class GoogleDriveService {
   drive.DriveApi? _driveApi;
 
   /// Track already-indexed driveFileIds to prevent duplicates across scans.
-  final Set<String> _indexedFileIds = {};
+  Set<String> _indexedFileIds = {};
+  
+  /// Track selected folder IDs to remember what we indexed.
+  Set<String> selectedFolderIds = {};
+
+  HttpServer? _proxyServer;
+  int? get proxyPort => _proxyServer?.port;
 
   Future<void> signIn() async {
     try {
@@ -50,10 +59,37 @@ class GoogleDriveService {
         final client = GoogleAuthClient(headers);
         _driveApi = drive.DriveApi(client);
         LogService.log('Google Drive signed in successfully: ${_currentUser!.email}');
+        
+        await _loadPersistedState();
+        if (_proxyServer == null) {
+          await _startProxyServer();
+        }
       }
     } catch (error) {
       LogService.log('Google Drive sign in failed: $error');
       rethrow;
+    }
+  }
+
+  Future<void> _loadPersistedState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final indexedIds = prefs.getStringList('gdrive_indexed_ids') ?? [];
+      final folderIds = prefs.getStringList('gdrive_folder_ids') ?? [];
+      _indexedFileIds = indexedIds.toSet();
+      selectedFolderIds = folderIds.toSet();
+    } catch (e) {
+      LogService.log('Failed to load GDrive state: $e');
+    }
+  }
+
+  Future<void> _savePersistedState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('gdrive_indexed_ids', _indexedFileIds.toList());
+      await prefs.setStringList('gdrive_folder_ids', selectedFolderIds.toList());
+    } catch (e) {
+      LogService.log('Failed to save GDrive state: $e');
     }
   }
 
@@ -62,6 +98,14 @@ class GoogleDriveService {
     _currentUser = null;
     _driveApi = null;
     _indexedFileIds.clear();
+    selectedFolderIds.clear();
+    await _savePersistedState();
+    
+    if (_proxyServer != null) {
+      await _proxyServer!.close();
+      _proxyServer = null;
+    }
+    
     LogService.log('Google Drive signed out.');
   }
 
@@ -131,6 +175,80 @@ class GoogleDriveService {
     return await _currentUser!.authHeaders;
   }
 
+  // ── Proxy Server for Streaming ────────────────────────────────────────────
+
+  Future<void> _startProxyServer() async {
+    try {
+      _proxyServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      LogService.log('GDrive Proxy Server started on port ${_proxyServer!.port}');
+
+      _proxyServer!.listen((HttpRequest request) async {
+        final fileId = request.uri.queryParameters['id'];
+        final ext = request.uri.queryParameters['ext'] ?? 'flac';
+
+        if (fileId == null || !isSignedIn) {
+          request.response.statusCode = HttpStatus.badRequest;
+          await request.response.close();
+          return;
+        }
+
+        final headers = await getAuthHeaders();
+        final range = request.headers.value('range');
+        if (range != null) {
+          headers['Range'] = range;
+        }
+
+        final url = Uri.parse('https://www.googleapis.com/drive/v3/files/$fileId?alt=media');
+        final client = http.Client();
+        final driveRequest = http.Request('GET', url);
+        driveRequest.headers.addAll(headers);
+
+        try {
+          final driveResponse = await client.send(driveRequest);
+
+          request.response.statusCode = driveResponse.statusCode;
+          driveResponse.headers.forEach((key, value) {
+            if (key.toLowerCase() != 'content-encoding' && key.toLowerCase() != 'transfer-encoding') {
+              request.response.headers.add(key, value);
+            }
+          });
+
+          final isFullRequest = range == null || range.startsWith('bytes=0-') && !range.contains('-');
+          final cachePath = await _cachePathFor(fileId, ext);
+
+          if (isFullRequest && driveResponse.statusCode == 200) {
+            // Write to cache and stream to player simultaneously
+            final file = File(cachePath);
+            final sink = file.openWrite();
+            
+            await for (var chunk in driveResponse.stream) {
+              sink.add(chunk);
+              request.response.add(chunk);
+            }
+            
+            await sink.flush();
+            await sink.close();
+            await request.response.close();
+            LogService.log('Proxy fully cached stream to: $cachePath');
+          } else {
+            // Just proxy the stream (e.g., seeking)
+            await driveResponse.stream.pipe(request.response);
+          }
+        } catch (e) {
+          LogService.log('Proxy error: $e');
+          if (request.response.connectionInfo != null) {
+            request.response.statusCode = HttpStatus.internalServerError;
+            await request.response.close();
+          }
+        } finally {
+          client.close();
+        }
+      });
+    } catch (e) {
+      LogService.log('Failed to start proxy server: $e');
+    }
+  }
+
   // ── Temp Cache Management ─────────────────────────────────────────────────
 
   /// Returns the path where a cached stream file would live.
@@ -144,6 +262,14 @@ class GoogleDriveService {
     final path = await _cachePathFor(fileId, ext);
     if (await File(path).exists()) return path;
     return null;
+  }
+
+  /// Retrieves the proxy URL for streaming. 
+  /// The local proxy will handle injecting the auth headers and caching.
+  String? getStreamProxyUrl(String fileId, String fileName) {
+    if (_proxyServer == null) return null;
+    final ext = fileName.split('.').last.toLowerCase();
+    return 'http://127.0.0.1:${_proxyServer!.port}/stream?id=$fileId&ext=$ext';
   }
 
   /// Downloads the full file from Google Drive to the temp cache directory.
@@ -328,15 +454,16 @@ class GoogleDriveService {
 
     WakelockPlus.enable(); // Prevent device from sleeping during long scans
     
-    // Clear previously indexed IDs so re-scanning replaces data
-    _indexedFileIds.clear();
-
+    selectedFolderIds = folderIds.toSet();
+    
     final List<AudioFile> allSongs = [];
     try {
       for (final id in folderIds) {
         final songs = await _scanRecursive(id, 'Cloud Folder');
         allSongs.addAll(songs);
       }
+      // Save state after full scan
+      await _savePersistedState();
     } finally {
       WakelockPlus.disable(); // Allow device to sleep again
     }

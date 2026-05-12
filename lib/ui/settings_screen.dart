@@ -9,8 +9,10 @@ import 'package:file_picker/file_picker.dart';
 import '../main.dart' show LuminaColors, themeNotifier, rotateArtworkNotifier, showQualityInLibraryNotifier, showQualityInPlayerNotifier, extractCloudCoversNotifier;
 import '../services/player_service.dart';
 import '../services/library_service.dart';
+import '../services/log_service.dart';
 import '../services/google_drive_service.dart';
 import 'eq_advanced_screen.dart';
+import 'spek_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -86,6 +88,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
     );
+  }
+
+  Future<void> _catchUpCloudCovers() async {
+    final driveService = GoogleDriveService();
+    if (!driveService.isSignedIn) return;
+
+    final allSongs = await LibraryService.scanMusic();
+    final missingCovers = allSongs.where((s) => s.driveFileId != null && s.coverArt == null).toList();
+    if (missingCovers.isEmpty) return;
+
+    _showToast('Fetching ${missingCovers.length} missing cloud covers in background...');
+    for (final song in missingCovers) {
+      try {
+        final meta = await driveService.extractMetadataAndCover(song.driveFileId!);
+        if (meta != null && meta['coverArt'] != null) {
+          final updated = song.copyWith(coverArt: meta['coverArt']);
+          LibraryService.updateSongMetadata(song.driveFileId!, updated);
+        }
+      } catch (e) {
+        debugPrint('Failed to catch up cover for ${song.title}: $e');
+      }
+    }
   }
 
   @override
@@ -174,7 +198,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           trailing: CupertinoSwitch(
                             value: extract,
                             activeColor: LuminaColors.accent,
-                            onChanged: (v) => extractCloudCoversNotifier.value = v,
+                            onChanged: (v) {
+                              extractCloudCoversNotifier.value = v;
+                              if (v) _catchUpCloudCovers();
+                            },
                           ),
                         );
                       },
@@ -397,6 +424,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  void _showSpekDialog(BuildContext context) {
+    final song = _ps.currentSong.value;
+    if (song == null) {
+      _showToast('Play a song first to view its Spek spectrogram.');
+      return;
+    }
+    Navigator.push(
+      context,
+      CupertinoPageRoute(builder: (_) => SpekScreen(song: song)),
+    );
+  }
+
   void _showSupportDialog(BuildContext context) {
     showCupertinoDialog(
       context: context,
@@ -546,6 +585,7 @@ class _GoogleDriveSheetState extends State<_GoogleDriveSheet> {
   @override
   void initState() {
     super.initState();
+    _selectedFolderIds.addAll(_driveService.selectedFolderIds);
     if (_driveService.isSignedIn) _fetchCurrentLevel();
   }
 

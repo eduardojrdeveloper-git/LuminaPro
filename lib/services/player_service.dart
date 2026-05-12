@@ -107,6 +107,8 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
   final ValueNotifier<RepeatMode> repeatNotifier = ValueNotifier(RepeatMode.off);
   final ValueNotifier<List<AudioFile>> queueNotifier = ValueNotifier(const []);
   final ValueNotifier<double> volumeNotifier = ValueNotifier(0.8);
+  final ValueNotifier<double> panNotifier = ValueNotifier(0.0);
+  final ValueNotifier<bool> monoNotifier = ValueNotifier(false);
   final ValueNotifier<bool> bufferingNotifier = ValueNotifier(false);
 
   // ── Streams ──────────────────────────────────────────────────────────────────
@@ -260,16 +262,10 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
       LogService.log('PlayerService: preparing direct stream for ${song.title}...');
 
       final gdrive = GoogleDriveService();
-      final headers = await gdrive.getAuthHeaders();
-      final token = headers['Authorization']?.replaceAll('Bearer ', '');
       
-      if (token != null) {
-        // Append access_token to bypass cookie/login requirements for native AVPlayer
-        // Drive webContentLink format: https://drive.google.com/uc?id=...&export=download
-        playPath = '${song.driveStreamUrl}&access_token=$token';
-      } else {
-        playPath = song.driveStreamUrl!;
-      }
+      // Use local HTTP proxy server to stream file directly from Google Drive
+      final proxyUrl = gdrive.getStreamProxyUrl(song.driveFileId!, song.path);
+      playPath = proxyUrl ?? song.driveStreamUrl!;
 
       bufferingNotifier.value = false;
     }
@@ -278,8 +274,9 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
       await _channel.invokeMethod('play', {
         'path': playPath,
         'title': song.title,
-        'artist': song.albumArtist,
-        'album': song.album
+        'artist': song.artist,
+        'album': song.album,
+        'coverArt': song.coverArt,
       });
       _emitPlaying(true);
       
@@ -315,6 +312,49 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
       }
     } catch (e) {
       LogService.log('_enrichMetadataInBackground error: $e');
+    }
+  }
+
+  /// Update the current playing song and queue seamlessly when a GDrive song is downloaded
+  void promoteSongToLocal(String driveFileId, String localPath) {
+    AudioFile promote(AudioFile s) {
+      return AudioFile(
+        path: localPath,
+        title: s.title,
+        artist: s.artist,
+        albumArtist: s.albumArtist,
+        album: s.album,
+        genre: s.genre,
+        coverArt: s.coverArt,
+        duration: s.duration,
+        sampleRate: s.sampleRate,
+        bitDepth: s.bitDepth,
+        bitrate: s.bitrate,
+        format: s.format,
+        isLocal: true,
+        driveFileId: s.driveFileId,
+      );
+    }
+
+    if (currentSong.value?.driveFileId == driveFileId) {
+      currentSong.value = promote(currentSong.value!);
+    }
+
+    bool queueChanged = false;
+    for (int i = 0; i < _queue.length; i++) {
+      if (_queue[i].driveFileId == driveFileId) {
+        _queue[i] = promote(_queue[i]);
+        queueChanged = true;
+      }
+    }
+    for (int i = 0; i < _originalQueue.length; i++) {
+      if (_originalQueue[i].driveFileId == driveFileId) {
+        _originalQueue[i] = promote(_originalQueue[i]);
+      }
+    }
+
+    if (queueChanged) {
+      queueNotifier.value = List.from(_queue);
     }
   }
 
@@ -369,6 +409,34 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
       await _channel.invokeMethod('setVolume', {'volume': volume});
     } catch (e) {
       LogService.log('PlayerService: error native volume: $e');
+    }
+  }
+
+  Future<void> setPan(double pan) async {
+    panNotifier.value = pan;
+    try {
+      await _channel.invokeMethod('setPan', {'pan': pan});
+    } catch (e) {
+      LogService.log('Error setting pan: $e');
+    }
+  }
+
+  Future<void> toggleMono() async {
+    monoNotifier.value = !monoNotifier.value;
+    try {
+      await _channel.invokeMethod('setMono', {'mono': monoNotifier.value});
+    } catch (e) {
+      LogService.log('Error setting mono: $e');
+    }
+  }
+
+  Future<Uint8List?> generateSpek(String path) async {
+    try {
+      final result = await _channel.invokeMethod('generateSpek', {'path': path});
+      return result as Uint8List?;
+    } catch (e) {
+      LogService.log('Error generating Spek: $e');
+      return null;
     }
   }
 
