@@ -100,6 +100,14 @@ class GoogleDriveService {
       // Clean up temp file
       await tempFile.delete();
 
+      final dynamic safeMeta = metadata;
+      int? sRate;
+      int? bDepth;
+      int? bRate;
+      try { sRate = safeMeta.sampleRate?.toInt(); } catch (_) {}
+      try { bDepth = safeMeta.bitDepth?.toInt(); } catch (_) {}
+      try { bRate = safeMeta.bitrate?.toInt(); } catch (_) {}
+
       return AudioFile(
         path: driveFile.webContentLink ?? '',
         title: (metadata.title != null && metadata.title!.trim().isNotEmpty) ? metadata.title!.trim() : (driveFile.name?.replaceAll(RegExp(r'\.(flac|wav|mp3|m4a)$', caseSensitive: false), '') ?? 'Unknown'),
@@ -109,9 +117,9 @@ class GoogleDriveService {
         genre: metadata.genre?.trim() ?? 'Cloud',
         coverArt: (extractCloudCoversNotifier.value) ? metadata.picture?.data : null,
         duration: metadata.durationMs != null ? Duration(milliseconds: metadata.durationMs!.toInt()) : null,
-        sampleRate: metadata.sampleRate?.toInt(),
-        bitDepth: metadata.bitDepth?.toInt(),
-        bitrate: metadata.bitrate?.toInt(),
+        sampleRate: sRate,
+        bitDepth: bDepth,
+        bitrate: bRate,
         format: driveFile.name?.split('.').last.toUpperCase() ?? 'FLAC',
         isLocal: false,
         driveFileId: driveFile.id,
