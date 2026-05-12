@@ -184,28 +184,32 @@ class DetailScreen extends StatelessWidget {
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
                     final song = songs[index];
-                    final isPlaying =
-                        PlayerService().currentSong.value?.path == song.path;
-                    return Column(
-                      children: [
-                        _TrackRow(
-                          song: song,
-                          index: index,
-                          isPlaying: isPlaying,
-                          isDark: isDark,
-                          fmt: _fmt,
-                          onTap: () => PlayerService()
-                              .playQueue(songs, initialIndex: index),
-                        ),
-                        if (index < songs.length - 1)
-                          Divider(
-                            color: isDark
-                                ? LuminaColors.bg3
-                                : LuminaColors.lightBg3,
-                            indent: 72,
-                            height: 1,
-                          ),
-                      ],
+                    return ValueListenableBuilder<AudioFile?>(
+                      valueListenable: PlayerService().currentSong,
+                      builder: (ctx, currentSong, _) {
+                        final isPlaying = currentSong?.path == song.path;
+                        return Column(
+                          children: [
+                            _TrackRow(
+                              song: song,
+                              index: index,
+                              isPlaying: isPlaying,
+                              isDark: isDark,
+                              fmt: _fmt,
+                              onTap: () => PlayerService()
+                                  .playQueue(songs, initialIndex: index),
+                            ),
+                            if (index < songs.length - 1)
+                              Divider(
+                                color: isDark
+                                    ? LuminaColors.bg3
+                                    : LuminaColors.lightBg3,
+                                indent: 72,
+                                height: 1,
+                              ),
+                          ],
+                        );
+                      },
                     );
                   },
                   childCount: songs.length,

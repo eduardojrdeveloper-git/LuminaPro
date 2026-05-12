@@ -30,8 +30,6 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
   final PlayerService _ps = PlayerService();
   late List<Map<String, dynamic>> _bands;
   int _selectedPresetIndex = 0;
-  final GlobalKey<AnimatedListState> _listKey =
-      GlobalKey<AnimatedListState>();
 
   // ValueNotifier for real-time visualizer repaints
   late final ValueNotifier<List<Map<String, dynamic>>> _bandsNotifier;
@@ -54,36 +52,12 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
     _selectedPresetIndex = index;
     final preset = kEqPresets[index];
 
-    // 1. Capture snapshot BEFORE mutating _bands
-    final oldBands = List<Map<String, dynamic>>.from(_bands);
-
-    // 2. Animate removals using the snapshot
-    for (int i = oldBands.length - 1; i >= 0; i--) {
-      final removed = oldBands[i];
-      _listKey.currentState?.removeItem(
-        i,
-        (ctx, anim) => _buildAnimatedBandRow(
-            removed, anim, i, Theme.of(context).brightness == Brightness.dark),
-        duration: const Duration(milliseconds: 200),
-      );
-    }
-
-    // 3. Mutate state
     setState(() {
       _bands.clear();
       for (int i = 0; i < preset.bands.length; i++) {
         _bands.add(Map<String, dynamic>.from(preset.bands[i]));
       }
       _onBandChanged();
-    });
-
-    // 4. Insert animations AFTER the removals animate out
-    Future.delayed(const Duration(milliseconds: 220), () {
-      if (!mounted) return;
-      for (int i = 0; i < _bands.length; i++) {
-        _listKey.currentState?.insertItem(i,
-            duration: const Duration(milliseconds: 180));
-      }
     });
   }
 
@@ -93,21 +67,14 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
 
   void _addBand() {
     final newBand = {'fc': 1000.0, 'gain': 0.0, 'q': 1.41, 'type': 'PK'};
-    setState(() => _bands.add(newBand));
-    _listKey.currentState?.insertItem(_bands.length - 1);
-    _onBandChanged();
+    setState(() {
+      _bands.add(newBand);
+      _onBandChanged();
+    });
   }
 
   void _removeBand(int index) {
     if (index < 0 || index >= _bands.length) return;
-    final removed = Map<String, dynamic>.from(_bands[index]);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    _listKey.currentState?.removeItem(
-      index,
-      (context, animation) =>
-          _buildAnimatedBandRow(removed, animation, index, isDark),
-      duration: const Duration(milliseconds: 200),
-    );
     setState(() {
       _bands.removeAt(index);
       _onBandChanged();
@@ -341,15 +308,16 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
               Expanded(
                 child: CustomScrollView(
                   slivers: [
-                    SliverAnimatedList(
-                      key: _listKey,
-                      initialItemCount: _bands.length,
-                      itemBuilder: (context, index, animation) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: _buildAnimatedBandRow(_bands[index], animation, index, isDark),
-                        );
-                      },
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: _buildBandCard(_bands[index], index, isDark),
+                          );
+                        },
+                        childCount: _bands.length,
+                      ),
                     ),
                     SliverToBoxAdapter(
                       child: Padding(
@@ -374,16 +342,7 @@ class _EqAdvancedScreenState extends State<EqAdvancedScreen> {
     );
   }
 
-  Widget _buildAnimatedBandRow(Map<String, dynamic> band,
-      Animation<double> animation, int index, bool isDark) {
-    return FadeTransition(
-      opacity: animation,
-      child: SizeTransition(
-        sizeFactor: animation,
-        child: _buildBandCard(band, index, isDark),
-      ),
-    );
-  }
+
 
   Widget _buildBandCard(
       Map<String, dynamic> band, int index, bool isDark) {

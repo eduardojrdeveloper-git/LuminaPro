@@ -86,6 +86,11 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
 
   // ── Crossfade ────────────────────────────────────────────────────────────────
   double crossfadeDuration = 0.0;
+  final ValueNotifier<bool> crossfadeEnabledNotifier = ValueNotifier(false);
+  
+  void toggleCrossfadeEnabled() {
+    crossfadeEnabledNotifier.value = !crossfadeEnabledNotifier.value;
+  }
 
   // ── Playback State ───────────────────────────────────────────────────────────
   List<AudioFile> _queue = [];
@@ -221,7 +226,6 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
     }
   }
 
-  // Support for playQueue (used in DetailScreen)
   void playQueue(List<AudioFile> songs, {int initialIndex = 0}) => 
       setQueue(songs, initialIndex: initialIndex);
 
@@ -231,6 +235,12 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
     _currentIndex = initialIndex;
     queueNotifier.value = _queue;
     _playCurrent();
+  }
+
+  void addToQueue(AudioFile song) {
+    _queue.add(song);
+    _originalQueue.add(song);
+    queueNotifier.value = List.from(_queue);
   }
 
   Future<void> _playCurrent() async {
@@ -269,6 +279,31 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
       playPath = proxyUrl ?? song.driveStreamUrl!;
 
       bufferingNotifier.value = false;
+
+      // If missing cover art, try fetching it dynamically
+      if (song.coverArt == null) {
+        gdrive.extractMetadataAndCover(song.driveFileId!).then((meta) {
+          if (meta != null && meta['coverArt'] != null) {
+            final updated = song.copyWith(coverArt: meta['coverArt']);
+            LibraryService.updateSongMetadata(song.driveFileId!, updated);
+            if (currentSong.value?.driveFileId == song.driveFileId) {
+              currentSong.value = updated;
+            }
+            for (int i = 0; i < _queue.length; i++) {
+              if (_queue[i].driveFileId == song.driveFileId) {
+                _queue[i] = updated;
+              }
+            }
+            queueNotifier.value = List.from(_queue);
+            LogService.log('Dynamically fetched cover art for: ${updated.title}');
+            
+            // Also update the native player's notification artwork if playing
+            if (playingNotifier.value) {
+              _channel.invokeMethod('updateCoverArt', {'coverArt': updated.coverArt});
+            }
+          }
+        });
+      }
     }
 
     try {
@@ -526,13 +561,15 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
 
   Future<void> updateEQ(List<Map<String, dynamic>> bands) async {
     try {
-      // Convert Q to bandwidth (octaves) for AVAudioUnitEQ
       final convertedBands = bands.map((b) {
         final q = (b['q'] as num).toDouble();
         final bandwidth = 2.0 / log(2.0) * _asinh(1.0 / (2.0 * q));
         return {
           ...b,
+          'fc': (b['fc'] as num).toDouble(),
+          'gain': (b['gain'] as num).toDouble(),
           'q': bandwidth.clamp(0.05, 5.0),
+          'type': b['type'].toString(),
         };
       }).toList();
       

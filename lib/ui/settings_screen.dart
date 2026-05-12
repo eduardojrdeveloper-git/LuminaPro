@@ -13,6 +13,7 @@ import '../services/log_service.dart';
 import '../services/google_drive_service.dart';
 import 'eq_advanced_screen.dart';
 import 'spek_screen.dart';
+import 'log_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -231,19 +232,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            '${_ps.crossfadeDuration.toInt()}s',
-                            style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 14),
+                          ValueListenableBuilder<bool>(
+                            valueListenable: _ps.crossfadeEnabledNotifier,
+                            builder: (context, enabled, _) {
+                              return CupertinoSwitch(
+                                value: enabled,
+                                activeColor: LuminaColors.accent,
+                                onChanged: (v) => _ps.toggleCrossfadeEnabled(),
+                              );
+                            },
                           ),
-                          SizedBox(
-                            width: 120,
-                            child: CupertinoSlider(
-                              value: _ps.crossfadeDuration,
-                              min: 0,
-                              max: 5,
-                              divisions: 5,
-                              onChanged: (v) => setState(() => _ps.crossfadeDuration = v),
-                            ),
+                          const SizedBox(width: 8),
+                          ValueListenableBuilder<bool>(
+                            valueListenable: _ps.crossfadeEnabledNotifier,
+                            builder: (context, enabled, _) {
+                              if (!enabled) return const SizedBox.shrink();
+                              return Row(
+                                children: [
+                                  Text(
+                                    '${_ps.crossfadeDuration.toInt()}s',
+                                    style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 14),
+                                  ),
+                                  SizedBox(
+                                    width: 80,
+                                    child: CupertinoSlider(
+                                      value: _ps.crossfadeDuration,
+                                      min: 0,
+                                      max: 5,
+                                      divisions: 5,
+                                      onChanged: (v) => setState(() => _ps.crossfadeDuration = v),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           ),
                         ],
                       ),
@@ -364,6 +386,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: 'Support & Help',
                       showChevron: true,
                       onTap: () => _showSupportDialog(context),
+                    ),
+                    const _Divider(),
+                    _SettingRow(
+                      isDark: isDark,
+                      icon: CupertinoIcons.doc_text_search,
+                      iconColor: const Color(0xFF8E8E93),
+                      title: 'View App Logs',
+                      showChevron: true,
+                      onTap: () {
+                        Navigator.push(context, CupertinoPageRoute(builder: (_) => const LogScreen()));
+                      },
                     ),
                   ],
                 ),

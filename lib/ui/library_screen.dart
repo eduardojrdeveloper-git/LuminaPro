@@ -459,6 +459,13 @@ class LibraryScreenState extends State<LibraryScreen>
         message: Text(song.albumArtist),
         actions: [
           CupertinoActionSheetAction(onPressed: () { Navigator.pop(context); ps.playQueue(currentList, initialIndex: index); }, child: Text(song.isLocal ? 'Play Now' : 'Stream Now')),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              ps.addToQueue(song);
+            },
+            child: const Text('Add to Queue'),
+          ),
           if (!song.isLocal && song.driveFileId != null)
             CupertinoActionSheetAction(
               onPressed: () async {

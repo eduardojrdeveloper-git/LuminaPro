@@ -505,40 +505,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _showAudioRouting(BuildContext context) {
-    showCupertinoModalPopup(
-      context: context,
-      builder: (ctx) => CupertinoActionSheet(
-        title: const Text('Audio Output', style: TextStyle(fontWeight: FontWeight.w600)),
-        message: const Text('Select the destination for audio playback. Note: On iOS, this should preferably use the native AVRoutePickerView.'),
-        actions: [
-          CupertinoActionSheetAction(
-            onPressed: () {
-              _ps.setAudioOutput('DAC');
-              Navigator.pop(ctx);
-            },
-            child: const Text('DAC / Amp (Bit-Perfect)'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              _ps.setAudioOutput('Speaker');
-              Navigator.pop(ctx);
-            },
-            child: const Text('iPhone Speaker'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              _ps.setAudioOutput('Bluetooth');
-              Navigator.pop(ctx);
-            },
-            child: const Text('Bluetooth Device'),
-          ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('Cancel'),
-        ),
-      ),
-    );
+    const MethodChannel('com.luminapro/audio').invokeMethod('showRoutePicker');
   }
 }
 
