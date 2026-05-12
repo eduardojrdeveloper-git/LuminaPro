@@ -25,6 +25,7 @@ class LibraryScreenState extends State<LibraryScreen>
   late TabController _tabController;
   final TextEditingController _searchCtrl = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
+  List<String> _libraryNavStack = []; // New state for Folder Browser
 
   @override
   void initState() {
@@ -697,6 +698,41 @@ class LibraryScreenState extends State<LibraryScreen>
 
   Widget _buildEmptyState({bool isLoved = false}) {
     return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(isLoved ? CupertinoIcons.heart_fill : CupertinoIcons.music_note_list, size: 64, color: LuminaColors.labelTertiary), const SizedBox(height: 16), Text(isLoved ? 'No Loved Songs' : 'No Music Found', style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 17, fontWeight: FontWeight.w600)), const SizedBox(height: 8), Text(isLoved ? 'Songs you mark with a heart will appear here.' : 'Transfer songs via the Files app.', textAlign: TextAlign.center, style: const TextStyle(color: LuminaColors.labelTertiary, fontSize: 14))]));
+  }
+}
+
+class _FolderRow extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final IconData icon;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _FolderRow({
+    required this.title,
+    this.subtitle,
+    required this.icon,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, color: LuminaColors.accent),
+      ),
+      title: Text(title, style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w600)),
+      subtitle: subtitle != null ? Text(subtitle!, style: TextStyle(color: LuminaColors.labelSecondary, fontSize: 13)) : null,
+      trailing: const Icon(CupertinoIcons.chevron_forward, color: LuminaColors.labelSecondary, size: 18),
+      onTap: onTap,
+    );
   }
 }
 
