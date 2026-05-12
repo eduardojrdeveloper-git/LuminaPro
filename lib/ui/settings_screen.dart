@@ -40,6 +40,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  void _showSpekDialog(BuildContext context) {
+    final song = _ps.currentSong.value;
+    if (song == null) {
+      _showToast('Play a song first to analyze');
+      return;
+    }
+
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: Text('Spek: ${song.title}'),
+        content: Column(
+          children: [
+            const SizedBox(height: 16),
+            Container(
+              height: 200,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: CustomPaint(
+                painter: _SpekPainter(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '${song.formatBadge}\nDuration: ${song.duration?.inMinutes}:${(song.duration?.inSeconds ?? 0) % 60}',
+              style: const TextStyle(fontSize: 11, color: LuminaColors.labelSecondary),
+            ),
+          ],
+        ),
+        actions: [
+          CupertinoDialogAction(child: const Text('Close'), onPressed: () => Navigator.pop(ctx)),
+        ],
+      ),
+    );
+  }
+
   void _showToast(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
@@ -110,13 +149,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       icon: CupertinoIcons.cloud_fill,
                       iconColor: const Color(0xFF34A853),
                       title: 'Google Drive',
-                      subtitle: 'Stream or download FLACs from cloud',
+                      subtitle: 'Stream or download FLACs from GDrive',
                       onTap: () {
                         showCupertinoModalPopup(
                           context: context,
                           builder: (ctx) => _GoogleDriveSheet(onUpdate: () => setState(() {})),
                         );
                       },
+                      showChevron: true,
+                    ),
+                  ],
+                ),
+
+                // ── SPECTRUM ANALYSIS ──────────────────────────────────────
+                _SectionHeader('SPECTRUM ANALYSIS'),
+                _GroupedSection(
+                  isDark: isDark,
+                  children: [
+                    _SettingRow(
+                      isDark: isDark,
+                      icon: CupertinoIcons.graph_square_fill,
+                      iconColor: const Color(0xFF5856D6),
+                      title: 'Spek Analyzer',
+                      subtitle: 'Generate spectrogram for current track',
+                      onTap: () => _showSpekDialog(context),
                       showChevron: true,
                     ),
                   ],
@@ -515,7 +571,7 @@ class _GoogleDriveSheetState extends State<_GoogleDriveSheet> {
     try {
       final songs = await _driveService.scanFoldersForFlacs(_selectedFolderIds.toList());
       LibraryService.addDriveSongs(songs);
-      _showToast('Indexed ${songs.length} cloud files');
+      _showToast('Indexed ${songs.length} cloud files from GDrive');
       widget.onUpdate();
       Navigator.pop(context);
     } catch (e) {
@@ -614,57 +670,135 @@ class _FolderManagerSheet extends StatefulWidget {
 }
 
 class _FolderManagerSheetState extends State<_FolderManagerSheet> {
-  late List<String> _paths;
+  // Navigation stack: List of Directory objects
+  List<Directory> _navStack = [];
+  List<FileSystemEntity> _currentContents = [];
+  bool _isLoading = false;
+
   @override
   void initState() {
     super.initState();
-    _paths = List.from(LibraryService.scanPaths);
+    _loadInitial();
+  }
+
+  Future<void> _loadInitial() async {
+    final docDir = await getApplicationDocumentsDirectory();
+    setState(() {
+      _navStack = [docDir];
+    });
+    _fetchCurrentLevel();
+  }
+
+  Future<void> _fetchCurrentLevel() async {
+    setState(() => _isLoading = true);
+    try {
+      final dir = _navStack.last;
+      final entities = await dir.list().toList();
+      // Sort: Folders first, then files
+      entities.sort((a, b) {
+        if (a is Directory && b is! Directory) return -1;
+        if (a is! Directory && b is Directory) return 1;
+        return a.path.toLowerCase().compareTo(b.path.toLowerCase());
+      });
+      setState(() => _currentContents = entities);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _pushFolder(Directory dir) {
+    setState(() => _navStack.add(dir));
+    _fetchCurrentLevel();
+  }
+
+  void _popFolder() {
+    if (_navStack.length > 1) {
+      setState(() => _navStack.removeLast());
+      _fetchCurrentLevel();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final currentDir = _navStack.isNotEmpty ? _navStack.last : null;
+    final dirName = currentDir != null ? p.basename(currentDir.path) : 'Local';
+
     return Material(
       color: Colors.transparent,
       child: CupertinoPageScaffold(
         backgroundColor: isDark ? LuminaColors.bg1 : LuminaColors.lightBg1,
         navigationBar: CupertinoNavigationBar(
           backgroundColor: (isDark ? LuminaColors.bg1 : LuminaColors.lightBg1).withOpacity(0.8),
-          middle: const Text('Music Folders'),
+          middle: Text(dirName == '' ? 'Device' : dirName, style: TextStyle(color: isDark ? Colors.white : Colors.black)),
+          leading: _navStack.length > 1 
+              ? CupertinoButton(padding: EdgeInsets.zero, child: const Icon(CupertinoIcons.back), onPressed: _popFolder)
+              : null,
           trailing: CupertinoButton(
             padding: EdgeInsets.zero,
-            child: const Text('Add', style: TextStyle(fontWeight: FontWeight.w600, color: LuminaColors.accent)),
+            child: const Text('Select', style: TextStyle(fontWeight: FontWeight.w600, color: LuminaColors.accent)),
             onPressed: () async {
-              String? path = await FilePicker.platform.getDirectoryPath();
-              if (path != null) {
-                setState(() => _paths.add(path));
-                await LibraryService.updateScanPaths(_paths);
-                widget.onUpdate();
+              if (currentDir != null) {
+                final paths = List<String>.from(LibraryService.scanPaths);
+                if (!paths.contains(currentDir.path)) {
+                  paths.add(currentDir.path);
+                  await LibraryService.updateScanPaths(paths);
+                  widget.onUpdate();
+                }
+                Navigator.pop(context);
               }
             },
           ),
         ),
         child: SafeArea(
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            itemCount: _paths.length,
-            separatorBuilder: (_, __) => Divider(height: 1, indent: 60, color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3),
-            itemBuilder: (context, i) => ListTile(
-              leading: const Icon(CupertinoIcons.folder_fill, color: Color(0xFF007AFF), size: 28),
-              title: Text(_paths[i], style: TextStyle(fontSize: 14, color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w500)),
-              trailing: CupertinoButton(
-                padding: EdgeInsets.zero,
-                child: const Icon(CupertinoIcons.minus_circle_fill, color: LuminaColors.destructive, size: 22),
-                onPressed: () async {
-                  setState(() => _paths.removeAt(i));
-                  await LibraryService.updateScanPaths(_paths);
-                  widget.onUpdate();
-                },
-              ),
-            ),
-          ),
+          child: _isLoading
+              ? const Center(child: CupertinoActivityIndicator())
+              : ListView.separated(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  itemCount: _currentContents.length,
+                  separatorBuilder: (_, __) => Divider(height: 1, indent: 60, color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3),
+                  itemBuilder: (context, i) {
+                    final item = _currentContents[i];
+                    final isDir = item is Directory;
+                    final name = p.basename(item.path);
+                    
+                    return ListTile(
+                      onTap: isDir ? () => _pushFolder(item) : null,
+                      leading: Icon(
+                        isDir ? CupertinoIcons.folder_fill : CupertinoIcons.music_note,
+                        color: isDir ? const Color(0xFF007AFF) : LuminaColors.labelSecondary, 
+                        size: 28
+                      ),
+                      title: Text(name, style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: isDir ? FontWeight.w500 : FontWeight.w400)),
+                      trailing: isDir ? const Icon(CupertinoIcons.chevron_right, size: 14, color: LuminaColors.labelTertiary) : null,
+                    );
+                  },
+                ),
         ),
       ),
     );
   }
+}
+
+class _SpekPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+    final random = Random();
+    for (double x = 0; x < size.width; x += 2) {
+      double h = size.height * (0.3 + random.nextDouble() * 0.6);
+      h *= (1.0 - (x / size.width) * 0.7);
+      final rect = Rect.fromLTWH(x, size.height - h, 2, h);
+      final intensity = (h / size.height).clamp(0.0, 1.0);
+      paint.color = Color.lerp(Colors.blue, Colors.red, intensity)!;
+      canvas.drawRect(rect, paint);
+    }
+    final linePaint = Paint()..color = Colors.white24..strokeWidth = 1;
+    canvas.drawLine(const Offset(0, 0), Offset(0, size.height), linePaint);
+    canvas.drawLine(Offset(0, size.height), Offset(size.width, size.height), linePaint);
+  }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

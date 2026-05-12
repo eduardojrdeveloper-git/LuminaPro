@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:metadata_god/metadata_god.dart';
@@ -160,11 +161,11 @@ class LibraryService {
                 }
                 
                 // New high-fidelity fields
-                if (metadata.audio != null) {
-                  sampleRate = metadata.audio!.sampleRate?.toInt();
-                  bitDepth = metadata.audio!.bitDepth?.toInt();
-                  bitrate = metadata.audio!.bitrate?.toInt();
-                }
+                try {
+                  sampleRate = metadata.sampleRate?.toInt();
+                  bitDepth = metadata.bitDepth?.toInt();
+                  bitrate = metadata.bitrate?.toInt();
+                } catch (_) {}
               } catch (e) {
                 // Fallback to folder-structure if metadata fails
                 final parts = p.split(entity.path);
