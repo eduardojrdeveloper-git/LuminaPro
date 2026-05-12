@@ -736,6 +736,7 @@ class _SongRow extends StatelessWidget {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloading: ${song.title}...')));
     final path = await GoogleDriveService().promoteFromCache(song.driveFileId!, fileName);
     if (path != null) {
+      LibraryService.removeDriveSong(song.driveFileId!);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloaded: ${song.title} to local.')));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Download failed.')));

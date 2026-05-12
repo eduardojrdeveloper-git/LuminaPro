@@ -227,6 +227,10 @@ class LibraryService {
       debugPrint('LibraryService: scan error: $e');
     }
 
+    // Deduplicate: If we have a local file, hide the GDrive version
+    final localSignatures = songs.where((s) => s.isLocal).map((s) => '${s.title}_${s.albumArtist}').toSet();
+    songs.removeWhere((s) => !s.isLocal && localSignatures.contains('${s.title}_${s.albumArtist}'));
+
     // Sort alphabetically by title case-insensitive
     songs.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
     return songs;
