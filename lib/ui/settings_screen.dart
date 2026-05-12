@@ -308,6 +308,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         );
                       },
                     ),
+                    const _Divider(),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: extractCloudCoversNotifier,
+                      builder: (_, extract, __) {
+                        return _SettingRow(
+                          isDark: isDark,
+                          icon: CupertinoIcons.photo_fill,
+                          iconColor: const Color(0xFFFF9500),
+                          title: 'Extract Cloud Covers',
+                          subtitle: 'Slower indexing, but shows artwork',
+                          trailing: CupertinoSwitch(
+                            value: extract,
+                            activeColor: LuminaColors.accent,
+                            onChanged: (v) => extractCloudCoversNotifier.value = v,
+                          ),
+                        );
+                      },
+                    ),
                   ],
                 ),
 
@@ -788,20 +806,67 @@ class _FolderManagerSheetState extends State<_FolderManagerSheet> {
 class _SpekPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..style = PaintingStyle.fill;
-    final random = Random();
-    for (double x = 0; x < size.width; x += 2) {
-      double h = size.height * (0.3 + random.nextDouble() * 0.6);
-      h *= (1.0 - (x / size.width) * 0.7);
-      final rect = Rect.fromLTWH(x, size.height - h, 2, h);
-      final intensity = (h / size.height).clamp(0.0, 1.0);
-      paint.color = Color.lerp(Colors.blue, Colors.red, intensity)!;
-      canvas.drawRect(rect, paint);
+    final random = Random(42); // Seed for consistent detailed pattern
+    final paint = Paint();
+    
+    // Draw Background
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), Paint()..color = Colors.black);
+
+    const double colWidth = 2.0;
+    const double rowHeight = 2.0;
+
+    // Draw Heatmap
+    for (double x = 0; x < size.width; x += colWidth) {
+      for (double y = 0; y < size.height; y += rowHeight) {
+        // Higher frequencies (top) have less energy generally
+        final freqRatio = 1.0 - (y / size.height);
+        final baseEnergy = freqRatio * 0.7;
+        
+        // Add random "noise" and "harmonic" peaks to look like real music
+        double energy = baseEnergy + random.nextDouble() * 0.4;
+        
+        // Simulating rhythmic peaks
+        if ((x % 40 < 5) && y > size.height * 0.6) energy += 0.3; 
+        
+        energy = energy.clamp(0.0, 1.0);
+
+        // Map energy to Spek-like color palette
+        // 0.0: Blue, 0.5: Green/Yellow, 1.0: Red
+        if (energy < 0.2) {
+          paint.color = Color.lerp(Colors.black, Colors.blue.shade900, energy * 5)!;
+        } else if (energy < 0.5) {
+          paint.color = Color.lerp(Colors.blue.shade900, Colors.green, (energy - 0.2) * 3.3)!;
+        } else if (energy < 0.8) {
+          paint.color = Color.lerp(Colors.green, Colors.yellow, (energy - 0.5) * 3.3)!;
+        } else {
+          paint.color = Color.lerp(Colors.yellow, Colors.red, (energy - 0.8) * 5)!;
+        }
+
+        canvas.drawRect(Rect.fromLTWH(x, y, colWidth, rowHeight), paint);
+      }
     }
-    final linePaint = Paint()..color = Colors.white24..strokeWidth = 1;
+
+    // Draw Frequency Legend (Axes)
+    final textPaint = Paint()..color = Colors.white70;
+    final linePaint = Paint()..color = Colors.white38..strokeWidth = 1;
+    
+    // Y-Axis: Frequency
     canvas.drawLine(const Offset(0, 0), Offset(0, size.height), linePaint);
+    _drawLabel(canvas, "22kHz", const Offset(-30, 0));
+    _drawLabel(canvas, "11kHz", Offset(-30, size.height * 0.5));
+    _drawLabel(canvas, "0Hz", Offset(-30, size.height - 10));
+
+    // X-Axis: Time
     canvas.drawLine(Offset(0, size.height), Offset(size.width, size.height), linePaint);
   }
+
+  void _drawLabel(Canvas canvas, String text, Offset offset) {
+    final span = TextSpan(style: const TextStyle(color: Colors.white60, fontSize: 8, fontWeight: FontWeight.bold), text: text);
+    final tp = TextPainter(text: span, textAlign: TextAlign.left, textDirection: TextDirection.ltr);
+    tp.layout();
+    tp.paint(canvas, offset);
+  }
+
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

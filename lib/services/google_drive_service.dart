@@ -62,6 +62,65 @@ class GoogleDriveService {
 
   bool get isSignedIn => _currentUser != null && _driveApi != null;
 
+  Future<Map<String, String>> getAuthHeaders() async {
+    if (_currentUser == null) return {};
+    return await _currentUser!.authHeaders;
+  }
+
+  /// Fetches a small chunk of the file to extract metadata without downloading everything.
+  Future<AudioFile?> fetchMetadataHeader(drive.File driveFile, String folderName) async {
+    if (!isSignedIn) return null;
+    try {
+      // 1MB is usually enough for most audio tags
+      final dynamic media = await _driveApi!.files.get(
+        driveFile.id!,
+        downloadOptions: drive.DownloadOptions.fullMedia,
+      );
+
+      final List<int> headerBytes = [];
+      int totalReceived = 0;
+      const int maxHeaderSize = 1 * 1024 * 1024; // 1MB
+
+      await for (var chunk in (media.stream as Stream<List<int>>)) {
+        headerBytes.addAll(chunk);
+        totalReceived += chunk.length;
+        if (totalReceived >= maxHeaderSize) break;
+      }
+
+      // Save to temp file for metadata_god
+      final tempDir = await getTemporaryDirectory();
+      final tempPath = p.join(tempDir.path, 'header_${driveFile.id}');
+      final tempFile = File(tempPath);
+      await tempFile.writeAsBytes(headerBytes);
+
+      final metadata = await MetadataGod.readMetadata(file: tempPath);
+      
+      // Clean up temp file
+      await tempFile.delete();
+
+      return AudioFile(
+        path: driveFile.webContentLink ?? '',
+        title: (metadata.title != null && metadata.title!.trim().isNotEmpty) ? metadata.title!.trim() : (driveFile.name?.replaceAll(RegExp(r'\.(flac|wav|mp3|m4a)$', caseSensitive: false), '') ?? 'Unknown'),
+        artist: metadata.artist?.trim() ?? 'GDrive',
+        albumArtist: metadata.albumArtist?.trim() ?? metadata.artist?.trim() ?? 'GDrive',
+        album: metadata.album?.trim() ?? folderName,
+        genre: metadata.genre?.trim() ?? 'Cloud',
+        coverArt: (extractCloudCoversNotifier.value) ? metadata.picture?.data : null,
+        duration: metadata.durationMs != null ? Duration(milliseconds: metadata.durationMs!.toInt()) : null,
+        sampleRate: metadata.sampleRate?.toInt(),
+        bitDepth: metadata.bitDepth?.toInt(),
+        bitrate: metadata.bitrate?.toInt(),
+        format: driveFile.name?.split('.').last.toUpperCase() ?? 'FLAC',
+        isLocal: false,
+        driveFileId: driveFile.id,
+        driveStreamUrl: driveFile.webContentLink,
+      );
+    } catch (e) {
+      LogService.log('fetchMetadataHeader error: $e');
+      return null;
+    }
+  }
+
   Future<List<drive.File>> listContents({String parentId = 'root'}) async {
     if (!isSignedIn) throw Exception('Not signed in');
     try {
@@ -107,7 +166,9 @@ class GoogleDriveService {
                           file.name?.toLowerCase().endsWith('.mp3') == true;
           
           if (isAudio) {
-            driveSongs.add(AudioFile(
+            // Attempt to fetch real metadata for each cloud file
+            final metaSong = await fetchMetadataHeader(file, folderName);
+            driveSongs.add(metaSong ?? AudioFile(
               path: file.webContentLink ?? '',
               title: file.name?.replaceAll(RegExp(r'\.(flac|wav|mp3|m4a)$', caseSensitive: false), '') ?? 'Unknown',
               artist: 'GDrive',

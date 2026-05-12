@@ -248,8 +248,17 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
     currentSong.value = song;
     _emitPosition(Duration.zero);
     try {
-      // Use driveStreamUrl for streaming if available
-      final playPath = song.isLocal ? song.path : (song.driveStreamUrl ?? song.path);
+      String playPath = song.path;
+      if (!song.isLocal && song.driveStreamUrl != null) {
+        // Append access token to the URL so the native player can access the restricted file
+        final headers = await GoogleDriveService().getAuthHeaders();
+        final token = headers['Authorization']?.replaceAll('Bearer ', '');
+        if (token != null) {
+          playPath = '${song.driveStreamUrl}&access_token=$token';
+        } else {
+          playPath = song.driveStreamUrl!;
+        }
+      }
       
       await _channel.invokeMethod('play', {
         'path': playPath,

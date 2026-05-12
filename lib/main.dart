@@ -13,6 +13,7 @@ final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.system);
 final ValueNotifier<bool> rotateArtworkNotifier = ValueNotifier(true);
 final ValueNotifier<bool> showQualityInLibraryNotifier = ValueNotifier(true);
 final ValueNotifier<bool> showQualityInPlayerNotifier = ValueNotifier(true);
+final ValueNotifier<bool> extractCloudCoversNotifier = ValueNotifier(false);
 
 // ── Apple Music Color System ──────────────────────────────────────────────────
 class LuminaColors {
