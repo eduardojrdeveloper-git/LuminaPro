@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:metadata_god/metadata_god.dart';
+import '../main.dart' show extractCloudCoversNotifier;
 import 'log_service.dart';
 import 'library_service.dart';
 
