@@ -103,14 +103,15 @@ class GoogleDriveService {
         for (var file in fileList.files ?? []) {
           final isAudio = file.mimeType?.startsWith('audio/') == true || 
                           file.name?.toLowerCase().endsWith('.flac') == true ||
-                          file.name?.toLowerCase().endsWith('.wav') == true;
+                          file.name?.toLowerCase().endsWith('.wav') == true ||
+                          file.name?.toLowerCase().endsWith('.mp3') == true;
           
           if (isAudio) {
             driveSongs.add(AudioFile(
               path: file.webContentLink ?? '',
               title: file.name?.replaceAll(RegExp(r'\.(flac|wav|mp3|m4a)$', caseSensitive: false), '') ?? 'Unknown',
-              artist: 'Cloud',
-              albumArtist: 'Cloud',
+              artist: 'GDrive',
+              albumArtist: 'GDrive',
               album: folderName,
               genre: 'Cloud',
               format: file.name?.split('.').last.toUpperCase() ?? 'FLAC',

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/player_service.dart';
 import '../services/library_service.dart';
-import '../main.dart' show LuminaColors, rotateArtworkNotifier;
+import '../main.dart' show LuminaColors, rotateArtworkNotifier, showQualityInPlayerNotifier;
 
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({super.key});
@@ -272,15 +272,60 @@ class _PlayerScreenState extends State<PlayerScreen>
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     const SizedBox(height: 2),
-                                    Text(
-                                      song.artist,
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        color: LuminaColors.accent,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            song.artist,
+                                            style: const TextStyle(
+                                              fontSize: 18,
+                                              color: LuminaColors.accent,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        ValueListenableBuilder<bool>(
+                                          valueListenable: showQualityInPlayerNotifier,
+                                          builder: (ctx, show, _) {
+                                            if (!show || song.formatBadge.isEmpty) return const SizedBox.shrink();
+                                            return Container(
+                                              margin: const EdgeInsets.only(left: 8),
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                border: Border.all(color: LuminaColors.accent.withOpacity(0.5)),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                song.formatBadge.split(' · ').first, 
+                                                style: const TextStyle(
+                                                  color: LuminaColors.accent,
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                    ValueListenableBuilder<bool>(
+                                      valueListenable: showQualityInPlayerNotifier,
+                                      builder: (ctx, show, _) {
+                                        if (!show || song.formatBadge.isEmpty) return const SizedBox.shrink();
+                                        return Padding(
+                                          padding: const EdgeInsets.only(top: 4.0),
+                                          child: Text(
+                                            song.formatBadge,
+                                            style: TextStyle(
+                                              color: (isDark ? Colors.white : Colors.black).withOpacity(0.5),
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w400,
+                                            ),
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ],
                                 ),

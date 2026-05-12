@@ -3,7 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
-import '../main.dart' show LuminaColors, themeNotifier, rotateArtworkNotifier;
+import '../main.dart' show LuminaColors, themeNotifier, rotateArtworkNotifier, showQualityInLibraryNotifier, showQualityInPlayerNotifier;
 import '../services/player_service.dart';
 import '../services/library_service.dart';
 import '../services/google_drive_service.dart';
@@ -211,6 +211,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             value: rotate,
                             activeColor: LuminaColors.accent,
                             onChanged: (v) => rotateArtworkNotifier.value = v,
+                          ),
+                        );
+                      },
+                    ),
+                    const _Divider(),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: showQualityInLibraryNotifier,
+                      builder: (_, show, __) {
+                        return _SettingRow(
+                          isDark: isDark,
+                          icon: CupertinoIcons.info_circle_fill,
+                          iconColor: const Color(0xFF5856D6),
+                          title: 'Quality in Library',
+                          trailing: CupertinoSwitch(
+                            value: show,
+                            activeColor: LuminaColors.accent,
+                            onChanged: (v) => showQualityInLibraryNotifier.value = v,
+                          ),
+                        );
+                      },
+                    ),
+                    const _Divider(),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: showQualityInPlayerNotifier,
+                      builder: (_, show, __) {
+                        return _SettingRow(
+                          isDark: isDark,
+                          icon: CupertinoIcons.waveform_path_ecg,
+                          iconColor: const Color(0xFFFA233B),
+                          title: 'Quality in Player',
+                          trailing: CupertinoSwitch(
+                            value: show,
+                            activeColor: LuminaColors.accent,
+                            onChanged: (v) => showQualityInPlayerNotifier.value = v,
                           ),
                         );
                       },

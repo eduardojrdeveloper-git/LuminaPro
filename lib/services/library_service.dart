@@ -17,6 +17,7 @@ class AudioFile {
   final Duration? duration;
   final int? sampleRate;
   final int? bitDepth;
+  final int? bitrate; // in kbps
   final String format;
   final bool isLocal;
   final String? driveFileId;
@@ -33,21 +34,23 @@ class AudioFile {
     this.duration,
     this.sampleRate,
     this.bitDepth,
+    this.bitrate,
     this.format = '',
     this.isLocal = true,
     this.driveFileId,
     this.driveStreamUrl,
   });
 
-  /// e.g. "FLAC · 44.1kHz · 24-bit"
+  /// e.g. "FLAC · 44.1kHz · 24-bit · 850 kbps"
   String get formatBadge {
     final parts = <String>[];
     if (format.isNotEmpty) parts.add(format.toUpperCase());
-    if (sampleRate != null) {
+    if (sampleRate != null && sampleRate! > 0) {
       final khz = sampleRate! / 1000.0;
-      parts.add('${khz % 1 == 0 ? khz.toInt() : khz}kHz');
+      parts.add('${khz % 1 == 0 ? khz.toInt() : khz.toStringAsFixed(1)}kHz');
     }
     if (bitDepth != null && bitDepth! > 0) parts.add('${bitDepth}-bit');
+    if (bitrate != null && bitrate! > 0) parts.add('${bitrate} kbps');
     return parts.join(' · ');
   }
 }
@@ -126,6 +129,9 @@ class LibraryService {
               String genre = 'Unknown Genre';
               Uint8List? coverArt;
               Duration? duration;
+              int? sampleRate;
+              int? bitDepth;
+              int? bitrate;
               final format = ext.replaceFirst('.', '').toUpperCase();
 
               try {
@@ -152,6 +158,13 @@ class LibraryService {
                 if (metadata.durationMs != null) {
                   duration = Duration(milliseconds: metadata.durationMs!.toInt());
                 }
+                
+                // New high-fidelity fields
+                if (metadata.audio != null) {
+                  sampleRate = metadata.audio!.sampleRate?.toInt();
+                  bitDepth = metadata.audio!.bitDepth?.toInt();
+                  bitrate = metadata.audio!.bitrate?.toInt();
+                }
               } catch (e) {
                 // Fallback to folder-structure if metadata fails
                 final parts = p.split(entity.path);
@@ -171,6 +184,9 @@ class LibraryService {
                 genre: genre,
                 coverArt: coverArt,
                 duration: duration,
+                sampleRate: sampleRate,
+                bitDepth: bitDepth,
+                bitrate: bitrate,
                 format: format,
                 isLocal: true,
               ));

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../services/library_service.dart';
 import '../services/player_service.dart';
 import '../services/google_drive_service.dart';
-import '../main.dart' show LuminaColors, MainNavigation, MainNavigationState;
+import '../main.dart' show LuminaColors, MainNavigation, MainNavigationState, showQualityInLibraryNotifier;
 import 'detail_screen.dart';
 
 enum SortMode { title, artist, album }
@@ -655,20 +655,36 @@ class _SongRow extends StatelessWidget {
                     const SizedBox(height: 2),
                     Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: song.isLocal ? (isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF2F2F7)) : const Color(0xFF34A853).withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            song.isLocal ? 'Local' : 'Drive',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: song.isLocal ? LuminaColors.labelSecondary : const Color(0xFF34A853),
-                            ),
-                          ),
+                        ValueListenableBuilder<bool>(
+                          valueListenable: showQualityInLibraryNotifier,
+                          builder: (ctx, show, _) {
+                            return Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: song.isLocal ? (isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF2F2F7)) : const Color(0xFF34A853).withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    song.isLocal ? 'Local' : 'GDrive',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: song.isLocal ? LuminaColors.labelSecondary : const Color(0xFF34A853),
+                                    ),
+                                  ),
+                                ),
+                                if (show && song.formatBadge.isNotEmpty) ...[
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    song.formatBadge,
+                                    style: const TextStyle(fontSize: 10, color: LuminaColors.labelTertiary, fontWeight: FontWeight.w400),
+                                  ),
+                                ],
+                              ],
+                            );
+                          },
                         ),
                         const SizedBox(width: 6),
                         Expanded(

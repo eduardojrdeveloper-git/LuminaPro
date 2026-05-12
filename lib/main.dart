@@ -9,8 +9,10 @@ import 'services/player_service.dart';
 import 'services/library_service.dart';
 import 'services/log_service.dart';
 
-final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
-final ValueNotifier<bool> rotateArtworkNotifier = ValueNotifier(false);
+final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.system);
+final ValueNotifier<bool> rotateArtworkNotifier = ValueNotifier(true);
+final ValueNotifier<bool> showQualityInLibraryNotifier = ValueNotifier(true);
+final ValueNotifier<bool> showQualityInPlayerNotifier = ValueNotifier(true);
 
 // ── Apple Music Color System ──────────────────────────────────────────────────
 class LuminaColors {
