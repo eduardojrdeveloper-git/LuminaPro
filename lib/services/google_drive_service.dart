@@ -170,6 +170,45 @@ class GoogleDriveService {
     }
   }
 
+  Future<Map<String, dynamic>?> extractMetadataAndCover(String fileId) async {
+    if (!isSignedIn) return null;
+    try {
+      final dynamic media = await _driveApi!.files.get(
+        fileId,
+        downloadOptions: drive.DownloadOptions.fullMedia,
+      );
+
+      final List<int> headerBytes = [];
+      int totalReceived = 0;
+      const int maxHeaderSize = 3 * 1024 * 1024;
+
+      await for (var chunk in (media.stream as Stream<List<int>>)) {
+        headerBytes.addAll(chunk);
+        totalReceived += chunk.length;
+        if (totalReceived >= maxHeaderSize) break;
+      }
+
+      final tempDir = await getTemporaryDirectory();
+      final tempPath = p.join(tempDir.path, 'extract_$fileId.tmp');
+      final tempFile = File(tempPath);
+      await tempFile.writeAsBytes(headerBytes);
+
+      final metadata = await MetadataGod.readMetadata(file: tempPath);
+      await tempFile.delete();
+
+      return {
+        'title': metadata.title,
+        'artist': metadata.artist,
+        'album': metadata.album,
+        'coverArt': metadata.picture?.data,
+        'durationMs': metadata.durationMs,
+      };
+    } catch (e) {
+      LogService.log('Error extracting metadata for $fileId: $e');
+      return null;
+    }
+  }
+
   Future<Map<String, String>> getAuthHeaders() async {
     if (_currentUser == null) return {};
     return await _currentUser!.authHeaders;

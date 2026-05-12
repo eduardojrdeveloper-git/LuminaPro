@@ -90,6 +90,42 @@ class AudioFile {
     driveFileId: json['driveFileId'] as String?,
     driveStreamUrl: json['driveStreamUrl'] as String?,
   );
+
+  AudioFile copyWith({
+    String? path,
+    String? title,
+    String? artist,
+    String? albumArtist,
+    String? album,
+    String? genre,
+    Uint8List? coverArt,
+    Duration? duration,
+    int? sampleRate,
+    int? bitDepth,
+    int? bitrate,
+    String? format,
+    bool? isLocal,
+    String? driveFileId,
+    String? driveStreamUrl,
+  }) {
+    return AudioFile(
+      path: path ?? this.path,
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      albumArtist: albumArtist ?? this.albumArtist,
+      album: album ?? this.album,
+      genre: genre ?? this.genre,
+      coverArt: coverArt ?? this.coverArt,
+      duration: duration ?? this.duration,
+      sampleRate: sampleRate ?? this.sampleRate,
+      bitDepth: bitDepth ?? this.bitDepth,
+      bitrate: bitrate ?? this.bitrate,
+      format: format ?? this.format,
+      isLocal: isLocal ?? this.isLocal,
+      driveFileId: driveFileId ?? this.driveFileId,
+      driveStreamUrl: driveStreamUrl ?? this.driveStreamUrl,
+    );
+  }
 }
 
 class LibraryService {
@@ -298,5 +334,3 @@ class LibraryService {
     return songs;
   }
 }
-
-void debugPrint(String msg) => LogService.log(msg);

@@ -45,44 +45,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showSpekDialog(BuildContext context) {
-    final song = _ps.currentSong.value;
-    if (song == null) {
-      _showToast('Play a song first to analyze');
-      return;
-    }
 
-    showCupertinoDialog(
-      context: context,
-      builder: (ctx) => CupertinoAlertDialog(
-        title: Text('Spek: ${song.title}'),
-        content: Column(
-          children: [
-            const SizedBox(height: 16),
-            Container(
-              height: 200,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: CustomPaint(
-                painter: _SpekPainter(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '${song.formatBadge}\nDuration: ${song.duration?.inMinutes}:${(song.duration?.inSeconds ?? 0) % 60}',
-              style: const TextStyle(fontSize: 11, color: LuminaColors.labelSecondary),
-            ),
-          ],
-        ),
-        actions: [
-          CupertinoDialogAction(child: const Text('Close'), onPressed: () => Navigator.pop(ctx)),
-        ],
-      ),
-    );
-  }
 
   void _showToast(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -107,7 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           LibraryService.updateSongMetadata(song.driveFileId!, updated);
         }
       } catch (e) {
-        debugPrint('Failed to catch up cover for ${song.title}: $e');
+        LogService.log('Failed to catch up cover for ${song.title}: $e');
       }
     }
   }

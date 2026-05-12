@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/player_service.dart';
+import '../services/library_service.dart';
 
 class SpekScreen extends StatefulWidget {
   final AudioFile song;
