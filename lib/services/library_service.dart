@@ -87,8 +87,11 @@ class LibraryService {
 
   static List<String> get scanPaths => List.unmodifiable(_includePaths);
 
+  static final ValueNotifier<int> libraryUpdateNotifier = ValueNotifier(0);
+
   static void addDriveSongs(List<AudioFile> songs) {
     _driveSongs.addAll(songs);
+    libraryUpdateNotifier.value++;
   }
 
   static Future<List<AudioFile>> scanMusic() async {
@@ -114,58 +117,48 @@ class LibraryService {
                 ext == '.m4a' ||
                 ext == '.aiff' ||
                 ext == '.aif') {
-              String fileName = p.basenameWithoutExtension(entity.path);
-              String title = fileName;
+              
+              // Default info from filename
+              String title = p.basenameWithoutExtension(entity.path);
               String artist = 'Unknown Artist';
               String albumArtist = 'Unknown Artist';
               String album = 'Unknown Album';
               String genre = 'Unknown Genre';
               Uint8List? coverArt;
               Duration? duration;
-              int? sampleRate;
-              int? bitDepth;
-              final format = ext.replaceFirst('.', '');
+              final format = ext.replaceFirst('.', '').toUpperCase();
 
               try {
-                final metadata =
-                    await MetadataGod.readMetadata(file: entity.path);
-                if (metadata.title != null && metadata.title!.isNotEmpty) {
-                  title = metadata.title!;
+                final metadata = await MetadataGod.readMetadata(file: entity.path);
+                
+                if (metadata.title != null && metadata.title!.trim().isNotEmpty) {
+                  title = metadata.title!.trim();
                 }
-                if (metadata.artist != null && metadata.artist!.isNotEmpty) {
-                  artist = metadata.artist!;
+                if (metadata.artist != null && metadata.artist!.trim().isNotEmpty) {
+                  artist = metadata.artist!.trim();
                 }
-                if (metadata.albumArtist != null && metadata.albumArtist!.isNotEmpty) {
-                  albumArtist = metadata.albumArtist!;
-                } else if (metadata.artist != null && metadata.artist!.isNotEmpty) {
-                  albumArtist = metadata.artist!;
+                if (metadata.albumArtist != null && metadata.albumArtist!.trim().isNotEmpty) {
+                  albumArtist = metadata.albumArtist!.trim();
+                } else if (artist != 'Unknown Artist') {
+                  albumArtist = artist;
                 }
-                if (metadata.album != null && metadata.album!.isNotEmpty) {
-                  album = metadata.album!;
+                if (metadata.album != null && metadata.album!.trim().isNotEmpty) {
+                  album = metadata.album!.trim();
                 }
-                if (metadata.genre != null && metadata.genre!.isNotEmpty) {
-                  genre = metadata.genre!;
+                if (metadata.genre != null && metadata.genre!.trim().isNotEmpty) {
+                  genre = metadata.genre!.trim();
                 }
-                if (metadata.picture != null) {
-                  coverArt = metadata.picture!.data;
-                }
+                if (metadata.picture != null) coverArt = metadata.picture!.data;
                 if (metadata.durationMs != null) {
                   duration = Duration(milliseconds: metadata.durationMs!.toInt());
                 }
               } catch (e) {
-                debugPrint(
-                    'LibraryService: metadata error for ${entity.path}: $e');
-              }
-
-              // Folder-structure fallback for artist/album tags
-              if (artist == 'Unknown Artist' || album == 'Unknown Album') {
+                // Fallback to folder-structure if metadata fails
                 final parts = p.split(entity.path);
                 if (parts.length >= 3) {
-                  if (album == 'Unknown Album') album = parts[parts.length - 2];
-                  if (artist == 'Unknown Artist') {
-                    artist = parts[parts.length - 3];
-                    if (albumArtist == 'Unknown Artist') albumArtist = artist;
-                  }
+                  album = parts[parts.length - 2];
+                  artist = parts[parts.length - 3];
+                  albumArtist = artist;
                 }
               }
 
@@ -178,9 +171,8 @@ class LibraryService {
                 genre: genre,
                 coverArt: coverArt,
                 duration: duration,
-                sampleRate: sampleRate,
-                bitDepth: bitDepth,
                 format: format,
+                isLocal: true,
               ));
             }
           }
@@ -190,8 +182,8 @@ class LibraryService {
       debugPrint('LibraryService: scan error: $e');
     }
 
-    // Sort alphabetically by title by default
-    songs.sort((a, b) => a.title.compareTo(b.title));
+    // Sort alphabetically by title case-insensitive
+    songs.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
     return songs;
   }
 }

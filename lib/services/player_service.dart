@@ -234,20 +234,27 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
     final song = _queue[_currentIndex];
     LogService.log('Playing: ${song.title} from ${song.path}');
     
-    // Check if file exists before trying to play
-    if (!await File(song.path).exists()) {
-      LogService.log('PlayerService: file not found: ${song.path}');
-      _onTrackFinished(); // Skip to next
-      return;
+    // Check if file exists ONLY if it's local. For Drive, we use the URL directly.
+    if (song.isLocal) {
+      if (!await File(song.path).exists()) {
+        LogService.log('PlayerService: file not found: ${song.path}');
+        _onTrackFinished(); // Skip to next
+        return;
+      }
+    } else {
+      LogService.log('PlayerService: streaming from Drive: ${song.driveStreamUrl}');
     }
 
     currentSong.value = song;
     _emitPosition(Duration.zero);
     try {
+      // Use driveStreamUrl for streaming if available
+      final playPath = song.isLocal ? song.path : (song.driveStreamUrl ?? song.path);
+      
       await _channel.invokeMethod('play', {
-        'path': song.path,
+        'path': playPath,
         'title': song.title,
-        'artist': song.artist
+        'artist': song.albumArtist
       });
       _emitPlaying(true);
       

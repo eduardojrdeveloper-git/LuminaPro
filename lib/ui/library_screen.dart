@@ -34,10 +34,14 @@ class LibraryScreenState extends State<LibraryScreen>
     _tabController.addListener(() => setState(() {}));
     _refreshLibrary();
     _searchCtrl.addListener(_applyFilter);
+    
+    // Auto-refresh when cloud indexing finishes
+    LibraryService.libraryUpdateNotifier.addListener(_refreshLibrary);
   }
 
   @override
   void dispose() {
+    LibraryService.libraryUpdateNotifier.removeListener(_refreshLibrary);
     _tabController.dispose();
     _searchCtrl.dispose();
     _searchFocus.dispose();
