@@ -897,10 +897,8 @@ class _SongRow extends StatelessWidget {
 
   void _triggerDownload(BuildContext context) async {
     if (song.driveFileId == null) return;
-    final ext = song.format.isNotEmpty ? song.format.toLowerCase() : 'flac';
-    final fileName = '${song.title}.$ext';
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloading: ${song.title}...')));
-    final path = await GoogleDriveService().promoteFromCache(song.driveFileId!, fileName);
+    final path = await GoogleDriveService().promoteFromCache(song);
     if (path != null) {
       LibraryService.removeDriveSong(song.driveFileId!);
       PlayerService().promoteSongToLocal(song.driveFileId!, path);
@@ -942,7 +940,8 @@ void showSongMenuGlobal(BuildContext context, AudioFile song, int index, List<Au
               }
             },
             child: const Text('Download'),
-          ),        CupertinoActionSheetAction(
+          ),
+        CupertinoActionSheetAction(
           onPressed: () {
             Navigator.pop(context);
             ps.toggleFavorite(song);
@@ -956,17 +955,6 @@ void showSongMenuGlobal(BuildContext context, AudioFile song, int index, List<Au
         CupertinoActionSheetAction(isDestructiveAction: true, onPressed: () => Navigator.pop(context), child: const Text('Delete from Library')),
       ],
       cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-    ),
-  );
-}
-aylist')),
-        CupertinoActionSheetAction(isDestructiveAction: true, onPressed: () => Navigator.pop(context), child: const Text('Delete from Library')),
-      ],
-      cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-    ),
-  );
-}
-),
     ),
   );
 }
