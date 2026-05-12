@@ -339,10 +339,3 @@ class LibraryService {
     return songs;
   }
 }
-itle}_${s.albumArtist}'));
-
-    // Sort alphabetically by title case-insensitive
-    songs.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
-    return songs;
-  }
-}
