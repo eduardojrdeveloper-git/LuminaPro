@@ -118,6 +118,11 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
     await prefs.setStringList('favorites_v1', _favorites.toList());
   }
 
+  void clearFavoritesLocal() {
+    _favorites.clear();
+    favoritesNotifier.value = {};
+  }
+
   // ── ValueNotifiers ──────────────────────────────────────────────────────────
   final ValueNotifier<AudioFile?> currentSong = ValueNotifier<AudioFile?>(null);
   final ValueNotifier<Duration> positionNotifier = ValueNotifier(Duration.zero);

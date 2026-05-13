@@ -6,7 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
-import '../main.dart' show LuminaColors, themeNotifier, rotateArtworkNotifier, showQualityInLibraryNotifier, showQualityInPlayerNotifier, extractCloudCoversNotifier;
+import '../main.dart' show LuminaColors, themeNotifier, rotateArtworkNotifier, showQualityInLibraryNotifier, showQualityInPlayerNotifier, extractCloudCoversNotifier, keepScreenOnNotifier;
 import '../services/player_service.dart';
 import '../services/library_service.dart';
 import '../services/log_service.dart';
@@ -46,7 +46,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-
+  void _showCleanupDialog() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => _CleanupSheet(),
+    );
+  }
 
   void _showToast(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -175,6 +180,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         );
                       },
+                    ),
+                    const _Divider(),
+                    _SettingRow(
+                      isDark: isDark,
+                      icon: CupertinoIcons.trash_fill,
+                      iconColor: LuminaColors.destructive,
+                      title: 'Cleanup App Data',
+                      subtitle: 'Reset library, cache, or favorites',
+                      onTap: _showCleanupDialog,
+                      showChevron: true,
                     ),
                   ],
                 ),
@@ -351,6 +366,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             value: show,
                             activeColor: LuminaColors.accent,
                             onChanged: (v) => showQualityInPlayerNotifier.value = v,
+                          ),
+                        );
+                      },
+                    ),
+                    const _Divider(),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: keepScreenOnNotifier,
+                      builder: (_, keepOn, __) {
+                        return _SettingRow(
+                          isDark: isDark,
+                          icon: CupertinoIcons.lightbulb_fill,
+                          iconColor: const Color(0xFFFFCC00),
+                          title: 'Keep Screen On',
+                          subtitle: 'Prevent device from sleeping',
+                          trailing: CupertinoSwitch(
+                            value: keepOn,
+                            activeColor: LuminaColors.accent,
+                            onChanged: (v) => keepScreenOnNotifier.value = v,
                           ),
                         );
                       },
@@ -934,4 +967,70 @@ class _SpekPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _CleanupSheet extends StatefulWidget {
+  @override
+  State<_CleanupSheet> createState() => _CleanupSheetState();
+}
+
+class _CleanupSheetState extends State<_CleanupSheet> {
+  bool _clearLibrary = false;
+  bool _clearDrive = false;
+  bool _clearFavorites = false;
+  bool _clearLogs = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoActionSheet(
+      title: const Text('Cleanup App Data'),
+      message: const Text('Select items to remove. This action cannot be undone.'),
+      actions: [
+        _buildToggle('Clear Local Library', _clearLibrary, (v) => setState(() => _clearLibrary = v)),
+        _buildToggle('Clear GDrive Cache', _clearDrive, (v) => setState(() => _clearDrive = v)),
+        _buildToggle('Clear Favorites', _clearFavorites, (v) => setState(() => _clearFavorites = v)),
+        _buildToggle('Clear App Logs', _clearLogs, (v) => setState(() => _clearLogs = v)),
+        CupertinoActionSheetAction(
+          isDestructiveAction: true,
+          onPressed: _performCleanup,
+          child: const Text('Perform Cleanup'),
+        ),
+      ],
+      cancelButton: CupertinoActionSheetAction(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+    );
+  }
+
+  Widget _buildToggle(String label, bool value, ValueChanged<bool> onChanged) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 16, decoration: TextDecoration.none, color: Colors.black)),
+          CupertinoSwitch(value: value, activeColor: LuminaColors.accent, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performCleanup() async {
+    if (_clearLibrary) await LibraryService.clearAllLocalCache();
+    if (_clearDrive) await LibraryService.clearAllDriveCache();
+    if (_clearFavorites) await LibraryService.clearFavorites();
+    if (_clearLogs) {
+      final docDir = await getApplicationDocumentsDirectory();
+      final logFile = File(p.join(docDir.path, 'app_debug.log'));
+      if (await logFile.exists()) await logFile.delete();
+    }
+    
+    if (mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cleanup completed successfully.')),
+      );
+    }
+  }
 }

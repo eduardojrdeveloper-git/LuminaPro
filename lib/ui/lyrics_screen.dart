@@ -1,18 +1,12 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/player_service.dart';
 import '../services/library_service.dart';
 import '../main.dart' show LuminaColors;
-
-class LyricsScreen extends StatefulWidget {
-  final AudioFile song;
-  const LyricsScreen({super.key, required this.song});
-
-  @override
-  State<LyricsScreen> createState() => _LyricsScreenState();
-}
 
 class _LyricsLine {
   final Duration time;
@@ -20,44 +14,77 @@ class _LyricsLine {
   _LyricsLine(this.time, this.text);
 }
 
-class _LyricsScreenState extends State<LyricsScreen> {
+class LyricsView extends StatefulWidget {
+  final AudioFile song;
+  const LyricsView({super.key, required this.song});
+
+  @override
+  State<LyricsView> createState() => _LyricsViewState();
+}
+
+class _LyricsViewState extends State<LyricsView> {
   final PlayerService _ps = PlayerService();
   bool _isLoading = true;
   String? _error;
   
   List<_LyricsLine>? _syncedLyrics;
   String? _plainLyrics;
+  List<dynamic> _availableSources = [];
+  int _currentSourceIndex = -1;
   final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _fetchLyrics();
+    _fetchSourcesAndLyrics();
   }
 
-  Future<void> _fetchLyrics() async {
+  Future<void> _fetchSourcesAndLyrics() async {
     try {
       final artist = Uri.encodeComponent(widget.song.artist);
       final track = Uri.encodeComponent(widget.song.title);
-      final url = Uri.parse('https://lrclib.net/api/get?artist_name=$artist&track_name=$track');
+      final url = Uri.parse('https://lrclib.net/api/search?artist_name=$artist&track_name=$track');
       
       final response = await http.get(url);
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['syncedLyrics'] != null && data['syncedLyrics'].toString().isNotEmpty) {
-          _parseSyncedLyrics(data['syncedLyrics']);
-        } else if (data['plainLyrics'] != null) {
-          _plainLyrics = data['plainLyrics'];
+        final List<dynamic> results = json.decode(response.body);
+        if (results.isNotEmpty) {
+          _availableSources = results;
+          
+          // Check for saved source ID
+          final prefs = await SharedPreferences.getInstance();
+          final savedId = prefs.getString('lyrics_source_${widget.song.path}');
+          
+          int index = 0;
+          if (savedId != null) {
+            final foundIndex = results.indexWhere((r) => r['id'].toString() == savedId);
+            if (foundIndex != -1) index = foundIndex;
+          }
+          
+          _currentSourceIndex = index;
+          _loadSource(results[index]);
         } else {
           _error = 'No lyrics found for this track.';
         }
       } else {
-        _error = 'No lyrics found for this track.';
+        _error = 'Failed to search lyrics.';
       }
     } catch (e) {
-      _error = 'Failed to load lyrics: $e';
+      _error = 'Error: $e';
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _loadSource(dynamic source) {
+    if (source['syncedLyrics'] != null && source['syncedLyrics'].toString().isNotEmpty) {
+      _parseSyncedLyrics(source['syncedLyrics']);
+      _plainLyrics = null;
+    } else if (source['plainLyrics'] != null) {
+      _plainLyrics = source['plainLyrics'];
+      _syncedLyrics = null;
+    } else {
+      _error = 'Selected source has no lyrics.';
     }
   }
 
@@ -81,115 +108,148 @@ class _LyricsScreenState extends State<LyricsScreen> {
         }
       }
     }
-    
-    if (parsed.isNotEmpty) {
-      _syncedLyrics = parsed;
-    } else {
-      _plainLyrics = lrc;
-    }
+    _syncedLyrics = parsed.isNotEmpty ? parsed : null;
+    if (_syncedLyrics == null) _plainLyrics = lrc;
+  }
+
+  void _showSourceSelector() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('Select Lyrics Source'),
+        actions: List.generate(_availableSources.length, (i) {
+          final s = _availableSources[i];
+          final isSynced = s['syncedLyrics'] != null;
+          return CupertinoActionSheetAction(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setString('lyrics_source_${widget.song.path}', s['id'].toString());
+              setState(() {
+                _currentSourceIndex = i;
+                _loadSource(s);
+              });
+            },
+            child: Text(
+              '${s['trackName']} (${isSynced ? 'Synced' : 'Plain'})',
+              style: TextStyle(color: i == _currentSourceIndex ? LuminaColors.accent : null),
+            ),
+          );
+        }),
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (_isLoading) return const Center(child: CupertinoActivityIndicator());
+    if (_error != null) return Center(child: Text(_error!, style: const TextStyle(color: LuminaColors.labelSecondary)));
 
-    return CupertinoPageScaffold(
-      backgroundColor: isDark ? LuminaColors.bg0 : LuminaColors.lightBg0,
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: (isDark ? LuminaColors.bg0 : LuminaColors.lightBg0).withOpacity(0.8),
-        middle: Text('Lyrics: ${widget.song.title}'),
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          child: const Icon(CupertinoIcons.chevron_down, color: LuminaColors.accent),
-          onPressed: () => Navigator.pop(context),
+    return Stack(
+      children: [
+        if (_syncedLyrics != null) _buildSyncedLyrics() else if (_plainLyrics != null) _buildPlainLyrics(),
+        Positioned(
+          top: 0,
+          right: 0,
+          child: CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: _showSourceSelector,
+            child: const Icon(CupertinoIcons.layers_alt, color: Colors.white54, size: 20),
+          ),
         ),
-      ),
-      child: SafeArea(
-        child: _isLoading
-            ? const Center(child: CupertinoActivityIndicator())
-            : _error != null
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Text(_error!, style: TextStyle(color: LuminaColors.labelSecondary, fontSize: 16), textAlign: TextAlign.center),
-                    ),
-                  )
-                : _syncedLyrics != null
-                    ? _buildSyncedLyrics()
-                    : _buildPlainLyrics(),
-      ),
+      ],
     );
   }
 
   Widget _buildPlainLyrics() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      controller: _scrollController,
+      padding: const EdgeInsets.symmetric(vertical: 40),
       child: Text(
         _plainLyrics!,
-        style: const TextStyle(fontSize: 18, height: 1.6, fontWeight: FontWeight.w500),
-        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 22, height: 1.6, fontWeight: FontWeight.w600, color: Colors.white70),
+        textAlign: TextAlign.left,
       ),
     );
   }
 
   Widget _buildSyncedLyrics() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
     return ValueListenableBuilder<Duration>(
       valueListenable: _ps.positionNotifier,
       builder: (context, position, _) {
-        // Find current active line
         int activeIndex = -1;
         for (int i = 0; i < _syncedLyrics!.length; i++) {
-          if (position >= _syncedLyrics![i].time) {
-            activeIndex = i;
-          } else {
-            break;
-          }
+          if (position >= _syncedLyrics![i].time) activeIndex = i;
+          else break;
         }
 
-        // Auto-scroll logic (basic approach)
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scrollController.hasClients && activeIndex > 3) {
-            final targetOffset = (activeIndex - 3) * 60.0; // Approximation of item height
+          if (_scrollController.hasClients && activeIndex != -1) {
+            // Rough estimation of height to center the active line
+            final targetOffset = (activeIndex * 80.0) - 100.0;
             _scrollController.animateTo(
-              targetOffset,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
+              targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+              duration: const Duration(milliseconds: 600),
+              curve: Curves.easeOutCubic,
             );
           }
         });
 
         return ListView.builder(
           controller: _scrollController,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 64),
+          padding: const EdgeInsets.symmetric(vertical: 100),
           itemCount: _syncedLyrics!.length,
           itemBuilder: (context, index) {
             final line = _syncedLyrics![index];
             final isActive = index == activeIndex;
             
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 250),
-                style: TextStyle(
-                  fontSize: isActive ? 26 : 22,
-                  fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-                  color: isActive 
-                      ? (isDark ? Colors.white : Colors.black) 
-                      : LuminaColors.labelSecondary.withOpacity(0.5),
-                  height: 1.3,
-                  fontFamily: 'Inter', // Ensure modern look
-                ),
-                child: Text(
-                  line.text,
-                  textAlign: TextAlign.left,
+            return AnimatedOpacity(
+              duration: const Duration(milliseconds: 500),
+              opacity: isActive ? 1.0 : 0.35,
+              child: AnimatedPadding(
+                duration: const Duration(milliseconds: 500),
+                padding: EdgeInsets.symmetric(vertical: isActive ? 16 : 8),
+                child: ImageFiltered(
+                  imageFilter: ImageFilter.blur(sigmaX: isActive ? 0 : 1.5, sigmaY: isActive ? 0 : 1.5),
+                  child: AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 500),
+                    style: TextStyle(
+                      fontSize: isActive ? 32 : 26,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      height: 1.2,
+                    ),
+                    child: Text(line.text, textAlign: TextAlign.left),
+                  ),
                 ),
               ),
             );
           },
         );
       },
+    );
+  }
+}
+
+// Keep the original screen for modal access if needed
+class LyricsScreen extends StatelessWidget {
+  final AudioFile song;
+  const LyricsScreen({super.key, required this.song});
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoPageScaffold(
+      backgroundColor: Colors.black,
+      navigationBar: CupertinoNavigationBar(
+        backgroundColor: Colors.black.withOpacity(0.8),
+        middle: Text('Lyrics', style: const TextStyle(color: Colors.white)),
+        leading: CupertinoButton(padding: EdgeInsets.zero, child: const Icon(CupertinoIcons.chevron_down), onPressed: () => Navigator.pop(context)),
+      ),
+      child: SafeArea(child: LyricsView(song: song)),
     );
   }
 }

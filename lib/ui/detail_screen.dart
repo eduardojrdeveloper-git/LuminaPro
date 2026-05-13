@@ -144,8 +144,10 @@ class DetailScreen extends StatelessWidget {
                             label: 'Play',
                             filled: true,
                             isDark: isDark,
-                            onTap: () =>
-                                PlayerService().playQueue(songs, initialIndex: 0),
+                            onTap: () {
+                              PlayerService().playQueue(songs, initialIndex: 0);
+                              // MiniPlayer should react to currentSong notifier
+                            },
                           ),
                         ),
                         const SizedBox(width: 14),

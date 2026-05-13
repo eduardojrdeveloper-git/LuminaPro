@@ -9,12 +9,14 @@ import 'services/player_service.dart';
 import 'services/library_service.dart';
 import 'services/google_drive_service.dart';
 import 'services/log_service.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.system);
 final ValueNotifier<bool> rotateArtworkNotifier = ValueNotifier(true);
 final ValueNotifier<bool> showQualityInLibraryNotifier = ValueNotifier(true);
 final ValueNotifier<bool> showQualityInPlayerNotifier = ValueNotifier(true);
 final ValueNotifier<bool> extractCloudCoversNotifier = ValueNotifier(false);
+final ValueNotifier<bool> keepScreenOnNotifier = ValueNotifier(false);
 
 // ── Apple Music Color System ──────────────────────────────────────────────────
 class LuminaColors {
@@ -138,10 +140,20 @@ class MainNavigationState extends State<MainNavigation> with TickerProviderState
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    
+    // Listen for screen on toggle
+    keepScreenOnNotifier.addListener(_updateWakelock);
+    _updateWakelock();
+  }
+
+  void _updateWakelock() {
+    WakelockPlus.toggle(enable: keepScreenOnNotifier.value);
+    LogService.log('Wakelock ${keepScreenOnNotifier.value ? 'enabled' : 'disabled'}');
   }
 
   @override
   void dispose() {
+    keepScreenOnNotifier.removeListener(_updateWakelock);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

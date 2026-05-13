@@ -9,6 +9,8 @@ import '../main.dart' show LuminaColors, rotateArtworkNotifier, showQualityInPla
 import 'queue_screen.dart';
 import 'lyrics_screen.dart';
 
+final ValueNotifier<bool> showLyricsInPlayerNotifier = ValueNotifier(false);
+
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({super.key});
 
@@ -187,86 +189,98 @@ class _PlayerScreenState extends State<PlayerScreen>
                       ),
                     ),
 
-                    // ── Artwork ──────────────────────────────────────────────
+                    // ── Artwork / Lyrics Area ──────────────────────────────────────────────
                     Expanded(
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 36),
-                          child: ValueListenableBuilder<bool>(
-                            valueListenable: rotateArtworkNotifier,
-                            builder: (_, isRotating, __) {
-                              final Widget artworkImage =
-                                  song.coverArt != null && song.coverArt!.isNotEmpty
-                                      ? Image.memory(
-                                          song.coverArt!,
-                                          fit: BoxFit.cover,
-                                          width: double.infinity,
-                                          height: double.infinity,
-                                        )
-                                      : _buildPlaceholderArt(isDark);
+                      child: ValueListenableBuilder<bool>(
+                        valueListenable: showLyricsInPlayerNotifier,
+                        builder: (context, showLyrics, _) {
+                          if (showLyrics) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24),
+                              child: LyricsView(song: song),
+                            );
+                          }
 
-                              return AspectRatio(
-                                aspectRatio: 1,
-                                child: Stack(
-                                  children: [
-                                    Positioned.fill(
-                                      child: ScaleTransition(
-                                        scale: _scaleAnim,
-                                        child: isRotating
-                                            ? RotationTransition(
-                                                turns: _artworkController,
-                                                child: ClipOval(
-                                                  child: artworkImage,
-                                                ),
-                                              )
-                                            : Container(
-                                                decoration: BoxDecoration(
-                                                  borderRadius:
-                                                      BorderRadius.circular(20),
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: Colors.black
-                                                          .withOpacity(0.45),
-                                                      blurRadius: 50,
-                                                      offset: const Offset(0, 24),
-                                                      spreadRadius: -4,
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 36),
+                              child: ValueListenableBuilder<bool>(
+                                valueListenable: rotateArtworkNotifier,
+                                builder: (_, isRotating, __) {
+                                  final Widget artworkImage =
+                                      song.coverArt != null && song.coverArt!.isNotEmpty
+                                          ? Image.memory(
+                                              song.coverArt!,
+                                              fit: BoxFit.cover,
+                                              width: double.infinity,
+                                              height: double.infinity,
+                                            )
+                                          : _buildPlaceholderArt(isDark);
+
+                                  return AspectRatio(
+                                    aspectRatio: 1,
+                                    child: Stack(
+                                      children: [
+                                        Positioned.fill(
+                                          child: ScaleTransition(
+                                            scale: _scaleAnim,
+                                            child: isRotating
+                                                ? RotationTransition(
+                                                    turns: _artworkController,
+                                                    child: ClipOval(
+                                                      child: artworkImage,
                                                     ),
-                                                  ],
-                                                ),
-                                                child: ClipRRect(
-                                                  borderRadius:
-                                                      BorderRadius.circular(20),
-                                                  child: artworkImage,
-                                                ),
-                                              ),
-                                      ),
-                                    ),
-                                  ValueListenableBuilder<bool>(
-                                    valueListenable: _ps.bufferingNotifier,
-                                    builder: (_, isBuffering, __) {
-                                      if (!isBuffering) return const SizedBox.shrink();
-                                      return Positioned.fill(
-                                        child: ScaleTransition(
-                                          scale: _scaleAnim,
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              color: Colors.black.withOpacity(0.4),
-                                              borderRadius: BorderRadius.circular(isRotating ? 1000 : 20),
-                                            ),
-                                            child: const Center(
-                                              child: CupertinoActivityIndicator(radius: 20, color: Colors.white),
-                                            ),
+                                                  )
+                                                : Container(
+                                                    decoration: BoxDecoration(
+                                                      borderRadius:
+                                                          BorderRadius.circular(20),
+                                                      boxShadow: [
+                                                        BoxShadow(
+                                                          color: Colors.black
+                                                              .withOpacity(0.45),
+                                                          blurRadius: 50,
+                                                          offset: const Offset(0, 24),
+                                                          spreadRadius: -4,
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    child: ClipRRect(
+                                                      borderRadius:
+                                                          BorderRadius.circular(20),
+                                                      child: artworkImage,
+                                                    ),
+                                                  ),
                                           ),
                                         ),
-                                      );
-                                    },
+                                      ValueListenableBuilder<bool>(
+                                        valueListenable: _ps.bufferingNotifier,
+                                        builder: (_, isBuffering, __) {
+                                          if (!isBuffering) return const SizedBox.shrink();
+                                          return Positioned.fill(
+                                            child: ScaleTransition(
+                                              scale: _scaleAnim,
+                                              child: Container(
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black.withOpacity(0.4),
+                                                  borderRadius: BorderRadius.circular(isRotating ? 1000 : 20),
+                                                ),
+                                                child: const Center(
+                                                  child: CupertinoActivityIndicator(radius: 20, color: Colors.white),
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ],
                                   ),
-                                ],
+                                  );
+                                },
                               ),
-                              );
-                            },
-                          ),
-                        ),
+                            ),
+                          );
+                        },
                       ),
                     ),
 
@@ -401,13 +415,18 @@ class _PlayerScreenState extends State<PlayerScreen>
                                 ),
                               ),
                               GestureDetector(
-                                onTap: () => _showLyrics(context, song),
-                                child: Icon(
-                                  CupertinoIcons.quote_bubble,
-                                  color: isDark
-                                      ? Colors.white.withOpacity(0.55)
-                                      : Colors.black.withOpacity(0.35),
-                                  size: 20,
+                                onTap: () => showLyricsInPlayerNotifier.value = !showLyricsInPlayerNotifier.value,
+                                child: ValueListenableBuilder<bool>(
+                                  valueListenable: showLyricsInPlayerNotifier,
+                                  builder: (ctx, show, _) {
+                                    return Icon(
+                                      CupertinoIcons.quote_bubble,
+                                      color: show 
+                                          ? LuminaColors.accent 
+                                          : (isDark ? Colors.white.withOpacity(0.55) : Colors.black.withOpacity(0.35)),
+                                      size: 20,
+                                    );
+                                  },
                                 ),
                               ),
                               GestureDetector(

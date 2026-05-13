@@ -244,6 +244,28 @@ class LibraryService {
     return false;
   }
 
+  static Future<void> clearAllLocalCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('include_paths');
+    _includePaths = [];
+    _localSongsCache = [];
+    _hasInitialScanCompleted = false;
+    libraryUpdateNotifier.value++;
+  }
+
+  static Future<void> clearAllDriveCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('drive_songs');
+    _driveSongs = [];
+    libraryUpdateNotifier.value++;
+  }
+
+  static Future<void> clearFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('favorites_v1');
+    PlayerService().clearFavoritesLocal();
+  }
+
   static bool _hasInitialScanCompleted = false;
   static List<AudioFile> _localSongsCache = [];
   static bool _isBackgroundIndexing = false;

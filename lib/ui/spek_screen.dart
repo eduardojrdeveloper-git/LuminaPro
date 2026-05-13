@@ -70,13 +70,21 @@ class _SpekScreenState extends State<SpekScreen> {
         ),
       ),
       child: SafeArea(
-        child: _isLoading
-            ? const Center(child: CupertinoActivityIndicator(radius: 20, color: Colors.white))
-            : _error != null
-                ? Center(child: Text('Failed to generate Spek: $_error', style: const TextStyle(color: Colors.red)))
-                : _spekData != null
-                    ? _buildSpekView()
-                    : const Center(child: Text('No data', style: TextStyle(color: Colors.white))),
+        child: Material(
+          type: MaterialType.transparency,
+          child: _isLoading
+              ? const Center(child: CupertinoActivityIndicator(radius: 20, color: Colors.white))
+              : _error != null
+                  ? Center(child: Text('Failed to generate Spek: $_error', style: const TextStyle(color: Colors.red)))
+                  : _spekData != null
+                      ? _buildSpekView()
+                      : const Center(
+                          child: Text(
+                            'No data available',
+                            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+                          ),
+                        ),
+        ),
       ),
     );
   }

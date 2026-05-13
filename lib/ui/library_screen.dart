@@ -286,7 +286,7 @@ class LibraryScreenState extends State<LibraryScreen>
                           children: [
                             _buildCategories(isDark),
                             _buildSongsList(filterLoved: false),
-                            _buildGroupedList(groupBy: (s) => s.albumArtist, icon: CupertinoIcons.person_fill),
+                            _buildGroupedList(groupBy: (s) => s.albumArtist, icon: CupertinoIcons.person_fill, isArtist: true),
                             _buildAlbumsView(),
                             _buildGroupedList(groupBy: (s) => s.genre, icon: CupertinoIcons.music_mic),
                             _buildSongsList(filterLoved: true),
@@ -585,7 +585,7 @@ class LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  Widget _buildGroupedList({required String Function(AudioFile) groupBy, required IconData icon}) {
+  Widget _buildGroupedList({required String Function(AudioFile) groupBy, required IconData icon, bool isArtist = false}) {
     final songs = _displayedSongs;
     if (songs.isEmpty) return _buildEmptyState();
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -601,9 +601,28 @@ class LibraryScreenState extends State<LibraryScreen>
         final groupSongs = grouped[groupName]!;
         Uint8List? cover;
         for (var s in groupSongs) { if (s.coverArt != null) { cover = s.coverArt; break; } }
+        
         return ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-          leading: ClipOval(child: SizedBox(width: 48, height: 48, child: cover != null ? Image.memory(cover, fit: BoxFit.cover) : Container(color: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2, child: Icon(icon, color: LuminaColors.labelSecondary, size: 22)))),
+          leading: Container(
+            width: 54, height: 54,
+            decoration: BoxDecoration(
+              shape: isArtist ? BoxShape.circle : BoxShape.rectangle,
+              borderRadius: isArtist ? null : BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(isDark ? 0.3 : 0.1), blurRadius: 8, offset: const Offset(0, 4)),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: isArtist ? BorderRadius.circular(100) : BorderRadius.circular(8),
+              child: cover != null 
+                  ? Image.memory(cover, fit: BoxFit.cover) 
+                  : Container(
+                      color: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2, 
+                      child: Icon(icon, color: LuminaColors.labelSecondary, size: 24)
+                    ),
+            ),
+          ),
           title: Text(groupName, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: isDark ? Colors.white : Colors.black87, letterSpacing: -0.2)),
           subtitle: Text('${groupSongs.length} songs', style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 13)),
           trailing: const Icon(CupertinoIcons.chevron_right, color: LuminaColors.labelTertiary, size: 14),
