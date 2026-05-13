@@ -242,14 +242,27 @@ class LibraryService {
     return false;
   }
 
-  static Future<List<AudioFile>> scanMusic() async {
+  static bool _hasInitialScanCompleted = false;
+  static List<AudioFile> _localSongsCache = [];
+  static bool _isBackgroundIndexing = false;
+
+  static Future<List<AudioFile>> scanMusic({bool forceRescan = false}) async {
     final List<AudioFile> songs = [];
     songs.addAll(_driveSongs);
 
     try {
       await initialize();
       
-      final List<String> filesToProcess = [];
+      if (_hasInitialScanCompleted && !forceRescan) {
+        songs.addAll(_localSongsCache);
+        _applyDeduplicationAndSort(songs);
+        return songs;
+      }
+      
+      final List<String> unorganizedFiles = [];
+      final List<String> organizedFiles = [];
+      final docDir = await getApplicationDocumentsDirectory();
+
       for (var path in _includePaths) {
         final dir = Directory(path);
         if (!await dir.exists()) continue;
@@ -259,97 +272,45 @@ class LibraryService {
         for (var entity in entities) {
           if (entity is File) {
             final ext = p.extension(entity.path).toLowerCase();
-            if (ext == '.flac' ||
-                ext == '.wav' ||
-                ext == '.mp3' ||
-                ext == '.m4a' ||
-                ext == '.aiff' ||
-                ext == '.aif') {
-              filesToProcess.add(entity.path);
+            if (['.flac', '.wav', '.mp3', '.m4a', '.aiff', '.aif'].contains(ext)) {
+              if (entity.path.contains('${Platform.pathSeparator}GDrive${Platform.pathSeparator}') || entity.path.contains('${Platform.pathSeparator}Local${Platform.pathSeparator}')) {
+                organizedFiles.add(entity.path);
+              } else {
+                unorganizedFiles.add(entity.path);
+              }
             }
           }
         }
       }
 
-      final List<AudioFile> localSongs = await Isolate.run(() async {
+      // Process unorganized files sequentially so we don't hold up forever
+      if (unorganizedFiles.isNotEmpty) {
+        isIndexingNotifier.value = true;
         MetadataGod.initialize();
-        final List<AudioFile> isolateSongs = [];
-        for (final filePath in filesToProcess) {
-          final ext = p.extension(filePath).toLowerCase();
-          final format = ext.replaceFirst('.', '').toUpperCase();
-          String title = p.basenameWithoutExtension(filePath);
-          String artist = 'Unknown Artist';
-          String albumArtist = 'Unknown Artist';
+        for (int i = 0; i < unorganizedFiles.length; i++) {
+          final filePath = unorganizedFiles[i];
+          final file = File(filePath);
+          indexCurrentFileNotifier.value = 'Organizing: ${p.basename(filePath)}';
+          
           String album = 'Unknown Album';
-          String genre = 'Unknown Genre';
-          Uint8List? coverArt;
-          Duration? duration;
-          int? sampleRate;
-          int? bitDepth;
-          int? bitrate;
-
+          String artist = 'Unknown Artist';
           try {
             final metadata = await MetadataGod.readMetadata(file: filePath);
-            
-            if (metadata.title != null && metadata.title!.trim().isNotEmpty) {
-              title = metadata.title!.trim();
-            }
-            if (metadata.artist != null && metadata.artist!.trim().isNotEmpty) {
-              artist = metadata.artist!.trim();
-            }
             if (metadata.albumArtist != null && metadata.albumArtist!.trim().isNotEmpty) {
-              albumArtist = metadata.albumArtist!.trim();
-            } else if (artist != 'Unknown Artist') {
-              albumArtist = artist;
+              artist = metadata.albumArtist!.trim();
+            } else if (metadata.artist != null && metadata.artist!.trim().isNotEmpty) {
+              artist = metadata.artist!.trim();
             }
             if (metadata.album != null && metadata.album!.trim().isNotEmpty) {
               album = metadata.album!.trim();
             }
-            if (metadata.genre != null && metadata.genre!.trim().isNotEmpty) {
-              genre = metadata.genre!.trim();
-            }
-            if (metadata.picture != null) coverArt = metadata.picture!.data;
-            if (metadata.durationMs != null) {
-              duration = Duration(milliseconds: metadata.durationMs!.toInt());
-            }
           } catch (e) {
-            final parts = p.split(filePath);
-            if (parts.length >= 3) {
-              album = parts[parts.length - 2];
-              artist = parts[parts.length - 3];
-              albumArtist = artist;
-            }
+            // Fallback to Unknown if parsing fails
           }
 
-          isolateSongs.add(AudioFile(
-            path: filePath,
-            title: title,
-            artist: artist,
-            albumArtist: albumArtist,
-            album: album,
-            genre: genre,
-            coverArt: coverArt,
-            duration: duration,
-            sampleRate: sampleRate,
-            bitDepth: bitDepth,
-            bitrate: bitrate,
-            format: format,
-            isLocal: true,
-          ));
-        }
-        return isolateSongs;
-      });
-
-      // Organize physical files
-      final docDir = await getApplicationDocumentsDirectory();
-      for (int i = 0; i < localSongs.length; i++) {
-        final song = localSongs[i];
-        final file = File(song.path);
-        if (!song.path.contains('${Platform.pathSeparator}GDrive${Platform.pathSeparator}') && !song.path.contains('${Platform.pathSeparator}Local${Platform.pathSeparator}')) {
-          // File is unorganized (probably dropped via iTunes)
-          final String safeArtist = (song.albumArtist.trim().isNotEmpty && song.albumArtist != 'Unknown Artist' && song.albumArtist != 'GDrive' && song.albumArtist != 'Cloud') ? song.albumArtist.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_') : 'No Metadata';
-          final String safeAlbum = (song.album.trim().isNotEmpty && song.album != 'Unknown Album' && song.album != 'GDrive' && song.album != 'Cloud') ? song.album.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_') : 'No Metadata';
-          final String fileName = p.basename(song.path).replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+          final String safeArtist = (artist.trim().isNotEmpty && artist != 'Unknown Artist' && artist != 'GDrive' && artist != 'Cloud') ? artist.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_') : 'No Metadata';
+          final String safeAlbum = (album.trim().isNotEmpty && album != 'Unknown Album' && album != 'GDrive' && album != 'Cloud') ? album.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_') : 'No Metadata';
+          final String fileName = p.basename(filePath).replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
           
           final destDir = Directory(p.join(docDir.path, 'Local', safeArtist, safeAlbum));
           if (!await destDir.exists()) {
@@ -359,24 +320,133 @@ class LibraryService {
           try {
             await file.copy(destPath);
             await file.delete();
-            localSongs[i] = song.copyWith(path: destPath);
+            organizedFiles.add(destPath);
           } catch (e) {
-            debugPrint('Failed to organize file ${song.path}: $e');
+            debugPrint('Failed to organize file $filePath: $e');
+            organizedFiles.add(filePath); // Leave as is if fail to copy
           }
         }
+        isIndexingNotifier.value = false;
       }
 
-      songs.addAll(localSongs);
+      // Fast instant parse based on path
+      final List<AudioFile> localSongs = [];
+      for (final filePath in organizedFiles) {
+        final parts = p.split(filePath);
+        String artist = 'Unknown Artist';
+        String album = 'Unknown Album';
+        String title = p.basenameWithoutExtension(filePath);
+        
+        final localIdx = parts.lastIndexOf('Local');
+        if (localIdx != -1 && localIdx + 2 < parts.length) {
+            artist = parts[localIdx + 1];
+            album = parts[localIdx + 2];
+        } else {
+            final gdriveIdx = parts.lastIndexOf('GDrive');
+            if (gdriveIdx != -1 && gdriveIdx + 2 < parts.length) {
+                artist = parts[gdriveIdx + 1];
+                album = parts[gdriveIdx + 2];
+            }
+        }
+
+        final ext = p.extension(filePath).toLowerCase();
+        final format = ext.replaceFirst('.', '').toUpperCase();
+
+        localSongs.add(AudioFile(
+          path: filePath,
+          title: title,
+          artist: artist,
+          albumArtist: artist,
+          album: album,
+          format: format,
+          isLocal: true,
+        ));
+      }
+
+      _localSongsCache = localSongs;
+      _hasInitialScanCompleted = true;
+      
+      songs.addAll(_localSongsCache);
+
+      // Start background metadata extraction progressively
+      _startBackgroundMetadataExtraction();
+
     } catch (e) {
       debugPrint('LibraryService: scan error: $e');
     }
 
-    // Deduplicate: If we have a local file, hide the GDrive version
+    _applyDeduplicationAndSort(songs);
+    return songs;
+  }
+
+  static void _applyDeduplicationAndSort(List<AudioFile> songs) {
     final localSignatures = songs.where((s) => s.isLocal).map((s) => '${s.title}_${s.albumArtist}').toSet();
     songs.removeWhere((s) => !s.isLocal && localSignatures.contains('${s.title}_${s.albumArtist}'));
-
-    // Sort alphabetically by title case-insensitive
     songs.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
-    return songs;
+  }
+
+  static Future<void> _startBackgroundMetadataExtraction() async {
+    if (_isBackgroundIndexing) return;
+    _isBackgroundIndexing = true;
+    
+    isIndexingNotifier.value = true;
+    int processed = 0;
+    MetadataGod.initialize();
+    
+    for (int i = 0; i < _localSongsCache.length; i++) {
+      final song = _localSongsCache[i];
+      // Skip if we already extracted rich metadata (we can guess this if we have a duration, since instant parse doesn't set duration)
+      if (song.duration != null) continue;
+      
+      indexCurrentFileNotifier.value = 'Indexing metadata: ${song.title}';
+      
+      try {
+        final metadata = await MetadataGod.readMetadata(file: song.path);
+        
+        String title = song.title;
+        String artist = song.artist;
+        String albumArtist = song.albumArtist;
+        String album = song.album;
+        String genre = song.genre;
+        Uint8List? coverArt;
+        Duration? duration;
+
+        if (metadata.title != null && metadata.title!.trim().isNotEmpty) title = metadata.title!.trim();
+        if (metadata.artist != null && metadata.artist!.trim().isNotEmpty) artist = metadata.artist!.trim();
+        if (metadata.albumArtist != null && metadata.albumArtist!.trim().isNotEmpty) albumArtist = metadata.albumArtist!.trim();
+        if (metadata.album != null && metadata.album!.trim().isNotEmpty) album = metadata.album!.trim();
+        if (metadata.genre != null && metadata.genre!.trim().isNotEmpty) genre = metadata.genre!.trim();
+        if (metadata.picture != null) coverArt = metadata.picture!.data;
+        if (metadata.durationMs != null) duration = Duration(milliseconds: metadata.durationMs!.toInt());
+
+        _localSongsCache[i] = song.copyWith(
+          title: title,
+          artist: artist,
+          albumArtist: albumArtist,
+          album: album,
+          genre: genre,
+          coverArt: coverArt,
+          duration: duration,
+        );
+        
+        processed++;
+        
+        // Notify UI every 5 songs to avoid constant rebuilds, or if it's the last one
+        if (processed % 5 == 0 || i == _localSongsCache.length - 1) {
+          libraryUpdateNotifier.value++;
+        }
+      } catch (e) {
+        // Just keep the instant path-based metadata
+      }
+      
+      // Yield to the event loop so the UI doesn't freeze
+      await Future.delayed(const Duration(milliseconds: 10));
+    }
+    
+    isIndexingNotifier.value = false;
+    _isBackgroundIndexing = false;
+    if (processed > 0 && processed % 5 != 0) {
+      libraryUpdateNotifier.value++;
+    }
   }
 }
