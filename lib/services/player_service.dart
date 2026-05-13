@@ -103,6 +103,20 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
   final Set<String> _favorites = {};
   final ValueNotifier<Set<String>> favoritesNotifier = ValueNotifier({});
 
+  Future<void> _loadFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    final favs = prefs.getStringList('favorites_v1');
+    if (favs != null) {
+      _favorites.addAll(favs);
+      favoritesNotifier.value = Set.from(_favorites);
+    }
+  }
+
+  Future<void> _saveFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('favorites_v1', _favorites.toList());
+  }
+
   // ── ValueNotifiers ──────────────────────────────────────────────────────────
   final ValueNotifier<AudioFile?> currentSong = ValueNotifier<AudioFile?>(null);
   final ValueNotifier<Duration> positionNotifier = ValueNotifier(Duration.zero);
@@ -136,6 +150,7 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
   });
 
   PlayerService._internal() {
+    _loadFavorites();
     positionStream = _positionController.stream;
     durationStream = _durationController.stream;
     playingStream = _playingController.stream;
@@ -582,6 +597,7 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
     if (_favorites.contains(song.path)) _favorites.remove(song.path);
     else _favorites.add(song.path);
     favoritesNotifier.value = Set.from(_favorites);
+    _saveFavorites();
   }
 
   // For backward compatibility or if only path is available
@@ -589,6 +605,7 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
     if (_favorites.contains(path)) _favorites.remove(path);
     else _favorites.add(path);
     favoritesNotifier.value = Set.from(_favorites);
+    _saveFavorites();
   }
 
   Future<void> updateEQ(List<Map<String, dynamic>> bands) async {

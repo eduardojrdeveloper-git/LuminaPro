@@ -499,12 +499,24 @@ class GoogleDriveService {
     if (!isSignedIn) throw Exception('Not signed in');
     try {
       final fileList = await _driveApi!.files.list(
-        q: "'$parentId' in parents and trashed=false and (mimeType='application/vnd.google-apps.folder' or mimeType contains 'audio/' or name contains '.flac' or name contains '.wav' or name contains '.m4a' or name contains '.mp3')",
+        q: "'$parentId' in parents and trashed=false",
         spaces: 'drive',
         $fields: 'files(id, name, mimeType, webContentLink, size)',
         orderBy: 'folder, name',
       );
-      return fileList.files ?? [];
+      
+      // Filter locally to avoid Drive API syntax errors with complex queries
+      final files = fileList.files ?? [];
+      return files.where((file) {
+        final isFolder = file.mimeType == 'application/vnd.google-apps.folder';
+        final isAudio = file.mimeType?.startsWith('audio/') == true || 
+                        file.name?.toLowerCase().endsWith('.flac') == true ||
+                        file.name?.toLowerCase().endsWith('.wav') == true ||
+                        file.name?.toLowerCase().endsWith('.m4a') == true ||
+                        file.name?.toLowerCase().endsWith('.mp3') == true;
+        return isFolder || isAudio;
+      }).toList();
+      
     } catch (e) {
       LogService.log('Google Drive listContents error: $e');
       return [];
@@ -543,7 +555,7 @@ class GoogleDriveService {
       // 1. Get audio files in current folder (fast — no file download)
       do {
         final fileList = await _driveApi!.files.list(
-          q: "'$folderId' in parents and trashed=false and (mimeType contains 'audio/' or name contains '.flac' or name contains '.wav' or name contains '.m4a' or name contains '.mp3')",
+          q: "'$folderId' in parents and trashed=false",
           spaces: 'drive',
           $fields: 'nextPageToken, files(id, name, size, webContentLink, mimeType)',
           pageToken: pageToken,

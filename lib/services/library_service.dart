@@ -178,6 +178,8 @@ class LibraryService {
     _includePaths = paths;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('include_paths', paths);
+    _hasInitialScanCompleted = false; // Force rescan next time
+    libraryUpdateNotifier.value++; // Trigger UI update
   }
 
   static List<String> get scanPaths => List.unmodifiable(_includePaths);
@@ -287,6 +289,9 @@ class LibraryService {
       if (unorganizedFiles.isNotEmpty) {
         isIndexingNotifier.value = true;
         MetadataGod.initialize();
+        
+        final Set<String> dirsToClean = {};
+
         for (int i = 0; i < unorganizedFiles.length; i++) {
           final filePath = unorganizedFiles[i];
           final file = File(filePath);
@@ -318,14 +323,34 @@ class LibraryService {
           }
           final destPath = p.join(destDir.path, fileName);
           try {
+            final parentDir = file.parent.path;
             await file.copy(destPath);
             await file.delete();
             organizedFiles.add(destPath);
+            
+            // Mark original directory for cleanup if it's not the root docDir
+            if (parentDir != docDir.path && !parentDir.contains('${Platform.pathSeparator}Local') && !parentDir.contains('${Platform.pathSeparator}GDrive')) {
+              dirsToClean.add(parentDir);
+            }
           } catch (e) {
             debugPrint('Failed to organize file $filePath: $e');
             organizedFiles.add(filePath); // Leave as is if fail to copy
           }
         }
+        
+        // Clean up empty directories from the outside (only bottom-up)
+        final sortedDirs = dirsToClean.toList()..sort((a, b) => b.length.compareTo(a.length)); // Longest paths first
+        for (final dirPath in sortedDirs) {
+          try {
+            final dir = Directory(dirPath);
+            if (await dir.exists() && (await dir.list().isEmpty)) {
+              await dir.delete();
+            }
+          } catch (e) {
+            debugPrint('Failed to clean directory $dirPath: $e');
+          }
+        }
+
         isIndexingNotifier.value = false;
       }
 
