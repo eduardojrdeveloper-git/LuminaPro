@@ -113,22 +113,20 @@ class GoogleDriveService {
 
   /// Fetches a small chunk of the file to extract metadata without downloading everything.
   Future<AudioFile?> fetchMetadataHeader(drive.File driveFile, String folderName) async {
-    if (!isSignedIn) return null;
+    if (!isSignedIn || driveFile.id == null) return null;
     try {
-      final dynamic media = await _driveApi!.files.get(
-        driveFile.id!,
-        downloadOptions: drive.DownloadOptions.fullMedia,
-      );
-
-      final List<int> headerBytes = [];
-      int totalReceived = 0;
-      const int maxHeaderSize = 5 * 1024 * 1024; // 5MB to ensure full FLAC/ID3 metadata blocks are captured
-
-      await for (var chunk in (media.stream as Stream<List<int>>)) {
-        headerBytes.addAll(chunk);
-        totalReceived += chunk.length;
-        if (totalReceived >= maxHeaderSize) break;
+      final headers = await getAuthHeaders();
+      // Request first 5MB to ensure full FLAC/ID3 metadata blocks are captured
+      headers['Range'] = 'bytes=0-5242880';
+      
+      final url = Uri.parse('https://www.googleapis.com/drive/v3/files/${driveFile.id}?alt=media');
+      final response = await http.get(url, headers: headers);
+      
+      if (response.statusCode != 200 && response.statusCode != 206) {
+        throw Exception('Failed to fetch header: ${response.statusCode}');
       }
+      
+      final headerBytes = response.bodyBytes;
 
       final tempDir = await getTemporaryDirectory();
       final ext = driveFile.name != null ? p.extension(driveFile.name!) : '.flac';
@@ -173,20 +171,17 @@ class GoogleDriveService {
   Future<Map<String, dynamic>?> extractMetadataAndCover(String fileId) async {
     if (!isSignedIn) return null;
     try {
-      final dynamic media = await _driveApi!.files.get(
-        fileId,
-        downloadOptions: drive.DownloadOptions.fullMedia,
-      );
+      final headers = await getAuthHeaders();
+      headers['Range'] = 'bytes=0-3145728'; // 3MB
 
-      final List<int> headerBytes = [];
-      int totalReceived = 0;
-      const int maxHeaderSize = 3 * 1024 * 1024;
-
-      await for (var chunk in (media.stream as Stream<List<int>>)) {
-        headerBytes.addAll(chunk);
-        totalReceived += chunk.length;
-        if (totalReceived >= maxHeaderSize) break;
+      final url = Uri.parse('https://www.googleapis.com/drive/v3/files/$fileId?alt=media');
+      final response = await http.get(url, headers: headers);
+      
+      if (response.statusCode != 200 && response.statusCode != 206) {
+        throw Exception('Failed to fetch cover: ${response.statusCode}');
       }
+      
+      final headerBytes = response.bodyBytes;
 
       final tempDir = await getTemporaryDirectory();
       final tempPath = p.join(tempDir.path, 'extract_$fileId.tmp');
@@ -531,6 +526,7 @@ class GoogleDriveService {
       }
       // Save state after full scan
       await _savePersistedState();
+      await LibraryService.saveDriveSongsState();
     } finally {
       WakelockPlus.disable(); // Allow device to sleep again
     }
@@ -573,7 +569,9 @@ class GoogleDriveService {
             } catch (e) {
               LogService.log('Error fetching metadata header for ${file.name}: $e');
             }
-            driveSongs.add(metaSong ?? _audioFileFromDriveMeta(file, folderName));
+            final song = metaSong ?? _audioFileFromDriveMeta(file, folderName);
+            driveSongs.add(song);
+            LibraryService.addDriveSongProgressive(song);
           }
         }
         pageToken = fileList.nextPageToken;

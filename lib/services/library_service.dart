@@ -191,7 +191,6 @@ class LibraryService {
 
   static void addDriveSongs(List<AudioFile> songs) {
     for (final song in songs) {
-      // Deduplicate by driveFileId — skip if already present
       if (song.driveFileId != null &&
           _driveSongs.any((s) => s.driveFileId == song.driveFileId)) {
         continue;
@@ -200,6 +199,21 @@ class LibraryService {
     }
     _saveDriveSongs();
     libraryUpdateNotifier.value++;
+  }
+
+  /// Adds a single cloud song and notifies the UI immediately, but defers saving to prevent IO jank.
+  static void addDriveSongProgressive(AudioFile song) {
+    if (song.driveFileId != null &&
+        _driveSongs.any((s) => s.driveFileId == song.driveFileId)) {
+      return;
+    }
+    _driveSongs.add(song);
+    libraryUpdateNotifier.value++;
+  }
+
+  /// Manually trigger a save to SharedPreferences (e.g. after a progressive scan finishes).
+  static Future<void> saveDriveSongsState() async {
+    await _saveDriveSongs();
   }
 
   /// Remove all cloud songs. Call before re-scanning to avoid stale data.
