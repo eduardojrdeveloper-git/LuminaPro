@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
@@ -34,6 +35,15 @@ class _LyricsViewState extends State<LyricsView> {
   int _currentSourceIndex = -1;
   final ItemScrollController _itemScrollController = ItemScrollController();
   final ItemPositionsListener _itemPositionsListener = ItemPositionsListener.create();
+  
+  bool _isManualScrolling = false;
+  Timer? _scrollTimeout;
+
+  @override
+  void dispose() {
+    _scrollTimeout?.cancel();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -206,68 +216,106 @@ class _LyricsViewState extends State<LyricsView> {
         }
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_itemScrollController.isAttached && activeIndex != -1) {
+          if (!_isManualScrolling && _itemScrollController.isAttached && activeIndex != -1) {
             _itemScrollController.scrollTo(
               index: activeIndex,
-              duration: const Duration(milliseconds: 600),
-              curve: Curves.easeOutCubic,
-              alignment: 0.5, // This perfectly centers the item vertically regardless of dynamic heights
+              duration: const Duration(milliseconds: 750),
+              curve: Curves.easeInOutCubic,
+              alignment: 0.5, // perfectly centers the item vertically
             );
           }
         });
 
-        return ScrollablePositionedList.builder(
-          itemScrollController: _itemScrollController,
-          itemPositionsListener: _itemPositionsListener,
-          padding: EdgeInsets.symmetric(vertical: MediaQuery.of(context).size.height / 2.5),
-          itemCount: _syncedLyrics!.length,
-          itemBuilder: (context, index) {
-            final line = _syncedLyrics![index];
-            final isActive = index == activeIndex;
-            final isNear = (index - (activeIndex)).abs() <= 2;
-            
-            double opacity = 0.2;
-            double blurSigma = 3.0; // Blur for distant lines
-            
-            if (isActive) {
-              opacity = 1.0;
-              blurSigma = 0.0;
-            } else if (isNear) {
-              opacity = 0.6;
-              blurSigma = 1.5; // Slight blur for near lines
-            }
+        return ShaderMask(
+          shaderCallback: (rect) {
+            return const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Colors.transparent, Colors.black, Colors.black, Colors.transparent],
+              stops: [0.0, 0.2, 0.8, 1.0],
+            ).createShader(rect);
+          },
+          blendMode: BlendMode.dstIn,
+          child: NotificationListener<UserScrollNotification>(
+            onNotification: (notification) {
+              _isManualScrolling = true;
+              _scrollTimeout?.cancel();
+              _scrollTimeout = Timer(const Duration(seconds: 6), () {
+                if (mounted) {
+                  setState(() => _isManualScrolling = false);
+                  // Trigger an immediate scroll back to the active index
+                  if (_itemScrollController.isAttached && activeIndex != -1) {
+                    _itemScrollController.scrollTo(
+                      index: activeIndex,
+                      duration: const Duration(milliseconds: 750),
+                      curve: Curves.easeInOutCubic,
+                      alignment: 0.5,
+                    );
+                  }
+                }
+              });
+              return false;
+            },
+            child: ScrollablePositionedList.builder(
+              itemScrollController: _itemScrollController,
+              itemPositionsListener: _itemPositionsListener,
+              padding: EdgeInsets.symmetric(vertical: MediaQuery.of(context).size.height / 2.5),
+              itemCount: _syncedLyrics!.length,
+              itemBuilder: (context, index) {
+                final line = _syncedLyrics![index];
+                final isActive = index == activeIndex;
+                final isNear = (index - (activeIndex)).abs() <= 2;
+                
+                double opacity = 0.2;
+                double blurSigma = 3.0; // Blur for distant lines
+                
+                if (isActive) {
+                  opacity = 1.0;
+                  blurSigma = 0.0;
+                } else if (isNear) {
+                  opacity = 0.6;
+                  blurSigma = 1.5; // Slight blur for near lines
+                }
 
-            return Center(
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 400),
-                opacity: opacity,
-                child: AnimatedPadding(
-                  duration: const Duration(milliseconds: 400),
-                  padding: EdgeInsets.symmetric(vertical: isActive ? 24.0 : 12.0),
-                  child: ImageFiltered(
-                    imageFilter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Text(
-                        line.text,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: isActive ? 38 : 26,
-                          fontWeight: isActive ? FontWeight.w900 : FontWeight.w700,
-                          color: Colors.white,
-                          height: 1.2,
-                          shadows: isActive ? [
-                            Shadow(color: LuminaColors.accent.withOpacity(0.8), blurRadius: 20),
-                            Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, 4))
-                          ] : null,
+                return Center(
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 600),
+                    curve: Curves.easeInOutCubic,
+                    opacity: opacity,
+                    child: AnimatedPadding(
+                      duration: const Duration(milliseconds: 600),
+                      curve: Curves.easeInOutCubic,
+                      padding: EdgeInsets.symmetric(vertical: isActive ? 24.0 : 12.0),
+                      child: ImageFiltered(
+                        imageFilter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 600),
+                            curve: Curves.easeInOutCubic,
+                            style: TextStyle(
+                              fontSize: isActive ? 38 : 26,
+                              fontWeight: isActive ? FontWeight.w900 : FontWeight.w700,
+                              color: Colors.white,
+                              height: 1.2,
+                              shadows: isActive ? [
+                                Shadow(color: LuminaColors.accent.withOpacity(0.8), blurRadius: 20),
+                                Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, 4))
+                              ] : null,
+                            ),
+                            child: Text(
+                              line.text,
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ),
-            );
-          },
+                );
+              },
+            ),
+          ),
         );
       },
     );

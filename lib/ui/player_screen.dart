@@ -154,16 +154,23 @@ class _PlayerScreenState extends State<PlayerScreen>
                       child: Row(
                         children: [
                           const Expanded(child: SizedBox()),
-                          Text(
-                            'NOW PLAYING',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.2,
-                              color: isDark
-                                  ? Colors.white.withOpacity(0.5)
-                                  : Colors.black.withOpacity(0.4),
-                            ),
+                          ValueListenableBuilder<bool>(
+                            valueListenable: showLyricsInPlayerNotifier,
+                            builder: (context, showLyrics, _) {
+                              return Text(
+                                showLyrics ? song.title : 'NOW PLAYING',
+                                style: TextStyle(
+                                  fontSize: showLyrics ? 14 : 11,
+                                  fontWeight: showLyrics ? FontWeight.w800 : FontWeight.w700,
+                                  letterSpacing: showLyrics ? 0.0 : 1.2,
+                                  color: isDark
+                                      ? Colors.white.withOpacity(showLyrics ? 0.9 : 0.5)
+                                      : Colors.black.withOpacity(showLyrics ? 0.9 : 0.4),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              );
+                            },
                           ),
                           Expanded(
                             child: Align(
@@ -290,65 +297,88 @@ class _PlayerScreenState extends State<PlayerScreen>
                         children: [
                           const SizedBox(height: 28),
                           // Title + Artist
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      song.title,
-                                      style: TextStyle(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.w700,
-                                        color: isDark
-                                            ? Colors.white
-                                            : Colors.black,
-                                        letterSpacing: -0.5,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Row(
+                          ValueListenableBuilder<bool>(
+                            valueListenable: showLyricsInPlayerNotifier,
+                            builder: (context, showLyrics, _) {
+                              if (showLyrics) return const SizedBox.shrink();
+                              return Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Expanded(
-                                          child: Text(
-                                            song.artist,
-                                            style: const TextStyle(
-                                              fontSize: 18,
-                                              color: LuminaColors.accent,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
+                                        Text(
+                                          song.title,
+                                          style: TextStyle(
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.w700,
+                                            color: isDark
+                                                ? Colors.white
+                                                : Colors.black,
+                                            letterSpacing: -0.5,
                                           ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                song.artist,
+                                                style: const TextStyle(
+                                                  fontSize: 18,
+                                                  color: LuminaColors.accent,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            ValueListenableBuilder<bool>(
+                                              valueListenable: showQualityInPlayerNotifier,
+                                              builder: (ctx, show, _) {
+                                                if (!show || song.formatBadge.isEmpty) return const SizedBox.shrink();
+                                                String badgeText = '';
+                                                if (song.bitDepth != null) badgeText += '${song.bitDepth}-BIT';
+                                                if (song.bitrate != null) {
+                                                  if (badgeText.isNotEmpty) badgeText += ' · ';
+                                                  badgeText += '${song.bitrate} KBPS';
+                                                }
+                                                if (badgeText.isEmpty) badgeText = song.format.toUpperCase();
+
+                                                return Container(
+                                                  margin: const EdgeInsets.only(left: 8),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    border: Border.all(color: LuminaColors.accent.withOpacity(0.5)),
+                                                    borderRadius: BorderRadius.circular(4),
+                                                  ),
+                                                  child: Text(
+                                                    badgeText, 
+                                                    style: const TextStyle(
+                                                      color: LuminaColors.accent,
+                                                      fontSize: 9,
+                                                      fontWeight: FontWeight.w800,
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ],
                                         ),
                                         ValueListenableBuilder<bool>(
                                           valueListenable: showQualityInPlayerNotifier,
                                           builder: (ctx, show, _) {
                                             if (!show || song.formatBadge.isEmpty) return const SizedBox.shrink();
-                                            String badgeText = '';
-                                            if (song.bitDepth != null) badgeText += '${song.bitDepth}-BIT';
-                                            if (song.bitrate != null) {
-                                              if (badgeText.isNotEmpty) badgeText += ' · ';
-                                              badgeText += '${song.bitrate} KBPS';
-                                            }
-                                            if (badgeText.isEmpty) badgeText = song.format.toUpperCase();
-
-                                            return Container(
-                                              margin: const EdgeInsets.only(left: 8),
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                border: Border.all(color: LuminaColors.accent.withOpacity(0.5)),
-                                                borderRadius: BorderRadius.circular(4),
-                                              ),
+                                            return Padding(
+                                              padding: const EdgeInsets.only(top: 4.0),
                                               child: Text(
-                                                badgeText, 
-                                                style: const TextStyle(
-                                                  color: LuminaColors.accent,
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.w800,
+                                                song.formatBadge,
+                                                style: TextStyle(
+                                                  color: (isDark ? Colors.white : Colors.black).withOpacity(0.5),
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w400,
                                                 ),
                                               ),
                                             );
@@ -356,44 +386,27 @@ class _PlayerScreenState extends State<PlayerScreen>
                                         ),
                                       ],
                                     ),
-                                    ValueListenableBuilder<bool>(
-                                      valueListenable: showQualityInPlayerNotifier,
-                                      builder: (ctx, show, _) {
-                                        if (!show || song.formatBadge.isEmpty) return const SizedBox.shrink();
-                                        return Padding(
-                                          padding: const EdgeInsets.only(top: 4.0),
-                                          child: Text(
-                                            song.formatBadge,
-                                            style: TextStyle(
-                                              color: (isDark ? Colors.white : Colors.black).withOpacity(0.5),
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w400,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              // Heart / Favorite
-                              ValueListenableBuilder<Set<String>>(
-                                valueListenable: _ps.favoritesNotifier,
-                                builder: (context, favs, _) {
-                                  final isFav = favs.contains(song.path);
-                                  return GestureDetector(
-                                    onTap: () => _ps.toggleFavorite(song),
-                                    child: Icon(                                      isFav ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
-                                      size: 26,
-                                      color: isFav 
-                                          ? LuminaColors.accent 
-                                          : (isDark ? Colors.white.withOpacity(0.65) : Colors.black.withOpacity(0.4)),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
+                                  ),
+                                  const SizedBox(width: 16),
+                                  // Heart / Favorite
+                                  ValueListenableBuilder<Set<String>>(
+                                    valueListenable: _ps.favoritesNotifier,
+                                    builder: (context, favs, _) {
+                                      final isFav = favs.contains(song.path);
+                                      return GestureDetector(
+                                        onTap: () => _ps.toggleFavorite(song),
+                                        child: Icon(                                      isFav ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                                          size: 26,
+                                          color: isFav 
+                                              ? LuminaColors.accent 
+                                              : (isDark ? Colors.white.withOpacity(0.65) : Colors.black.withOpacity(0.4)),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              );
+                            },
                           ),
 
                           const SizedBox(height: 28),
