@@ -220,36 +220,48 @@ class _LyricsViewState extends State<LyricsView> {
         return ListView.builder(
           controller: _scrollController,
           padding: const EdgeInsets.symmetric(vertical: 200),
-          itemExtent: 90.0, // Fixed height for smoother scrolling and layout control
           itemCount: _syncedLyrics!.length,
           itemBuilder: (context, index) {
             final line = _syncedLyrics![index];
             final isActive = index == activeIndex;
             final isNear = (index - (activeIndex)).abs() <= 2;
             
-            // If not active and not near, we still show but very faded
             double opacity = 0.2;
-            if (isActive) opacity = 1.0;
-            else if (isNear) opacity = 0.6;
+            double blurSigma = 3.0; // Blur for distant lines
+            
+            if (isActive) {
+              opacity = 1.0;
+              blurSigma = 0.0;
+            } else if (isNear) {
+              opacity = 0.6;
+              blurSigma = 1.5; // Slight blur for near lines
+            }
 
             return Center(
               child: AnimatedOpacity(
                 duration: const Duration(milliseconds: 400),
                 opacity: opacity,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Text(
-                    line.text,
-                    textAlign: TextAlign.left,
-                    style: TextStyle(
-                      fontSize: isActive ? 38 : 24,
-                      fontWeight: isActive ? FontWeight.w900 : FontWeight.w700,
-                      color: Colors.white,
-                      height: 1.1,
-                      shadows: isActive ? [
-                        Shadow(color: LuminaColors.accent.withOpacity(0.8), blurRadius: 20),
-                        Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, 4))
-                      ] : null,
+                child: AnimatedPadding(
+                  duration: const Duration(milliseconds: 400),
+                  padding: EdgeInsets.symmetric(vertical: isActive ? 24.0 : 12.0),
+                  child: ImageFiltered(
+                    imageFilter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Text(
+                        line.text,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: isActive ? 38 : 26,
+                          fontWeight: isActive ? FontWeight.w900 : FontWeight.w700,
+                          color: Colors.white,
+                          height: 1.2,
+                          shadows: isActive ? [
+                            Shadow(color: LuminaColors.accent.withOpacity(0.8), blurRadius: 20),
+                            Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, 4))
+                          ] : null,
+                        ),
+                      ),
                     ),
                   ),
                 ),

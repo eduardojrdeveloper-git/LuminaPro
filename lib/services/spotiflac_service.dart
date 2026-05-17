@@ -47,18 +47,32 @@ class SpotiflacService {
 
   // Note: These are example public endpoints often used by SpotiFLAC.
   // In a production environment, you would use your own backend proxy.
-  final String _searchApi = 'https://api.spotiflac.app/search'; 
-  final String _downloadApi = 'https://api.spotiflac.app/download';
+  final String _searchApi = 'https://itunes.apple.com/search'; 
 
   Future<List<SpotiflacTrack>> search(String query) async {
     try {
-      LogService.log('Searching SpotiFLAC for: $query');
-      final response = await http.get(Uri.parse('$_searchApi?q=${Uri.encodeComponent(query)}'));
+      LogService.log('Searching Global Music (iTunes) for: $query');
+      // Using iTunes API as a reliable public metadata provider for the prototype
+      final url = Uri.parse('$_searchApi?term=${Uri.encodeComponent(query)}&entity=song&limit=25');
+      final response = await http.get(url);
       
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
-        final List<dynamic> items = data['items'] ?? [];
-        return items.map((e) => SpotiflacTrack.fromJson(e)).toList();
+        final List<dynamic> items = data['results'] ?? [];
+        
+        return items.map((e) {
+          // Parse iTunes format to our SpotiflacTrack model
+          return SpotiflacTrack(
+            id: e['trackId']?.toString() ?? '',
+            title: e['trackName'] ?? 'Unknown',
+            artist: e['artistName'] ?? 'Unknown',
+            album: e['collectionName'] ?? 'Unknown',
+            // Get a higher resolution artwork by replacing 100x100 with 600x600
+            coverUrl: (e['artworkUrl100'] as String?)?.replaceAll('100x100bb', '600x600bb'),
+            isrc: '', // iTunes API doesn't always provide ISRC cleanly
+            spotifyUrl: e['previewUrl'], // Storing the M4A preview URL here temporarily for download testing
+          );
+        }).toList();
       } else {
         throw Exception('Search failed: ${response.statusCode}');
       }
@@ -68,30 +82,24 @@ class SpotiflacService {
     }
   }
 
-  Future<String?> getDownloadUrl(String trackId) async {
-    try {
-      final response = await http.post(
-        Uri.parse(_downloadApi),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'id': trackId, 'quality': 'FLAC'}),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['url'];
-      }
-    } catch (e) {
-      LogService.log('SpotiflacService getDownloadUrl error: $e');
+  Future<String?> getDownloadUrl(String trackId, String? previewUrl) async {
+    // In a real SpotiFLAC implementation, this hits a Cobalt instance or a premium scraper.
+    // For this prototype, if we have an iTunes preview URL, we'll download that to demonstrate the UI flow.
+    if (previewUrl != null && previewUrl.isNotEmpty) {
+      // Simulate a small delay for URL resolution
+      await Future.delayed(const Duration(milliseconds: 800));
+      return previewUrl;
     }
     return null;
   }
 
   Future<bool> downloadAndSave(SpotiflacTrack track, {Function(double)? onProgress}) async {
     try {
-      final downloadUrl = await getDownloadUrl(track.id);
+      // We pass the previewUrl we stored in spotifyUrl
+      final downloadUrl = await getDownloadUrl(track.id, track.spotifyUrl);
       if (downloadUrl == null) throw Exception('Could not resolve download URL');
 
-      LogService.log('Downloading FLAC: ${track.title} from $downloadUrl');
+      LogService.log('Downloading Audio: ${track.title} from $downloadUrl');
       
       final client = http.Client();
       final request = http.Request('GET', Uri.parse(downloadUrl));
@@ -104,7 +112,8 @@ class SpotiflacService {
       final List<int> bytes = [];
 
       final tempDir = await getTemporaryDirectory();
-      final tempPath = p.join(tempDir.path, 'download_${track.id}.flac');
+      // Using .m4a since iTunes previews are AAC/M4A. The tagger handles M4A fine.
+      final tempPath = p.join(tempDir.path, 'download_${track.id}.m4a');
       final tempFile = File(tempPath);
       final sink = tempFile.openWrite();
 
@@ -144,7 +153,7 @@ class SpotiflacService {
       final docDir = await getApplicationDocumentsDirectory();
       final safeArtist = track.artist.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
       final safeAlbum = track.album.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
-      final fileName = '${track.title}.flac'.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+      final fileName = '${track.title}.m4a'.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
       
       final destDir = Directory(p.join(docDir.path, 'Local', safeArtist, safeAlbum));
       if (!await destDir.exists()) await destDir.create(recursive: true);

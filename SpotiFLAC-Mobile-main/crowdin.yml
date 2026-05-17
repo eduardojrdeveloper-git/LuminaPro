@@ -1,0 +1,24 @@
+files:
+  - source: /lib/l10n/arb/app_en.arb
+    translation: /lib/l10n/arb/app_%locale%.arb
+    languages_mapping:
+      locale:
+        # Short codes for single-variant languages
+        de: de
+        es: es
+        es-ES: es_ES
+        fr: fr
+        hi: hi
+        id: id
+        ja: ja
+        ko: ko
+        nl: nl
+        pt: pt
+        pt-PT: pt_PT
+        ru: ru
+        tr: tr
+        uk: uk
+        zh: zh
+        # Full codes for Chinese variants
+        zh-CN: zh_CN
+        zh-TW: zh_TW
