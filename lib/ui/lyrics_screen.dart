@@ -290,22 +290,27 @@ class _LyricsViewState extends State<LyricsView> {
                         imageFilter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: AnimatedDefaultTextStyle(
+                          child: AnimatedScale(
+                            scale: isActive ? 1.4 : 1.0,
                             duration: const Duration(milliseconds: 600),
                             curve: Curves.easeInOutCubic,
-                            style: TextStyle(
-                              fontSize: isActive ? 38 : 26,
-                              fontWeight: isActive ? FontWeight.w900 : FontWeight.w700,
-                              color: Colors.white,
-                              height: 1.2,
-                              shadows: isActive ? [
-                                Shadow(color: LuminaColors.accent.withOpacity(0.8), blurRadius: 20),
-                                Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, 4))
-                              ] : null,
-                            ),
-                            child: Text(
-                              line.text,
-                              textAlign: TextAlign.center,
+                            child: AnimatedDefaultTextStyle(
+                              duration: const Duration(milliseconds: 600),
+                              curve: Curves.easeInOutCubic,
+                              style: TextStyle(
+                                fontSize: 26, // Constant font size to prevent reflow
+                                fontWeight: isActive ? FontWeight.w900 : FontWeight.w700,
+                                color: Colors.white,
+                                height: 1.2,
+                                shadows: isActive ? [
+                                  Shadow(color: LuminaColors.accent.withOpacity(0.8), blurRadius: 20),
+                                  Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, 4))
+                                ] : null,
+                              ),
+                              child: Text(
+                                line.text,
+                                textAlign: TextAlign.center,
+                              ),
                             ),
                           ),
                         ),

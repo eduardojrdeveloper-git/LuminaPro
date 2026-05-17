@@ -6,6 +6,7 @@ import '../services/player_service.dart';
 import '../services/google_drive_service.dart';
 import '../main.dart' show LuminaColors, MainNavigation, MainNavigationState, showQualityInLibraryNotifier;
 import 'detail_screen.dart';
+import 'artist_albums_screen.dart';
 import 'folder_browser_screen.dart';
 
 enum SortMode { title, artist, album }
@@ -626,7 +627,13 @@ class LibraryScreenState extends State<LibraryScreen>
           title: Text(groupName, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: isDark ? Colors.white : Colors.black87, letterSpacing: -0.2)),
           subtitle: Text('${groupSongs.length} songs', style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 13)),
           trailing: const Icon(CupertinoIcons.chevron_right, color: LuminaColors.labelTertiary, size: 14),
-          onTap: () { Navigator.push(context, CupertinoPageRoute(builder: (_) => DetailScreen(title: groupName, songs: groupSongs, coverArt: cover))); },
+          onTap: () { 
+            if (isArtist) {
+              Navigator.push(context, CupertinoPageRoute(builder: (_) => ArtistAlbumsScreen(artistName: groupName, allArtistSongs: groupSongs)));
+            } else {
+              Navigator.push(context, CupertinoPageRoute(builder: (_) => DetailScreen(title: groupName, songs: groupSongs, coverArt: cover))); 
+            }
+          },
         );
       },
     );

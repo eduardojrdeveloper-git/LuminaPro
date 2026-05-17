@@ -176,7 +176,15 @@ class MainNavigationState extends State<MainNavigation> with TickerProviderState
 
     return Scaffold(
       extendBody: true, // Allow body to flow behind bottom bar
-      body: IndexedStack(index: _currentIndex, children: _screens),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 250),
+        switchInCurve: Curves.easeInOutCubic,
+        switchOutCurve: Curves.easeInOutCubic,
+        transitionBuilder: (child, animation) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        child: _screens[_currentIndex],
+      ),
       bottomNavigationBar: _buildBottomBar(isDark),
     );
   }
@@ -185,8 +193,13 @@ class MainNavigationState extends State<MainNavigation> with TickerProviderState
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (_currentIndex != 2)
-          _MiniPlayer(onTap: () => setState(() => _currentIndex = 2)),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOutCubic,
+          child: _currentIndex != 2 
+            ? _MiniPlayer(onTap: () => setState(() => _currentIndex = 2))
+            : const SizedBox.shrink(),
+        ),
         ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
