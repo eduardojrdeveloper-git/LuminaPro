@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../services/player_service.dart';
 import '../services/library_service.dart';
 import '../main.dart' show LuminaColors;
@@ -31,7 +32,8 @@ class _LyricsViewState extends State<LyricsView> {
   String? _plainLyrics;
   List<dynamic> _availableSources = [];
   int _currentSourceIndex = -1;
-  final ScrollController _scrollController = ScrollController();
+  final ItemScrollController _itemScrollController = ItemScrollController();
+  final ItemPositionsListener _itemPositionsListener = ItemPositionsListener.create();
 
   @override
   void initState() {
@@ -205,21 +207,20 @@ class _LyricsViewState extends State<LyricsView> {
         }
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scrollController.hasClients && activeIndex != -1) {
-            // Center the active index in the view
-            final screenHeight = MediaQuery.of(context).size.height;
-            final targetOffset = (activeIndex * 90.0) - (screenHeight / 3);
-            _scrollController.animateTo(
-              targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+          if (_itemScrollController.isAttached && activeIndex != -1) {
+            _itemScrollController.scrollTo(
+              index: activeIndex,
               duration: const Duration(milliseconds: 600),
               curve: Curves.easeOutCubic,
+              alignment: 0.5, // This perfectly centers the item vertically regardless of dynamic heights
             );
           }
         });
 
-        return ListView.builder(
-          controller: _scrollController,
-          padding: const EdgeInsets.symmetric(vertical: 200),
+        return ScrollablePositionedList.builder(
+          itemScrollController: _itemScrollController,
+          itemPositionsListener: _itemPositionsListener,
+          padding: EdgeInsets.symmetric(vertical: MediaQuery.of(context).size.height / 2.5),
           itemCount: _syncedLyrics!.length,
           itemBuilder: (context, index) {
             final line = _syncedLyrics![index];
