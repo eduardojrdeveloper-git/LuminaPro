@@ -11,6 +11,8 @@ import '../services/player_service.dart';
 import '../services/library_service.dart';
 import '../services/log_service.dart';
 import '../services/google_drive_service.dart';
+import '../services/musicbrainz_service.dart';
+import '../services/audio_quality_service.dart';
 import 'eq_advanced_screen.dart';
 import 'spek_screen.dart';
 import 'log_screen.dart';
@@ -56,6 +58,134 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showToast(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
+    );
+  }
+
+  Future<void> _runMetadataRepair() async {
+    final mb = MusicBrainzService();
+    String status = 'Initializing...';
+    
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => CupertinoAlertDialog(
+          title: const Text('Metadata Repair'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 16),
+              const CupertinoActivityIndicator(),
+              const SizedBox(height: 16),
+              Text(status, style: const TextStyle(fontSize: 13)),
+            ],
+          ),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.pop(ctx),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // Run the repair
+    await mb.autoRepairLibrary((msg) {
+      if (mounted) {
+        status = msg;
+        // This is a bit of a hack to refresh the dialog, but effective for this one-off
+        try { Navigator.pop(context); _showRepairProgress(status); } catch (_) {}
+      }
+    });
+  }
+
+  void _showRepairProgress(String msg) {
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Metadata Repair'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            const CupertinoActivityIndicator(),
+            const SizedBox(height: 16),
+            Text(msg, style: const TextStyle(fontSize: 13)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _runQualityCheck() async {
+    final quality = AudioQualityService();
+    final allSongs = await LibraryService.scanMusic();
+    final flacs = allSongs.where((s) => s.isLocal && s.format.toUpperCase() == 'FLAC').toList();
+    
+    if (flacs.isEmpty) {
+      _showToast('No local FLAC files found to analyze.');
+      return;
+    }
+
+    List<String> suspicious = [];
+    int checked = 0;
+
+    showCupertinoDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => CupertinoAlertDialog(
+          title: const Text('Quality Scanner'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 16),
+              const CupertinoActivityIndicator(),
+              const SizedBox(height: 16),
+              Text('Analyzing $checked/${flacs.length}...'),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    for (final song in flacs) {
+      final result = await quality.analyzeFlac(song.path);
+      if (result['isFake'] == true) {
+        suspicious.add('${song.artist} - ${song.title}');
+      }
+      checked++;
+      // We don't update the dialog every time to avoid overhead, but we could
+    }
+
+    Navigator.pop(context);
+
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: Text(suspicious.isEmpty ? 'Quality Check Passed' : 'Suspicious Files Found'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Text(suspicious.isEmpty 
+              ? 'All ${flacs.length} FLAC files appear to be genuine lossless.'
+              : 'Found ${suspicious.length} tracks that appear to be upscaled lossy files:'),
+            if (suspicious.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 100,
+                child: ListView(
+                  children: suspicious.map((s) => Text('• $s', style: const TextStyle(fontSize: 11))).toList(),
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          CupertinoDialogAction(child: const Text('Close'), onPressed: () => Navigator.pop(ctx)),
+        ],
+      ),
     );
   }
 
@@ -189,6 +319,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: 'Cleanup App Data',
                       subtitle: 'Reset library, cache, or favorites',
                       onTap: _showCleanupDialog,
+                      showChevron: true,
+                    ),
+                  ],
+                ),
+
+                // ── UTILITIES ──────────────────────────────────────────────
+                _SectionHeader('UTILITIES'),
+                _GroupedSection(
+                  isDark: isDark,
+                  children: [
+                    _SettingRow(
+                      isDark: isDark,
+                      icon: CupertinoIcons.wand_stars,
+                      iconColor: const Color(0xFFFF2D55),
+                      title: 'Auto-Repair Metadata',
+                      subtitle: 'Fetch missing tags from MusicBrainz',
+                      onTap: _runMetadataRepair,
+                      showChevron: true,
+                    ),
+                    const _Divider(),
+                    _SettingRow(
+                      isDark: isDark,
+                      icon: CupertinoIcons.shield_lefthalf_fill,
+                      iconColor: const Color(0xFF34A853),
+                      title: 'Scan FLAC Quality',
+                      subtitle: 'Detect upscaled lossy files via FFT',
+                      onTap: _runQualityCheck,
                       showChevron: true,
                     ),
                   ],

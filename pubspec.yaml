@@ -21,6 +21,8 @@ dependencies:
   googleapis_auth: ^1.6.0
   http: ^1.2.0
   wakelock_plus: 1.2.8
+  fftea: ^2.1.0
+  ffmpeg_kit_flutter: ^6.0.3
   # dsp_plugin is injected by the GitHub Actions workflow
 dev_dependencies:
   flutter_test:
