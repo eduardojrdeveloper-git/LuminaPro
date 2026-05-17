@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'ui/library_screen.dart';
 import 'ui/player_screen.dart';
 import 'ui/settings_screen.dart';
+import 'ui/discover_screen.dart';
 import 'services/player_service.dart';
 import 'services/library_service.dart';
 import 'services/google_drive_service.dart';
@@ -132,6 +133,7 @@ class MainNavigationState extends State<MainNavigation> with TickerProviderState
 
   final List<Widget> _screens = [
     const LibraryScreen(),
+    const DiscoverScreen(),
     const PlayerScreen(),
     const SettingsScreen(),
   ];
@@ -181,7 +183,7 @@ class MainNavigationState extends State<MainNavigation> with TickerProviderState
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _MiniPlayer(onTap: () => setState(() => _currentIndex = 1)),
+        _MiniPlayer(onTap: () => setState(() => _currentIndex = 2)),
         ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
@@ -204,8 +206,9 @@ class MainNavigationState extends State<MainNavigation> with TickerProviderState
                   child: Row(
                     children: [
                       _TabItem(index: 0, current: _currentIndex, icon: CupertinoIcons.music_albums, activeIcon: CupertinoIcons.music_albums_fill, label: 'Library', onTap: () => setIndex(0), isDark: isDark),
-                      _TabItem(index: 1, current: _currentIndex, icon: CupertinoIcons.play_circle, activeIcon: CupertinoIcons.play_circle_fill, label: 'Playing', onTap: () => setIndex(1), isDark: isDark),
-                      _TabItem(index: 2, current: _currentIndex, icon: CupertinoIcons.settings, activeIcon: CupertinoIcons.settings_solid, label: 'Settings', onTap: () => setIndex(2), isDark: isDark),
+                      _TabItem(index: 1, current: _currentIndex, icon: CupertinoIcons.globe, activeIcon: CupertinoIcons.globe, label: 'Discover', onTap: () => setIndex(1), isDark: isDark),
+                      _TabItem(index: 2, current: _currentIndex, icon: CupertinoIcons.play_circle, activeIcon: CupertinoIcons.play_circle_fill, label: 'Playing', onTap: () => setIndex(2), isDark: isDark),
+                      _TabItem(index: 3, current: _currentIndex, icon: CupertinoIcons.settings, activeIcon: CupertinoIcons.settings_solid, label: 'Settings', onTap: () => setIndex(3), isDark: isDark),
                     ],
                   ),
                 ),
