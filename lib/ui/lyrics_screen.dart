@@ -183,7 +183,6 @@ class _LyricsViewState extends State<LyricsView> {
 
   Widget _buildPlainLyrics() {
     return SingleChildScrollView(
-      controller: _scrollController,
       padding: const EdgeInsets.symmetric(vertical: 40),
       child: Text(
         _plainLyrics!,
