@@ -116,23 +116,32 @@ class GoogleDriveService {
     if (!isSignedIn || driveFile.id == null) return null;
     try {
       final headers = await getAuthHeaders();
-      // Request first 5MB to ensure full FLAC/ID3 metadata blocks are captured
-      headers['Range'] = 'bytes=0-5242880';
+      // Request first 512KB to capture metadata blocks (FLAC/ID3) without OOM risk
+      headers['Range'] = 'bytes=0-524288';
       
       final url = Uri.parse('https://www.googleapis.com/drive/v3/files/${driveFile.id}?alt=media');
-      final response = await http.get(url, headers: headers);
+      
+      final client = http.Client();
+      final request = http.Request('GET', url);
+      request.headers.addAll(headers);
+      
+      final response = await client.send(request);
       
       if (response.statusCode != 200 && response.statusCode != 206) {
+        client.close();
         throw Exception('Failed to fetch header: ${response.statusCode}');
       }
-      
-      final headerBytes = response.bodyBytes;
 
       final tempDir = await getTemporaryDirectory();
       final ext = driveFile.name != null ? p.extension(driveFile.name!) : '.flac';
       final tempPath = p.join(tempDir.path, 'header_${driveFile.id}$ext');
       final tempFile = File(tempPath);
-      await tempFile.writeAsBytes(headerBytes);
+      
+      // Stream to file to avoid loading the whole chunk into memory
+      final sink = tempFile.openWrite();
+      await response.stream.pipe(sink);
+      await sink.close();
+      client.close();
 
       final metadata = await MetadataGod.readMetadata(file: tempPath);
       await tempFile.delete();
@@ -172,21 +181,28 @@ class GoogleDriveService {
     if (!isSignedIn) return null;
     try {
       final headers = await getAuthHeaders();
-      headers['Range'] = 'bytes=0-3145728'; // 3MB
+      headers['Range'] = 'bytes=0-1048576'; // 1MB for cover art search
 
       final url = Uri.parse('https://www.googleapis.com/drive/v3/files/$fileId?alt=media');
-      final response = await http.get(url, headers: headers);
+      final client = http.Client();
+      final request = http.Request('GET', url);
+      request.headers.addAll(headers);
+      
+      final response = await client.send(request);
       
       if (response.statusCode != 200 && response.statusCode != 206) {
+        client.close();
         throw Exception('Failed to fetch cover: ${response.statusCode}');
       }
       
-      final headerBytes = response.bodyBytes;
-
       final tempDir = await getTemporaryDirectory();
       final tempPath = p.join(tempDir.path, 'extract_$fileId.tmp');
       final tempFile = File(tempPath);
-      await tempFile.writeAsBytes(headerBytes);
+      
+      final sink = tempFile.openWrite();
+      await response.stream.pipe(sink);
+      await sink.close();
+      client.close();
 
       final metadata = await MetadataGod.readMetadata(file: tempPath);
       await tempFile.delete();
@@ -203,6 +219,7 @@ class GoogleDriveService {
       return null;
     }
   }
+
 
   Future<Map<String, String>> getAuthHeaders() async {
     if (_currentUser == null) return {};
@@ -529,8 +546,11 @@ class GoogleDriveService {
     WakelockPlus.enable(); // Prevent device from sleeping during long scans
     
     selectedFolderIds = folderIds.toSet();
+    // Save selected folder IDs immediately so they persist even if scan crashes
+    await _savePersistedState();
     
     final List<AudioFile> allSongs = [];
+
     try {
       for (final id in folderIds) {
         final songs = await _scanRecursive(id, 'Cloud Folder');
@@ -584,8 +604,12 @@ class GoogleDriveService {
             final song = metaSong ?? _audioFileFromDriveMeta(file, folderName);
             driveSongs.add(song);
             LibraryService.addDriveSongProgressive(song);
+            
+            // Yield to event loop to allow GC and keep UI responsive during large scans
+            await Future.delayed(const Duration(milliseconds: 5));
           }
         }
+
         pageToken = fileList.nextPageToken;
       } while (pageToken != null);
 

@@ -684,9 +684,12 @@ class _GoogleDriveSheetState extends State<_GoogleDriveSheet> {
         LibraryService.isIndexingNotifier.value = true;
         LibraryService.indexCurrentFileNotifier.value = 'Starting scan...';
         
-        LibraryService.clearDriveSongs();
+        // Removed clearDriveSongs() to prevent total data loss if scan crashes.
+        // deduplication is handled by LibraryService.addDriveSongProgressive.
         final songs = await _driveService.scanFoldersForFlacs(idsToScan);
+        // Explicitly add all found songs at the end to ensure final state is saved
         LibraryService.addDriveSongs(songs);
+
         
         LibraryService.indexCurrentFileNotifier.value = 'Indexed ${songs.length} cloud files from GDrive';
       } catch (e) {

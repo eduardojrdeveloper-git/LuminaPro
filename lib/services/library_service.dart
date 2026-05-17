@@ -193,26 +193,37 @@ class LibraryService {
   static final ValueNotifier<double> indexProgressNotifier = ValueNotifier(0.0);
 
   static void addDriveSongs(List<AudioFile> songs) {
+    bool added = false;
     for (final song in songs) {
       if (song.driveFileId != null &&
           _driveSongs.any((s) => s.driveFileId == song.driveFileId)) {
         continue;
       }
       _driveSongs.add(song);
+      added = true;
     }
-    _saveDriveSongs();
-    libraryUpdateNotifier.value++;
+    if (added) {
+      _saveDriveSongs();
+      libraryUpdateNotifier.value++;
+    }
   }
 
-  /// Adds a single cloud song and notifies the UI immediately, but defers saving to prevent IO jank.
+  /// Adds a single cloud song and notifies the UI immediately, saving progressively to prevent data loss on crash.
   static void addDriveSongProgressive(AudioFile song) {
     if (song.driveFileId != null &&
         _driveSongs.any((s) => s.driveFileId == song.driveFileId)) {
       return;
     }
     _driveSongs.add(song);
+    
+    // Save every 10 songs to persist state against crashes
+    if (_driveSongs.length % 10 == 0) {
+      _saveDriveSongs();
+    }
+    
     libraryUpdateNotifier.value++;
   }
+
 
   /// Manually trigger a save to SharedPreferences (e.g. after a progressive scan finishes).
   static Future<void> saveDriveSongsState() async {
