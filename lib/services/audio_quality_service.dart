@@ -51,24 +51,31 @@ class AudioQualityService {
       int frameCount = 0;
 
       stft.run(floatData, (chunk) {
-        final magnitudes = chunk.magnitudes();
+        // chunk is Float64x2List (complex numbers)
+        // discardConjugates() removes the mirrored second half of the FFT
+        // magnitudes() converts complex pairs to amplitude
+        final magnitudes = chunk.discardConjugates().magnitudes();
         
         // At 44100Hz, bins are ~10.77Hz wide.
         // Mid range: 5kHz - 15kHz -> bins ~465 to 1392
         // High range: 20kHz - 22.05kHz -> bins ~1857 to 2048
         
         double midSum = 0;
-        for (int i = 465; i < 1392; i++) {
+        int midCount = 0;
+        for (int i = 465; i < 1392 && i < magnitudes.length; i++) {
           midSum += magnitudes[i];
+          midCount++;
         }
         
         double highSum = 0;
+        int highCount = 0;
         for (int i = 1857; i < magnitudes.length; i++) {
           highSum += magnitudes[i];
+          highCount++;
         }
 
-        midFreqEnergy += midSum / (1392 - 465);
-        highFreqEnergy += highSum / (magnitudes.length - 1857);
+        if (midCount > 0) midFreqEnergy += midSum / midCount;
+        if (highCount > 0) highFreqEnergy += highSum / highCount;
         frameCount++;
       });
 
