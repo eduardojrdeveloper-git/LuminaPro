@@ -469,6 +469,9 @@ class LibraryService {
         String genre = song.genre;
         Uint8List? coverArt;
         Duration? duration;
+        int? sRate;
+        int? bDepth;
+        int? bRate;
 
         if (metadata.title != null && metadata.title!.trim().isNotEmpty) title = metadata.title!.trim();
         if (metadata.artist != null && metadata.artist!.trim().isNotEmpty) artist = metadata.artist!.trim();
@@ -478,6 +481,11 @@ class LibraryService {
         if (metadata.picture != null) coverArt = metadata.picture!.data;
         if (metadata.durationMs != null) duration = Duration(milliseconds: metadata.durationMs!.toInt());
 
+        final dynamic safeMeta = metadata;
+        try { sRate = safeMeta.sampleRate?.toInt(); } catch (_) {}
+        try { bDepth = safeMeta.bitDepth?.toInt(); } catch (_) {}
+        try { bRate = safeMeta.bitrate?.toInt(); } catch (_) {}
+
         _localSongsCache[i] = song.copyWith(
           title: title,
           artist: artist,
@@ -486,6 +494,9 @@ class LibraryService {
           genre: genre,
           coverArt: coverArt,
           duration: duration,
+          sampleRate: sRate,
+          bitDepth: bDepth,
+          bitrate: bRate,
         );
         
         processed++;

@@ -39,6 +39,20 @@ class _LyricsViewState extends State<LyricsView> {
     _fetchSourcesAndLyrics();
   }
 
+  @override
+  void didUpdateWidget(LyricsView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.song.path != widget.song.path) {
+      setState(() {
+        _isLoading = true;
+        _syncedLyrics = null;
+        _plainLyrics = null;
+        _error = null;
+      });
+      _fetchSourcesAndLyrics();
+    }
+  }
+
   Future<void> _fetchSourcesAndLyrics() async {
     try {
       final artist = Uri.encodeComponent(widget.song.artist);
@@ -183,14 +197,18 @@ class _LyricsViewState extends State<LyricsView> {
       builder: (context, position, _) {
         int activeIndex = -1;
         for (int i = 0; i < _syncedLyrics!.length; i++) {
-          if (position >= _syncedLyrics![i].time) activeIndex = i;
-          else break;
+          if (position >= _syncedLyrics![i].time) {
+            activeIndex = i;
+          } else {
+            break;
+          }
         }
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_scrollController.hasClients && activeIndex != -1) {
-            // Rough estimation of height to center the active line
-            final targetOffset = (activeIndex * 80.0) - 100.0;
+            // Center the active index in the view
+            final screenHeight = MediaQuery.of(context).size.height;
+            final targetOffset = (activeIndex * 90.0) - (screenHeight / 3);
             _scrollController.animateTo(
               targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
               duration: const Duration(milliseconds: 600),
@@ -201,29 +219,38 @@ class _LyricsViewState extends State<LyricsView> {
 
         return ListView.builder(
           controller: _scrollController,
-          padding: const EdgeInsets.symmetric(vertical: 100),
+          padding: const EdgeInsets.symmetric(vertical: 200),
+          itemExtent: 90.0, // Fixed height for smoother scrolling and layout control
           itemCount: _syncedLyrics!.length,
           itemBuilder: (context, index) {
             final line = _syncedLyrics![index];
             final isActive = index == activeIndex;
+            final isNear = (index - (activeIndex)).abs() <= 2;
             
-            return AnimatedOpacity(
-              duration: const Duration(milliseconds: 500),
-              opacity: isActive ? 1.0 : 0.35,
-              child: AnimatedPadding(
-                duration: const Duration(milliseconds: 500),
-                padding: EdgeInsets.symmetric(vertical: isActive ? 16 : 8),
-                child: ImageFiltered(
-                  imageFilter: ImageFilter.blur(sigmaX: isActive ? 0 : 1.5, sigmaY: isActive ? 0 : 1.5),
-                  child: AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 500),
+            // If not active and not near, we still show but very faded
+            double opacity = 0.2;
+            if (isActive) opacity = 1.0;
+            else if (isNear) opacity = 0.6;
+
+            return Center(
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 400),
+                opacity: opacity,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    line.text,
+                    textAlign: TextAlign.left,
                     style: TextStyle(
-                      fontSize: isActive ? 32 : 26,
-                      fontWeight: FontWeight.w800,
+                      fontSize: isActive ? 38 : 24,
+                      fontWeight: isActive ? FontWeight.w900 : FontWeight.w700,
                       color: Colors.white,
-                      height: 1.2,
+                      height: 1.1,
+                      shadows: isActive ? [
+                        Shadow(color: LuminaColors.accent.withOpacity(0.8), blurRadius: 20),
+                        Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, 4))
+                      ] : null,
                     ),
-                    child: Text(line.text, textAlign: TextAlign.left),
                   ),
                 ),
               ),

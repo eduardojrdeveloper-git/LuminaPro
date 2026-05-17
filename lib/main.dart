@@ -18,6 +18,8 @@ final ValueNotifier<bool> showQualityInLibraryNotifier = ValueNotifier(true);
 final ValueNotifier<bool> showQualityInPlayerNotifier = ValueNotifier(true);
 final ValueNotifier<bool> extractCloudCoversNotifier = ValueNotifier(false);
 final ValueNotifier<bool> keepScreenOnNotifier = ValueNotifier(false);
+final ValueNotifier<bool> persistentLyricsModeNotifier = ValueNotifier(false);
+final ValueNotifier<bool> showLyricsInPlayerNotifier = ValueNotifier(false);
 
 // ── Apple Music Color System ──────────────────────────────────────────────────
 class LuminaColors {
@@ -183,7 +185,8 @@ class MainNavigationState extends State<MainNavigation> with TickerProviderState
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _MiniPlayer(onTap: () => setState(() => _currentIndex = 2)),
+        if (_currentIndex != 2)
+          _MiniPlayer(onTap: () => setState(() => _currentIndex = 2)),
         ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),

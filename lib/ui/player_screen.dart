@@ -5,11 +5,9 @@ import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 import '../services/player_service.dart';
 import '../services/library_service.dart';
-import '../main.dart' show LuminaColors, rotateArtworkNotifier, showQualityInPlayerNotifier;
+import '../main.dart' show LuminaColors, rotateArtworkNotifier, showQualityInPlayerNotifier, showLyricsInPlayerNotifier;
 import 'queue_screen.dart';
 import 'lyrics_screen.dart';
-
-final ValueNotifier<bool> showLyricsInPlayerNotifier = ValueNotifier(false);
 
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({super.key});
@@ -330,6 +328,14 @@ class _PlayerScreenState extends State<PlayerScreen>
                                           valueListenable: showQualityInPlayerNotifier,
                                           builder: (ctx, show, _) {
                                             if (!show || song.formatBadge.isEmpty) return const SizedBox.shrink();
+                                            String badgeText = '';
+                                            if (song.bitDepth != null) badgeText += '${song.bitDepth}-BIT';
+                                            if (song.bitrate != null) {
+                                              if (badgeText.isNotEmpty) badgeText += ' · ';
+                                              badgeText += '${song.bitrate} KBPS';
+                                            }
+                                            if (badgeText.isEmpty) badgeText = song.format.toUpperCase();
+
                                             return Container(
                                               margin: const EdgeInsets.only(left: 8),
                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -338,7 +344,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                                                 borderRadius: BorderRadius.circular(4),
                                               ),
                                               child: Text(
-                                                song.formatBadge.split(' · ').first, 
+                                                badgeText, 
                                                 style: const TextStyle(
                                                   color: LuminaColors.accent,
                                                   fontSize: 9,

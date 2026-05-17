@@ -6,7 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
-import '../main.dart' show LuminaColors, themeNotifier, rotateArtworkNotifier, showQualityInLibraryNotifier, showQualityInPlayerNotifier, extractCloudCoversNotifier, keepScreenOnNotifier;
+import '../main.dart' show LuminaColors, themeNotifier, rotateArtworkNotifier, showQualityInLibraryNotifier, showQualityInPlayerNotifier, extractCloudCoversNotifier, keepScreenOnNotifier, persistentLyricsModeNotifier;
 import '../services/player_service.dart';
 import '../services/library_service.dart';
 import '../services/log_service.dart';
@@ -541,6 +541,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             value: keepOn,
                             activeColor: LuminaColors.accent,
                             onChanged: (v) => keepScreenOnNotifier.value = v,
+                          ),
+                        );
+                      },
+                    ),
+                    const _Divider(),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: persistentLyricsModeNotifier,
+                      builder: (_, persistent, __) {
+                        return _SettingRow(
+                          isDark: isDark,
+                          icon: CupertinoIcons.quote_bubble_fill,
+                          iconColor: const Color(0xFFFA233B),
+                          title: 'Persistent Lyrics',
+                          subtitle: 'Keep lyrics mode active on track change',
+                          trailing: CupertinoSwitch(
+                            value: persistent,
+                            activeColor: LuminaColors.accent,
+                            onChanged: (v) => persistentLyricsModeNotifier.value = v,
                           ),
                         );
                       },

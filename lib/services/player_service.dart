@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'library_service.dart';
 import 'log_service.dart';
 import 'google_drive_service.dart';
+import '../main.dart' show persistentLyricsModeNotifier, showLyricsInPlayerNotifier;
 
 enum RepeatMode { off, one, all }
 
@@ -268,6 +269,12 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
 
   Future<void> _playCurrent() async {
     if (_queue.isEmpty || _currentIndex < 0 || _currentIndex >= _queue.length) return;
+
+    // Reset lyrics mode if not persistent
+    if (!persistentLyricsModeNotifier.value) {
+      showLyricsInPlayerNotifier.value = false;
+    }
+
     final song = _queue[_currentIndex];
     LogService.log('Playing: ${song.title} from ${song.path}');
 
