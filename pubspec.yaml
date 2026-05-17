@@ -3,7 +3,8 @@ description: "Bit-Perfect Audio Player"
 publish_to: 'none'
 version: 1.0.0+1
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.10.0 <4.0.0'
+
 dependencies:
   flutter:
     sdk: flutter
@@ -21,8 +22,9 @@ dependencies:
   googleapis_auth: ^1.6.0
   http: ^1.2.0
   wakelock_plus: 1.2.8
-  fftea: any
+  fftea: ^1.5.0+1
   ffmpeg_kit_flutter_audio: ^6.0.3
+
   # dsp_plugin is injected by the GitHub Actions workflow
 dev_dependencies:
   flutter_test:

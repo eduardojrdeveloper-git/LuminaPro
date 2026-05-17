@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
-import 'package:ffmpeg_kit_flutter/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter/return_code.dart';
+import 'package:ffmpeg_kit_flutter_audio/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_audio/return_code.dart';
 import 'package:fftea/fftea.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
