@@ -634,7 +634,7 @@ jobs:
             http: ^1.2.0
             wakelock_plus: 1.2.8
             fftea: ^1.5.0+1
-            ffmpeg_kit_flutter_audio: 4.5.1-LTS
+            ffmpeg_kit_flutter: 6.0.3
             dsp_plugin:
               path: ./dsp_plugin
           dev_dependencies:
@@ -656,17 +656,10 @@ jobs:
         run: |
           flutter pub get
           cd ios
-          # FFmpeg Kit 6.0.3 requires iOS 13.0+
+          # Set platform to 13.0 for FFmpeg Kit 6.0.3 compatibility
           sed -i '' "s/# platform :ios, '12.0'/platform :ios, '13.0'/g" Podfile || true
           sed -i '' "s/platform :ios, '12.0'/platform :ios, '13.0'/g" Podfile || true
           sed -i '' "s/platform :ios, '11.0'/platform :ios, '13.0'/g" Podfile || true
-          
-          # Fix for FFmpeg Kit subspec resolution: 
-          # Use ffmpeg_kit_flutter_audio which specifically targets audio and is stable.
-          # Switching to 4.5.LTS as its assets are verified to exist (no 404).
-          sed -i '' '/pod "ffmpeg_kit_flutter"/d' Podfile || true
-          sed -i '' '/pod "ffmpeg-kit-ios-https"/d' Podfile || true
-          perl -i -pe 'print "  pod \"ffmpeg_kit_flutter_audio\", \"4.5.LTS\"\n" if /target \"Runner\" do/' Podfile
           
           pod install || true
           
