@@ -1,13 +1,15 @@
-flutter pub get
+  flutter pub get
   cd ios
   # FFmpeg Kit 6.0.3 requires iOS 13.0+
   sed -i '' "s/# platform :ios, '12.0'/platform :ios, '13.0'/g" Podfile || true
   sed -i '' "s/platform :ios, '12.0'/platform :ios, '13.0'/g" Podfile || true
   sed -i '' "s/platform :ios, '11.0'/platform :ios, '13.0'/g" Podfile || true
   
-  # Fix for FFmpeg Kit subspec resolution by defining it globally
-  # This replaces the default plugin source with the version including HTTPS
-  perl -i -pe 'print "pod \"ffmpeg_kit_flutter/https\", \"6.0.3\"\n" if /^target /' Podfile
+  # Fix for FFmpeg Kit subspec resolution: 
+  # 1. Remove any existing auto-generated entry for ffmpeg_kit_flutter
+  # 2. Add the HTTPS subspec explicitly inside the Runner target
+  sed -i '' '/pod "ffmpeg_kit_flutter"/d' Podfile || true
+  perl -i -pe 'print "  pod \"ffmpeg_kit_flutter/https\", \"6.0.3\"\n" if /target \"Runner\" do/' Podfile
   
   pod install || true
   
@@ -96,13 +98,56 @@ Changed 1 dependency!
 68 packages have newer versions incompatible with dependency constraints.
 Try `flutter pub outdated` for more information.
 Analyzing dependencies
-[!] There are multiple dependencies with different sources for `ffmpeg_kit_flutter` in `Podfile`:
+Adding spec repo `trunk` with CDN `https://cdn.cocoapods.org/`
+Downloading dependencies
+Installing AppAuth (1.7.6)
+Installing AppCheckCore (11.2.0)
+Installing DKImagePickerController (4.3.9)
+Installing DKPhotoGallery (0.0.19)
+Installing Flutter (1.0.0)
+Installing GTMAppAuth (4.1.1)
+Installing GTMSessionFetcher (3.5.0)
+Installing GoogleSignIn (8.0.0)
+Installing GoogleUtilities (8.1.0)
+Installing PromisesObjC (2.4.0)
+Installing SDWebImage (5.21.7)
+Installing SwiftyGif (5.4.5)
+Installing dsp_plugin (0.0.1)
+Installing ffmpeg-kit-ios-https (6.0)
 
-- ffmpeg_kit_flutter/https (= 6.0.3)
-- ffmpeg_kit_flutter (from `.symlinks/plugins/ffmpeg_kit_flutter/ios`)
+[!] Error installing ffmpeg-kit-ios-https
+[!] /usr/bin/curl -f -L -o /var/folders/tb/y368xp_x10s3ty1b_mtl5mxr0000gn/T/d20260517-39532-8mj7t4/file.zip https://github.com/arthenica/ffmpeg-kit/releases/download/v6.0/ffmpeg-kit-https-6.0-ios-xcframework.zip --create-dirs --netrc-optional --retry 2 -A 'CocoaPods/1.16.2 cocoapods-downloader/2.1'
+
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+  0     9    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+curl: (56) The requested URL returned error: 404
 Analyzing dependencies
-[!] There are multiple dependencies with different sources for `ffmpeg_kit_flutter` in `Podfile`:
+Downloading dependencies
+Installing AppAuth (1.7.6)
+Installing AppCheckCore (11.2.0)
+Installing DKImagePickerController (4.3.9)
+Installing DKPhotoGallery (0.0.19)
+Installing Flutter (1.0.0)
+Installing GTMAppAuth (4.1.1)
+Installing GTMSessionFetcher (3.5.0)
+Installing GoogleSignIn (8.0.0)
+Installing GoogleUtilities (8.1.0)
+Installing PromisesObjC (2.4.0)
+Installing SDWebImage (5.21.7)
+Installing SwiftyGif (5.4.5)
+Installing dsp_plugin (0.0.1)
+Installing ffmpeg-kit-ios-https (6.0)
 
-- ffmpeg_kit_flutter/https (= 6.0.3)
-- ffmpeg_kit_flutter (from `.symlinks/plugins/ffmpeg_kit_flutter/ios`)
-Error: Process completed with exit code 1
+[!] Error installing ffmpeg-kit-ios-https
+[!] /usr/bin/curl -f -L -o /var/folders/tb/y368xp_x10s3ty1b_mtl5mxr0000gn/T/d20260517-40386-nogivq/file.zip https://github.com/arthenica/ffmpeg-kit/releases/download/v6.0/ffmpeg-kit-https-6.0-ios-xcframework.zip --create-dirs --netrc-optional --retry 2 -A 'CocoaPods/1.16.2 cocoapods-downloader/2.1'
+
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+  0     9    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+curl: (56) The requested URL returned error: 404
+Error: Process completed with exit code 1.
