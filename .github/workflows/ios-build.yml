@@ -615,7 +615,7 @@ jobs:
           publish_to: 'none'
           version: 1.0.0+1
           environment:
-            sdk: '>=3.0.0 <4.0.0'
+            sdk: '>=3.4.0 <4.0.0'
           dependencies:
             flutter:
               sdk: flutter
@@ -633,6 +633,8 @@ jobs:
             googleapis_auth: ^1.6.0
             http: ^1.2.0
             wakelock_plus: 1.2.8
+            fftea: ^1.5.0+1
+            ffmpeg_kit_flutter: ^6.0.3
             dsp_plugin:
               path: ./dsp_plugin
           dev_dependencies:
