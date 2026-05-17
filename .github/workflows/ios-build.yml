@@ -656,10 +656,14 @@ jobs:
         run: |
           flutter pub get
           cd ios
-          # Set platform to 13.0 for FFmpeg Kit 6.0.3 compatibility
+          # Set platform to 13.0 for FFmpeg Kit compatibility
           sed -i '' "s/# platform :ios, '12.0'/platform :ios, '13.0'/g" Podfile || true
           sed -i '' "s/platform :ios, '12.0'/platform :ios, '13.0'/g" Podfile || true
           sed -i '' "s/platform :ios, '11.0'/platform :ios, '13.0'/g" Podfile || true
+          
+          # WORKAROUND: FFmpeg-kit is retired and original binaries are 404.
+          # We inject a community mirror podspec into the Podfile before the target block.
+          sed -i '' '1s/^/pod '\''ffmpeg-kit-ios-min'\'', :podspec => '\''https:\/\/raw.githubusercontent.com\/luthviar\/ffmpeg-kit-ios-min\/main\/ffmpeg-kit-ios-min.podspec'\''\n/' Podfile
           
           pod install || true
           
