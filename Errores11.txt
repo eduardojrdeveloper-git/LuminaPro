@@ -6,10 +6,10 @@
   sed -i '' "s/platform :ios, '11.0'/platform :ios, '13.0'/g" Podfile || true
   
   # Fix for FFmpeg Kit subspec resolution: 
-  # 1. Remove any existing auto-generated entry for ffmpeg_kit_flutter
-  # 2. Add the HTTPS subspec explicitly inside the Runner target
+  # Version 6.0 has 404 on HTTPS subspec binary, using standard which is more reliable in CI
+  # and usually includes enough network support for basic GDrive streaming
   sed -i '' '/pod "ffmpeg_kit_flutter"/d' Podfile || true
-  perl -i -pe 'print "  pod \"ffmpeg_kit_flutter/https\", \"6.0.3\"\n" if /target \"Runner\" do/' Podfile
+  perl -i -pe 'print "  pod \"ffmpeg_kit_flutter\", \"6.0.3\"\n" if /target \"Runner\" do/' Podfile
   
   pod install || true
   
@@ -116,7 +116,7 @@ Installing dsp_plugin (0.0.1)
 Installing ffmpeg-kit-ios-https (6.0)
 
 [!] Error installing ffmpeg-kit-ios-https
-[!] /usr/bin/curl -f -L -o /var/folders/tb/y368xp_x10s3ty1b_mtl5mxr0000gn/T/d20260517-39532-8mj7t4/file.zip https://github.com/arthenica/ffmpeg-kit/releases/download/v6.0/ffmpeg-kit-https-6.0-ios-xcframework.zip --create-dirs --netrc-optional --retry 2 -A 'CocoaPods/1.16.2 cocoapods-downloader/2.1'
+[!] /usr/bin/curl -f -L -o /var/folders/tb/y368xp_x10s3ty1b_mtl5mxr0000gn/T/d20260517-34615-xzrovo/file.zip https://github.com/arthenica/ffmpeg-kit/releases/download/v6.0/ffmpeg-kit-https-6.0-ios-xcframework.zip --create-dirs --netrc-optional --retry 2 -A 'CocoaPods/1.16.2 cocoapods-downloader/2.1'
 
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
@@ -142,7 +142,7 @@ Installing dsp_plugin (0.0.1)
 Installing ffmpeg-kit-ios-https (6.0)
 
 [!] Error installing ffmpeg-kit-ios-https
-[!] /usr/bin/curl -f -L -o /var/folders/tb/y368xp_x10s3ty1b_mtl5mxr0000gn/T/d20260517-40386-nogivq/file.zip https://github.com/arthenica/ffmpeg-kit/releases/download/v6.0/ffmpeg-kit-https-6.0-ios-xcframework.zip --create-dirs --netrc-optional --retry 2 -A 'CocoaPods/1.16.2 cocoapods-downloader/2.1'
+[!] /usr/bin/curl -f -L -o /var/folders/tb/y368xp_x10s3ty1b_mtl5mxr0000gn/T/d20260517-35743-tl65tf/file.zip https://github.com/arthenica/ffmpeg-kit/releases/download/v6.0/ffmpeg-kit-https-6.0-ios-xcframework.zip --create-dirs --netrc-optional --retry 2 -A 'CocoaPods/1.16.2 cocoapods-downloader/2.1'
 
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed

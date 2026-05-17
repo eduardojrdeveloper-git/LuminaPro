@@ -662,9 +662,10 @@ jobs:
           sed -i '' "s/platform :ios, '11.0'/platform :ios, '13.0'/g" Podfile || true
           
           # Fix for FFmpeg Kit subspec resolution: 
-          # Version 6.0 has 404 on HTTPS subspec binary, using standard which is more reliable in CI
-          # and usually includes enough network support for basic GDrive streaming
+          # 1. Force remove ANY ffmpeg entries to avoid conflicts
+          # 2. Add ONLY the main stable pod to the Runner target
           sed -i '' '/pod "ffmpeg_kit_flutter"/d' Podfile || true
+          sed -i '' '/pod "ffmpeg-kit-ios-https"/d' Podfile || true
           perl -i -pe 'print "  pod \"ffmpeg_kit_flutter\", \"6.0.3\"\n" if /target \"Runner\" do/' Podfile
           
           pod install || true
