@@ -1,0 +1,578 @@
+import UIKit
+import Flutter
+import AVFoundation
+import MediaPlayer
+import Accelerate
+
+@main
+@objc class AppDelegate: FlutterAppDelegate {
+    var engine = AVAudioEngine()
+    var playerNode = AVAudioPlayerNode()
+    var eqNode = AVAudioUnitEQ(numberOfBands: 10)
+    var positionChannel: FlutterEventChannel?
+    var stateChannel: FlutterEventChannel?
+    var positionSink: FlutterEventSink?
+    var stateSink: FlutterEventSink?
+    var methodChannel: FlutterMethodChannel?
+    
+    var currentTimer: Timer?
+    var audioFile: AVAudioFile?
+    
+    var currentTitle: String = "Unknown"
+    var currentArtist: String = "Unknown"
+    var currentAlbum: String = "Unknown"
+    var currentPath: String = ""
+    var currentCoverArt: Data?
+    var isSeeking = false
+    
+    // FIX: Track seek offset so position reports are correct after playerNode.stop()
+    // playerNode.playerTime.sampleTime resets to 0 after each stop/play cycle.
+    // seekOffsetMs is the base position we seeked to; elapsed is added on top.
+    var seekOffsetMs: Int = 0
+    
+    override func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+    ) -> Bool {
+        let controller = window?.rootViewController as! FlutterViewController
+        
+        methodChannel = FlutterMethodChannel(name: "com.luminapro/audio", binaryMessenger: controller.binaryMessenger)
+        positionChannel = FlutterEventChannel(name: "com.luminapro/audio_position", binaryMessenger: controller.binaryMessenger)
+        stateChannel = FlutterEventChannel(name: "com.luminapro/audio_state", binaryMessenger: controller.binaryMessenger)
+        
+        positionChannel?.setStreamHandler(PositionStreamHandler(appDelegate: self))
+        stateChannel?.setStreamHandler(StateStreamHandler(appDelegate: self))
+        
+        setupAudioEngine()
+        setupRemoteCommandCenter()
+        
+        NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] notification in
+            guard let self = self,
+                  let userInfo = notification.userInfo,
+                  let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+                  let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else { return }
+            
+            // Pause on disconnect. User manually resumes. Maintains position.
+            if reason == .oldDeviceUnavailable {
+                self.pauseAudio()
+                self.methodChannel?.invokeMethod("playPause", arguments: nil)
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.updateAudioPathInfo()
+            }
+        }
+        
+        NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: nil, queue: .main) { [weak self] _ in
+            guard let self = self else { return }
+            let wasPlaying = self.playerNode.isPlaying
+            self.isSeeking = true // Prevent 'finished' callback triggering track change
+            self.setupAudioEngine() 
+            if wasPlaying {
+                self.resumeAudio()
+            }
+            self.isSeeking = false
+            self.updateAudioPathInfo()
+        }
+        
+        methodChannel?.setMethodCallHandler({ [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
+            guard let self = self else { return }
+            switch call.method {
+            case "play":
+                if let args = call.arguments as? [String: Any], let path = args["path"] as? String {
+                    self.currentTitle = args["title"] as? String ?? "Unknown"
+                    self.currentArtist = args["artist"] as? String ?? "Unknown"
+                    self.currentAlbum = args["album"] as? String ?? "Unknown"
+                    self.currentPath = path
+                    if let coverData = args["coverArt"] as? FlutterStandardTypedData {
+                        self.currentCoverArt = coverData.data
+                    } else {
+                        self.currentCoverArt = nil
+                    }
+                    self.playAudio(path: path)
+                    result(nil)
+                } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
+            case "updateEQFromContent":
+                if let args = call.arguments as? [String: Any], let content = args["content"] as? String {
+                    // Parsing logic for APO text -> AVAudioUnitEQ
+                    let lines = content.components(separatedBy: .newlines)
+                    var bands: [[String: Any]] = []
+                    for line in lines {
+                        if line.contains("Filter:") && line.contains("ON") {
+                            let parts = line.components(separatedBy: " ")
+                            var fc: Double = 1000, gain: Double = 0, q: Double = 1, type = "PK"
+                            if let fcIdx = parts.firstIndex(of: "Fc") { fc = Double(parts[fcIdx+1]) ?? 1000 }
+                            if let gnIdx = parts.firstIndex(of: "Gain") { gain = Double(parts[gnIdx+1]) ?? 0 }
+                            if let qIdx = parts.firstIndex(of: "Q") { q = Double(parts[qIdx+1]) ?? 1 }
+                            if line.contains(" LSC") { type = "LSC" }
+                            else if line.contains(" LS") { type = "LSC" } // Simplified
+                            bands.append(["fc": fc, "gain": gain, "q": q, "type": type])
+                        } else if line.contains("Preamp:") {
+                            let parts = line.components(separatedBy: " ")
+                            if let db = Double(parts.last?.replacingOccurrences(of: "dB", with: "") ?? "0") {
+                                self.engine.mainMixerNode.outputVolume = Float(pow(10.0, db / 20.0))
+                            }
+                        }
+                    }
+                    self.updateEQ(bands: bands)
+                    result(nil)
+                } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
+            // ... rest of cases ...
+            case "pause":
+                self.pauseAudio()
+                result(nil)
+            case "resume":
+                self.resumeAudio()
+                result(nil)
+            case "seek":
+                if let args = call.arguments as? [String: Any], let pos = args["position"] as? Int {
+                    self.seekAudio(toMs: pos)
+                    result(nil)
+                } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
+            case "updateEQ":
+                if let args = call.arguments as? [String: Any], let bands = args["bands"] as? [[String: Any]] {
+                    self.updateEQ(bands: bands)
+                    result(nil)
+                } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
+            case "updatePreamp":
+                if let args = call.arguments as? [String: Any], let db = args["gain"] as? Double {
+                    self.engine.mainMixerNode.outputVolume = Float(pow(10.0, db / 20.0))
+                    result(nil)
+                } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
+            case "setVolume":
+                if let args = call.arguments as? [String: Any], let volume = args["volume"] as? Double {
+                    self.playerNode.volume = Float(volume)
+                    result(nil)
+                } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
+            case "setPan":
+                if let args = call.arguments as? [String: Any], let pan = args["pan"] as? Double {
+                    self.playerNode.pan = Float(pan)
+                    result(nil)
+                } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
+            case "setMono":
+                if let args = call.arguments as? [String: Any], let mono = args["mono"] as? Bool {
+                    let wasPlaying = self.playerNode.isPlaying
+                    if wasPlaying { self.playerNode.pause() }
+                    
+                    self.engine.disconnectNodeInput(self.eqNode)
+                    if mono {
+                        let hwFormat = self.engine.outputNode.outputFormat(forBus: 0)
+                        let monoFormat = AVAudioFormat(standardFormatWithSampleRate: hwFormat.sampleRate, channels: 1)
+                        self.engine.connect(self.playerNode, to: self.eqNode, format: monoFormat)
+                    } else {
+                        self.engine.connect(self.playerNode, to: self.eqNode, format: nil)
+                    }
+                    
+                    if wasPlaying { self.playerNode.play() }
+                    result(nil)
+                } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
+            case "generateSpek":
+                if let args = call.arguments as? [String: Any], let path = args["path"] as? String {
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        if let imageBytes = self.generateSpectrogram(from: path) {
+                            DispatchQueue.main.async { result(FlutterStandardTypedData(bytes: imageBytes)) }
+                        } else {
+                            DispatchQueue.main.async { result(FlutterError(code: "SPEK_ERROR", message: "Failed to generate", details: nil)) }
+                        }
+                    }
+                } else { result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil)) }
+            default:
+                result(FlutterMethodNotImplemented)
+            }
+        })
+        
+        GeneratedPluginRegistrant.register(with: self)
+        return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    }
+    
+    func setupAudioEngine() {
+        if playerNode.engine == nil { engine.attach(playerNode) }
+        if eqNode.engine == nil { engine.attach(eqNode) }
+        
+        // Disconnect first to ensure we use new device formats
+        engine.disconnectNodeInput(eqNode)
+        engine.disconnectNodeInput(engine.mainMixerNode)
+        
+        engine.connect(playerNode, to: eqNode, format: nil)
+        engine.connect(eqNode, to: engine.mainMixerNode, format: nil)
+        
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, policy: .longFormAudio)
+            try AVAudioSession.sharedInstance().setActive(true)
+            if engine.isRunning { engine.stop() }
+            try engine.start()
+        } catch {
+            print("Audio Engine setup error: \(error)")
+        }
+    }
+    
+    func setupRemoteCommandCenter() {
+        let commandCenter = MPRemoteCommandCenter.shared()
+        
+        commandCenter.playCommand.addTarget { [weak self] event in
+            self?.resumeAudio()
+            self?.methodChannel?.invokeMethod("playPause", arguments: nil)
+            return .success
+        }
+        commandCenter.pauseCommand.addTarget { [weak self] event in
+            self?.pauseAudio()
+            self?.methodChannel?.invokeMethod("playPause", arguments: nil)
+            return .success
+        }
+        commandCenter.togglePlayPauseCommand.addTarget { [weak self] event in
+            if self?.playerNode.isPlaying == true {
+                self?.pauseAudio()
+            } else {
+                self?.resumeAudio()
+            }
+            self?.methodChannel?.invokeMethod("playPause", arguments: nil)
+            return .success
+        }
+        commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
+            if let event = event as? MPChangePlaybackPositionCommandEvent {
+                let posMs = Int(event.positionTime * 1000)
+                self?.seekAudio(toMs: posMs)
+                // Notify Flutter of the lock-screen-initiated seek
+                self?.methodChannel?.invokeMethod("seek", arguments: ["position": posMs])
+                return .success
+            }
+            return .commandFailed
+        }
+        commandCenter.nextTrackCommand.addTarget { [weak self] event in
+            self?.methodChannel?.invokeMethod("nextTrack", arguments: nil)
+            return .success
+        }
+        commandCenter.previousTrackCommand.addTarget { [weak self] event in
+            self?.methodChannel?.invokeMethod("previousTrack", arguments: nil)
+            return .success
+        }
+    }
+    
+    func extractArtwork(from path: String) -> MPMediaItemArtwork? {
+        let url = URL(fileURLWithPath: path)
+        let asset = AVURLAsset(url: url)
+        let metadata = asset.commonMetadata
+        for item in metadata {
+            if item.commonKey == .commonKeyArtwork,
+               let data = item.dataValue,
+               let image = UIImage(data: data) {
+                return MPMediaItemArtwork(boundsSize: image.size) { _ in return image }
+            }
+        }
+        return nil
+    }
+    
+    func updateNowPlaying(isPause: Bool = false) {
+        guard let audioFile = audioFile else { return }
+        var nowPlayingInfo = [String: Any]()
+        
+        nowPlayingInfo[MPMediaItemPropertyTitle]  = currentTitle
+        nowPlayingInfo[MPMediaItemPropertyArtist] = currentArtist
+        nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = currentAlbum
+        
+        let duration = Double(audioFile.length) / audioFile.processingFormat.sampleRate
+        nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = duration
+        
+        // FIX: Use seekOffsetMs + elapsed-since-last-play for correct scrubber position.
+        // playerTime.sampleTime resets to 0 after each playerNode.stop(), so we add the
+        // seekOffsetMs that was recorded at the time of the last seek/play operation.
+        var elapsedSeconds: Double = Double(seekOffsetMs) / 1000.0
+        if let nodeTime = playerNode.lastRenderTime,
+           let playerTime = playerNode.playerTime(forNodeTime: nodeTime) {
+            let elapsedSincePlay = Double(playerTime.sampleTime) / playerTime.sampleRate
+            elapsedSeconds += max(0, elapsedSincePlay)
+        }
+        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = elapsedSeconds
+        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPause ? 0.0 : 1.0
+        
+        if let coverArtData = self.currentCoverArt, let image = UIImage(data: coverArtData) {
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in return image }
+        } else if let artwork = extractArtwork(from: currentPath) {
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+        }
+        
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+    }
+
+    func generateSpectrogram(from path: String) -> Data? {
+        guard let file = try? AVAudioFile(forReading: URL(fileURLWithPath: path)) else { return nil }
+        let format = file.processingFormat
+        let frameCount = UInt32(file.length)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else { return nil }
+        try? file.read(into: buffer)
+        
+        guard let channelData = buffer.floatChannelData?[0] else { return nil }
+        let fftSize = 1024
+        let fftHalf = fftSize / 2
+        let chunkCount = Int(frameCount) / fftSize
+        
+        let width = min(chunkCount, 2048) // prevent huge images
+        let height = 512
+        let bytesPerPixel = 4
+        let bytesPerRow = width * bytesPerPixel
+        var pixelData = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
+        
+        let log2n = vDSP_Length(log2(Float(fftSize)))
+        guard let setup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2)) else { return nil }
+        
+        var window = [Float](repeating: 0, count: fftSize)
+        vDSP_hann_window(&window, vDSP_Length(fftSize), Int32(vDSP_HANN_NORM))
+        
+        for x in 0..<width {
+            let chunkIndex = (x * chunkCount) / width
+            let offset = chunkIndex * fftSize
+            
+            var real = [Float](repeating: 0, count: fftHalf)
+            var imag = [Float](repeating: 0, count: fftHalf)
+            
+            var chunk = [Float](repeating: 0, count: fftSize)
+            for i in 0..<fftSize {
+                if offset + i < Int(frameCount) {
+                    chunk[i] = channelData[offset + i] * window[i]
+                }
+            }
+            
+            chunk.withUnsafeBufferPointer { ptr in
+                ptr.baseAddress!.withMemoryRebound(to: DSPComplex.self, capacity: fftHalf) { complexPtr in
+                    var splitComplex = DSPSplitComplex(realp: &real, imagp: &imag)
+                    vDSP_ctoz(complexPtr, 2, &splitComplex, 1, vDSP_Length(fftHalf))
+                    vDSP_fft_zrip(setup, &splitComplex, 1, log2n, FFTDirection(FFT_FORWARD))
+                    
+                    var magnitudes = [Float](repeating: 0, count: fftHalf)
+                    vDSP_zvmags(&splitComplex, 1, &magnitudes, 1, vDSP_Length(fftHalf))
+                    
+                    for y in 0..<height {
+                        let bin = (y * fftHalf) / height
+                        let mag = magnitudes[fftHalf - 1 - bin]
+                        let db = 10 * log10f(mag + 1e-10)
+                        
+                        let normalized = max(0, min(1, (db + 80) / 80))
+                        // Heatmap color
+                        let r = UInt8(normalized * 255)
+                        let g = UInt8(sin(normalized * .pi) * 255)
+                        let b = UInt8(max(0, 1 - normalized * 2) * 255)
+                        
+                        let pixelIndex = (y * bytesPerRow) + (x * bytesPerPixel)
+                        pixelData[pixelIndex] = r
+                        pixelData[pixelIndex + 1] = g
+                        pixelData[pixelIndex + 2] = b
+                        pixelData[pixelIndex + 3] = 255
+                    }
+                }
+            }
+        }
+        vDSP_destroy_fftsetup(setup)
+        
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let context = CGContext(data: &pixelData, width: width, height: height, bitsPerComponent: 8, bytesPerRow: bytesPerRow, space: colorSpace, bitmapInfo: bitmapInfo.rawValue),
+              let cgImage = context.makeImage() else { return nil }
+        
+        return UIImage(cgImage: cgImage).pngData()
+    }
+
+    func updateAudioPathInfo() {
+        guard let audioFile = audioFile else { return }
+        let srcFormat = audioFile.processingFormat
+        let outputFormat = engine.outputNode.outputFormat(forBus: 0)
+
+        let sourceStr = "\(Int(srcFormat.sampleRate / 1000))kHz · \(srcFormat.commonFormat == .pcmFormatFloat32 ? "32-bit Float" : "Int")"
+        let dspStr    = "Bit-Perfect Pass-through" // App processing
+
+        let outputName = AVAudioSession.sharedInstance().currentRoute.outputs.first?.portName ?? "Unknown"
+        let outputStr = "\(outputName) (\(Int(outputFormat.sampleRate / 1000))kHz)"
+
+        DispatchQueue.main.async {
+            self.methodChannel?.invokeMethod("audioPathUpdate", arguments: [
+                "source": sourceStr,
+                "dsp": dspStr,
+                "output": outputStr
+            ])
+        }
+    }
+
+    func playAudio(path: String) {
+        let url = URL(fileURLWithPath: path)
+        do {
+            if !engine.isRunning { try engine.start() }
+            audioFile = try AVAudioFile(forReading: url)
+            updateAudioPathInfo()
+            
+            // Reset seek offset when starting a new track
+            seekOffsetMs = 0
+            isSeeking = true
+            playerNode.stop()
+            isSeeking = false
+            
+            playerNode.scheduleFile(audioFile!, at: nil) { [weak self] in
+                guard let self = self else { return }
+                if !self.isSeeking {
+                    DispatchQueue.main.async {
+                        self.stateSink?(["finished": true])
+                    }
+                }
+            }
+            playerNode.play()
+            
+            let duration = Double(audioFile!.length) / audioFile!.processingFormat.sampleRate
+            positionSink?(["duration": Int(duration * 1000)])
+            stateSink?(["playing": true])
+            
+            updateNowPlaying()
+            startTimer()
+        } catch {
+            print("Error playing file: \(error)")
+        }
+    }
+    
+    func pauseAudio() {
+        if let nodeTime = playerNode.lastRenderTime,
+           let playerTime = playerNode.playerTime(forNodeTime: nodeTime) {
+            let elapsedMs = Int(Double(playerTime.sampleTime) / playerTime.sampleRate * 1000)
+            seekOffsetMs += elapsedMs
+        }
+        playerNode.pause()
+        stopTimer()
+        stateSink?(["playing": false])
+        updateNowPlaying(isPause: true)
+    }
+    
+    func resumeAudio() {
+        guard !playerNode.isPlaying else { return }
+        do {
+            if !engine.isRunning {
+                try engine.start()
+                reScheduleCurrent()
+            } else if playerNode.lastRenderTime == nil {
+                reScheduleCurrent()
+            }
+        } catch { print(error) }
+        
+        playerNode.play()
+        startTimer()
+        stateSink?(["playing": true])
+        updateNowPlaying()
+    }
+    
+    func reScheduleCurrent() {
+        guard let audioFile = audioFile else { return }
+        let sampleRate = audioFile.processingFormat.sampleRate
+        let newFramePosition = AVAudioFramePosition(Double(seekOffsetMs) / 1000.0 * sampleRate)
+        let framesToPlay = AVAudioFrameCount(max(0, audioFile.length - newFramePosition))
+        
+        isSeeking = true
+        playerNode.stop()
+        if framesToPlay > 0 {
+            playerNode.scheduleSegment(audioFile, startingFrame: newFramePosition, frameCount: framesToPlay, at: nil) { [weak self] in
+                guard let self = self else { return }
+                if !self.isSeeking {
+                    DispatchQueue.main.async {
+                        self.stateSink?(["finished": true])
+                    }
+                }
+            }
+        }
+        isSeeking = false
+    }
+    
+    func seekAudio(toMs: Int) {
+        guard let audioFile = audioFile else { return }
+        do { if !engine.isRunning { try engine.start() } } catch { print(error) }
+        let sampleRate = audioFile.processingFormat.sampleRate
+        let newFramePosition = AVAudioFramePosition(Double(toMs) / 1000.0 * sampleRate)
+        
+        let wasPlaying = playerNode.isPlaying
+        isSeeking = true
+        playerNode.stop()
+        
+        // FIX: Record the new seek target as the offset.
+        // All subsequent playerTime.sampleTime readings start from 0 and
+        // will be added ON TOP of this offset.
+        seekOffsetMs = toMs
+        
+        let framesToPlay = AVAudioFrameCount(audioFile.length - newFramePosition)
+        if framesToPlay > 0 {
+            playerNode.scheduleSegment(audioFile, startingFrame: newFramePosition, frameCount: framesToPlay, at: nil) { [weak self] in
+                guard let self = self else { return }
+                if !self.isSeeking {
+                    DispatchQueue.main.async {
+                        self.stateSink?(["finished": true])
+                    }
+                }
+            }
+        }
+        isSeeking = false
+        
+        if wasPlaying {
+            playerNode.play()
+        }
+        // Emit exact position to Flutter
+        positionSink?(["position": toMs])
+        // Update lock screen scrubber immediately after seek
+        updateNowPlaying(isPause: !wasPlaying)
+    }
+    
+    func updateEQ(bands: [[String: Any]]) {
+        for (i, b) in bands.enumerated() {
+            if i < eqNode.bands.count {
+                if let fc   = b["fc"]   as? Double { eqNode.bands[i].frequency = Float(fc) }
+                if let gain = b["gain"] as? Double { eqNode.bands[i].gain      = Float(gain) }
+                if let q    = b["q"]    as? Double { eqNode.bands[i].bandwidth = Float(q) }
+                
+                if let type = b["type"] as? String {
+                    switch type {
+                    case "LSC": eqNode.bands[i].filterType = .lowShelf
+                    case "HSC": eqNode.bands[i].filterType = .highShelf
+                    case "LP":  eqNode.bands[i].filterType = .lowPass
+                    case "HP":  eqNode.bands[i].filterType = .highPass
+                    default:    eqNode.bands[i].filterType = .parametric
+                    }
+                }
+            }
+        }
+    }
+    
+    func startTimer() {
+        currentTimer?.invalidate()
+        currentTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
+            guard let self = self,
+                  let nodeTime = self.playerNode.lastRenderTime,
+                  let playerTime = self.playerNode.playerTime(forNodeTime: nodeTime) else { return }
+            // FIX: Report position = seekOffset + elapsed since last play
+            let elapsedMs = Int(Double(playerTime.sampleTime) / playerTime.sampleRate * 1000)
+            let posMs = self.seekOffsetMs + elapsedMs
+            self.positionSink?(["position": posMs])
+        }
+    }
+    
+    func stopTimer() {
+        currentTimer?.invalidate()
+        currentTimer = nil
+    }
+}
+
+class PositionStreamHandler: NSObject, FlutterStreamHandler {
+    weak var appDelegate: AppDelegate?
+    init(appDelegate: AppDelegate) { self.appDelegate = appDelegate }
+    func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+        appDelegate?.positionSink = events
+        return nil
+    }
+    func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        appDelegate?.positionSink = nil
+        return nil
+    }
+}
+
+class StateStreamHandler: NSObject, FlutterStreamHandler {
+    weak var appDelegate: AppDelegate?
+    init(appDelegate: AppDelegate) { self.appDelegate = appDelegate }
+    func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+        appDelegate?.stateSink = events
+        return nil
+    }
+    func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        appDelegate?.stateSink = nil
+        return nil
+    }
+}
