@@ -661,8 +661,9 @@ jobs:
           sed -i '' "s/platform :ios, '12.0'/platform :ios, '13.0'/g" Podfile || true
           sed -i '' "s/platform :ios, '11.0'/platform :ios, '13.0'/g" Podfile || true
           
-          # Fix for FFmpeg Kit subspec resolution
-          echo "pod 'ffmpeg_kit_flutter/https', '6.0.3'" >> Podfile
+          # Fix for FFmpeg Kit subspec resolution by defining it globally
+          # This replaces the default plugin source with the version including HTTPS
+          perl -i -pe 'print "pod \"ffmpeg_kit_flutter/https\", \"6.0.3\"\n" if /^target /' Podfile
           
           pod install || true
           
