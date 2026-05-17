@@ -634,7 +634,11 @@ jobs:
             http: ^1.2.0
             wakelock_plus: 1.2.8
             fftea: ^1.5.0+1
-            ffmpeg_kit_flutter: 6.0.3
+            ffmpeg_kit_flutter:
+              git:
+                url: https://github.com/Sahad2701/ffmpeg-kit.git
+                path: flutter/flutter
+                ref: flutter_fix_retired_v6.0.3
             dsp_plugin:
               path: ./dsp_plugin
           dev_dependencies:
