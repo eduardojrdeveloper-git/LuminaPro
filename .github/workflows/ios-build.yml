@@ -634,7 +634,7 @@ jobs:
             http: ^1.2.0
             wakelock_plus: 1.2.8
             fftea: ^1.5.0+1
-            ffmpeg_kit_flutter_audio: ^4.5.LTS
+            ffmpeg_kit_flutter_audio: 4.5.1-LTS
             dsp_plugin:
               path: ./dsp_plugin
           dev_dependencies:
