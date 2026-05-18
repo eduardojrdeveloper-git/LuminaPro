@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../services/library_service.dart';
 import '../services/player_service.dart';
 import '../main.dart' show LuminaColors;
+import 'song_menu.dart';
 
 class DetailScreen extends StatelessWidget {
   final String title;
@@ -146,7 +147,6 @@ class DetailScreen extends StatelessWidget {
                             isDark: isDark,
                             onTap: () {
                               PlayerService().playQueue(songs, initialIndex: 0);
-                              // MiniPlayer should react to currentSong notifier
                             },
                           ),
                         ),
@@ -200,6 +200,7 @@ class DetailScreen extends StatelessWidget {
                               fmt: _fmt,
                               onTap: () => PlayerService()
                                   .playQueue(songs, initialIndex: index),
+                              onMore: () => showSongMenuGlobal(context, song, index, songs),
                             ),
                             if (index < songs.length - 1)
                               Divider(
@@ -234,6 +235,7 @@ class _TrackRow extends StatelessWidget {
   final bool isDark;
   final String Function(Duration?) fmt;
   final VoidCallback onTap;
+  final VoidCallback onMore;
 
   const _TrackRow({
     required this.song,
@@ -242,6 +244,7 @@ class _TrackRow extends StatelessWidget {
     required this.isDark,
     required this.fmt,
     required this.onTap,
+    required this.onMore,
   });
 
   @override
@@ -314,8 +317,11 @@ class _TrackRow extends StatelessWidget {
                     ),
                   ),
                 const SizedBox(width: 12),
-                const Icon(CupertinoIcons.ellipsis,
-                    color: LuminaColors.labelSecondary, size: 20),
+                GestureDetector(
+                  onTap: onMore,
+                  child: const Icon(CupertinoIcons.ellipsis,
+                      color: LuminaColors.labelSecondary, size: 20),
+                ),
               ],
             ),
           ],

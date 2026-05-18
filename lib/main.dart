@@ -132,8 +132,8 @@ class MainNavigation extends StatefulWidget {
 
 class MainNavigationState extends State<MainNavigation> with TickerProviderStateMixin, WidgetsBindingObserver {
   int _currentIndex = 0;
-
-  void setIndex(int index) => setState(() => _currentIndex = index);
+  late PageController _pageController;
+  final _ps = PlayerService();
 
   final List<Widget> _screens = [
     const LibraryScreen(),
@@ -145,6 +145,7 @@ class MainNavigationState extends State<MainNavigation> with TickerProviderState
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
     WidgetsBinding.instance.addObserver(this);
     
     // Listen for screen on toggle
@@ -159,9 +160,20 @@ class MainNavigationState extends State<MainNavigation> with TickerProviderState
 
   @override
   void dispose() {
+    _pageController.dispose();
     keepScreenOnNotifier.removeListener(_updateWakelock);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void setIndex(int index) {
+    if (index == _currentIndex) return;
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeOutQuart,
+    );
+    setState(() => _currentIndex = index);
   }
 
   @override
@@ -178,9 +190,13 @@ class MainNavigationState extends State<MainNavigation> with TickerProviderState
 
     return Scaffold(
       extendBody: true, // Allow body to flow behind bottom bar
-      body: IndexedStack(
-        index: _currentIndex,
+      body: PageView(
+        controller: _pageController,
+        physics: const NeverScrollableScrollPhysics(),
         children: _screens,
+        onPageChanged: (idx) {
+          if (idx != _currentIndex) setState(() => _currentIndex = idx);
+        },
       ),
       bottomNavigationBar: _buildBottomBar(isDark),
     );
@@ -190,13 +206,24 @@ class MainNavigationState extends State<MainNavigation> with TickerProviderState
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        AnimatedSize(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOutCubic,
-          child: _currentIndex != 2 
-            ? _MiniPlayer(onTap: () => setState(() => _currentIndex = 2))
-            : const SizedBox.shrink(),
+        // ── Mini Player with Slide Animation ───────────────────────────────
+        ValueListenableBuilder<AudioFile?>(
+          valueListenable: _ps.currentSong,
+          builder: (context, song, _) {
+            final showMini = song != null && _currentIndex != 2;
+            return AnimatedSlide(
+              offset: showMini ? Offset.zero : const Offset(0, 1.2),
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeOutQuart,
+              child: AnimatedOpacity(
+                opacity: showMini ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 300),
+                child: _MiniPlayer(onTap: () => setIndex(2)),
+              ),
+            );
+          },
         ),
+        
         ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),

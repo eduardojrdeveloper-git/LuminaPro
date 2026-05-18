@@ -1,15 +1,73 @@
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../services/library_service.dart';
 import '../services/player_service.dart';
 import '../services/google_drive_service.dart';
+import '../services/spotiflac_service.dart';
 import '../main.dart' show LuminaColors, MainNavigation, MainNavigationState, showQualityInLibraryNotifier;
 import 'detail_screen.dart';
 import 'artist_albums_screen.dart';
-import 'folder_browser_screen.dart';
+import 'song_menu.dart';
 
 enum SortMode { title, artist, album }
+
+class SegmentedBorderPainter extends CustomPainter {
+  final int totalSegments;
+  final int filledSegments;
+  final Color activeColor;
+  final Color inactiveColor;
+  final double strokeWidth;
+
+  SegmentedBorderPainter({
+    required this.totalSegments,
+    required this.filledSegments,
+    required this.activeColor,
+    required this.inactiveColor,
+    this.strokeWidth = 3.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (totalSegments <= 0) return;
+    
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
+    final RRect rrect = RRect.fromRectAndRadius(rect, const Radius.circular(10));
+    final Path path = Path()..addRRect(rrect);
+    final ui.PathMetrics pathMetrics = path.computeMetrics();
+    final ui.PathMetric metric = pathMetrics.first;
+
+    final double totalLength = metric.length;
+    final double segmentLength = totalLength / totalSegments;
+    const double gap = 2.0;
+
+    for (int i = 0; i < totalSegments; i++) {
+      paint.color = i < filledSegments ? activeColor : inactiveColor;
+      final double start = i * segmentLength;
+      final double end = (i + 1) * segmentLength - gap;
+      
+      if (end > start) {
+        canvas.drawPath(
+          metric.extractPath(start, end),
+          paint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant SegmentedBorderPainter oldDelegate) {
+    return oldDelegate.totalSegments != totalSegments || 
+           oldDelegate.filledSegments != filledSegments ||
+           oldDelegate.activeColor != activeColor;
+  }
+}
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -27,18 +85,16 @@ class LibraryScreenState extends State<LibraryScreen>
   late TabController _tabController;
   final TextEditingController _searchCtrl = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
-  List<String> _libraryNavStack = []; // New state for Folder Browser
+  List<String> _libraryNavStack = []; 
+  final _spotiflac = SpotiflacService();
 
   @override
   void initState() {
     super.initState();
-    // 6 tabs: Categories, Songs, Artists, Albums, Genres, Loved
     _tabController = TabController(length: 6, vsync: this);
     _tabController.addListener(() => setState(() {}));
     _refreshLibrary();
     _searchCtrl.addListener(_applyFilter);
-    
-    // Auto-refresh when cloud indexing finishes
     LibraryService.libraryUpdateNotifier.addListener(_refreshLibrary);
   }
 
@@ -148,8 +204,34 @@ class LibraryScreenState extends State<LibraryScreen>
 
   void switchTab(int index) {
     if (index >= 0 && index < _tabController.length) {
-      _tabController.index = index; // Listener already calls setState
+      _tabController.index = index;
     }
+  }
+
+  Future<void> _downloadAlbum(List<AudioFile> songs) async {
+    final toDownload = songs.where((s) => !s.isLocal && s.driveFileId != null).toList();
+    if (toDownload.isEmpty) {
+      _showToast('All songs in this album are already local.');
+      return;
+    }
+
+    _showToast('Starting download of ${toDownload.length} songs...');
+    
+    for (var song in toDownload) {
+      final track = SpotiflacTrack(
+        id: song.driveFileId!,
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+      );
+      
+      final success = await _spotiflac.downloadAndSave(track);
+      if (success && mounted) setState(() {});
+    }
+  }
+
+  void _showToast(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 2)));
   }
 
   @override
@@ -316,126 +398,6 @@ class LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  Widget _buildFolderBrowser(bool isDark) {
-    if (_libraryNavStack.isEmpty) {
-      // Level 0: Local vs GDrive
-      return ListView(
-        padding: const EdgeInsets.only(bottom: 130),
-        children: [
-          _FolderRow(
-            title: 'Local',
-            icon: CupertinoIcons.device_phone_portrait,
-            isDark: isDark,
-            onTap: () => setState(() => _libraryNavStack.add('Local')),
-          ),
-          Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 64, height: 1),
-          _FolderRow(
-            title: 'GDrive',
-            icon: CupertinoIcons.cloud,
-            isDark: isDark,
-            onTap: () => setState(() => _libraryNavStack.add('GDrive')),
-          ),
-        ],
-      );
-    }
-
-    final isLocal = _libraryNavStack[0] == 'Local';
-    var songs = _displayedSongs.where((s) => s.isLocal == isLocal).toList();
-
-    if (_libraryNavStack.length == 1) {
-      // Level 1: Group by Album Artist
-      final Map<String, List<AudioFile>> grouped = {};
-      for (var s in songs) {
-        var aa = (s.albumArtist.trim().isNotEmpty && s.albumArtist != 'Unknown Artist' && s.albumArtist != 'GDrive' && s.albumArtist != 'Cloud') ? s.albumArtist : 'No Metadata';
-        grouped.putIfAbsent(aa, () => []).add(s);
-      }
-      final keys = grouped.keys.toList()..sort();
-      return ListView.separated(
-        padding: const EdgeInsets.only(bottom: 130),
-        itemCount: keys.length,
-        separatorBuilder: (_, __) => Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 64, height: 1),
-        itemBuilder: (context, i) {
-          final aa = keys[i];
-          return _FolderRow(
-            title: aa,
-            subtitle: '${grouped[aa]!.length} songs',
-            icon: CupertinoIcons.person_2_fill,
-            isDark: isDark,
-            onTap: () => setState(() => _libraryNavStack.add(aa)),
-          );
-        },
-      );
-    }
-
-    // Filter by Album Artist
-    final targetAA = _libraryNavStack[1];
-    songs = songs.where((s) {
-      var aa = (s.albumArtist.trim().isNotEmpty && s.albumArtist != 'Unknown Artist' && s.albumArtist != 'GDrive' && s.albumArtist != 'Cloud') ? s.albumArtist : 'No Metadata';
-      return aa == targetAA;
-    }).toList();
-
-    if (_libraryNavStack.length == 2) {
-      // Level 2: Group by Album
-      final Map<String, List<AudioFile>> grouped = {};
-      for (var s in songs) {
-        var al = (s.album.trim().isNotEmpty && s.album != 'Unknown Album' && s.album != 'GDrive' && s.album != 'Cloud') ? s.album : 'No Metadata';
-        grouped.putIfAbsent(al, () => []).add(s);
-      }
-      final keys = grouped.keys.toList()..sort();
-      return ListView.separated(
-        padding: const EdgeInsets.only(bottom: 130),
-        itemCount: keys.length,
-        separatorBuilder: (_, __) => Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 64, height: 1),
-        itemBuilder: (context, i) {
-          final al = keys[i];
-          return _FolderRow(
-            title: al,
-            subtitle: '${grouped[al]!.length} songs',
-            icon: CupertinoIcons.music_albums,
-            isDark: isDark,
-            onTap: () => setState(() => _libraryNavStack.add(al)),
-          );
-        },
-      );
-    }
-
-    // Filter by Album
-    final targetAl = _libraryNavStack[2];
-    songs = songs.where((s) {
-      var al = (s.album.trim().isNotEmpty && s.album != 'Unknown Album' && s.album != 'GDrive' && s.album != 'Cloud') ? s.album : 'No Metadata';
-      return al == targetAl;
-    }).toList();
-
-    // Level 3: Songs List
-    final ps = PlayerService();
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 130),
-      itemCount: songs.length,
-      itemBuilder: (context, index) {
-        final song = songs[index];
-        return ValueListenableBuilder<AudioFile?>(
-          valueListenable: ps.currentSong,
-          builder: (ctx, currentSong, _) {
-            final isPlaying = currentSong?.path == song.path;
-            return Column(
-              children: [
-                _SongRow(
-                  song: song,
-                  isPlaying: isPlaying,
-                  isDark: isDark,
-                  onTap: () => ps.playQueue(songs, initialIndex: index),
-                  onMore: () => showSongMenuGlobal(context, song, index, songs),
-                ),
-                if (index < songs.length - 1)
-                  Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 76, height: 1),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
   Widget _buildCategories(bool isDark) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 130),
@@ -526,7 +488,9 @@ class LibraryScreenState extends State<LibraryScreen>
                   song: song,
                   isPlaying: isPlaying,
                   isDark: isDark,
-                  onTap: () => ps.playQueue(songs, initialIndex: index),
+                  onTap: () {
+                    ps.playQueue(songs, initialIndex: index);
+                  },
                   onMore: () => showSongMenuGlobal(context, song, index, songs),
                 ),
                 if (index < songs.length - 1)
@@ -571,7 +535,9 @@ class LibraryScreenState extends State<LibraryScreen>
                       song: song,
                       isPlaying: isPlaying,
                       isDark: isDark,
-                      onTap: () => ps.playQueue(songs, initialIndex: index - 1),
+                      onTap: () {
+                        ps.playQueue(songs, initialIndex: index - 1);
+                      },
                       onMore: () => showSongMenuGlobal(context, song, index - 1, songs),
                     ),
                     if (index < songs.length)
@@ -646,6 +612,7 @@ class LibraryScreenState extends State<LibraryScreen>
     final Map<String, List<AudioFile>> grouped = {};
     for (var song in songs) { grouped.putIfAbsent(song.album, () => []).add(song); }
     final keys = grouped.keys.toList()..sort();
+    
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 130),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 16, mainAxisSpacing: 20, childAspectRatio: 0.78),
@@ -655,12 +622,52 @@ class LibraryScreenState extends State<LibraryScreen>
         final albumSongs = grouped[albumName]!;
         Uint8List? cover;
         for (var s in albumSongs) { if (s.coverArt != null) { cover = s.coverArt; break; } }
+        
+        final localCount = albumSongs.where((s) => s.isLocal).length;
+        final totalCount = albumSongs.length;
+        final isFullyLocal = localCount == totalCount;
+        final isGdriveOnly = localCount == 0;
+
         return GestureDetector(
           onTap: () { Navigator.push(context, CupertinoPageRoute(builder: (_) => DetailScreen(title: albumName, songs: albumSongs, coverArt: cover))); },
+          onLongPress: () => _downloadAlbum(albumSongs),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.4 : 0.18), blurRadius: 16, offset: const Offset(0, 6))]), child: ClipRRect(borderRadius: BorderRadius.circular(10), child: cover != null ? Image.memory(cover, fit: BoxFit.cover, width: double.infinity) : Container(color: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2, child: const Center(child: Icon(CupertinoIcons.music_albums, color: LuminaColors.labelSecondary, size: 40)))))),
+              Expanded(
+                child: Stack(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10), 
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.4 : 0.18), blurRadius: 16, offset: const Offset(0, 6))]
+                      ), 
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10), 
+                        child: cover != null 
+                          ? Image.memory(cover, fit: BoxFit.cover, width: double.infinity, height: double.infinity) 
+                          : Container(color: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2, child: const Center(child: Icon(CupertinoIcons.music_albums, color: LuminaColors.labelSecondary, size: 40)))
+                      )
+                    ),
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: SegmentedBorderPainter(
+                          totalSegments: totalCount,
+                          filledSegments: localCount,
+                          activeColor: LuminaColors.accent,
+                          inactiveColor: isFullyLocal ? Colors.transparent : (isGdriveOnly ? Colors.blue.withOpacity(0.5) : Colors.white.withOpacity(0.3)),
+                          strokeWidth: 3,
+                        ),
+                      ),
+                    ),
+                    if (!isFullyLocal)
+                      Positioned(
+                        top: 8, right: 8,
+                        child: Icon(CupertinoIcons.cloud_download, color: Colors.white.withOpacity(0.8), size: 16),
+                      ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 8),
               Text(albumName, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87, letterSpacing: -0.2), maxLines: 1, overflow: TextOverflow.ellipsis),
               Text(albumSongs.first.albumArtist, style: const TextStyle(fontSize: 12, color: LuminaColors.labelSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -850,7 +857,6 @@ class _SongRow extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis),
                         ),
-                        // Buffering indicator for cloud songs
                         if (!song.isLocal)
                           ValueListenableBuilder<bool>(
                             valueListenable: PlayerService().bufferingNotifier,
@@ -933,54 +939,4 @@ class _SongRow extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Download failed.')));
     }
   }
-}
-
-void showSongMenuGlobal(BuildContext context, AudioFile song, int index, List<AudioFile> currentList) {
-  final ps = PlayerService();
-  showCupertinoModalPopup(
-    context: context,
-    builder: (_) => CupertinoActionSheet(
-      title: Text(song.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-      message: Text(song.albumArtist),
-      actions: [
-        CupertinoActionSheetAction(onPressed: () { Navigator.pop(context); ps.playQueue(currentList, initialIndex: index); }, child: Text(song.isLocal ? 'Play Now' : 'Stream Now')),
-        CupertinoActionSheetAction(
-          onPressed: () {
-            Navigator.pop(context);
-            ps.addToQueue(song);
-          },
-          child: const Text('Add to Queue'),
-        ),
-        if (!song.isLocal && song.driveFileId != null)
-          CupertinoActionSheetAction(
-            onPressed: () async {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloading ${song.title}...')));
-              final path = await GoogleDriveService().promoteFromCache(song);
-              if (path != null) {
-                LibraryService.removeDriveSong(song.driveFileId!);
-                ps.promoteSongToLocal(song.driveFileId!, path);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Downloaded: ${song.title} to local storage.')));
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Download failed.')));
-              }
-            },
-            child: const Text('Download'),
-          ),
-        CupertinoActionSheetAction(
-          onPressed: () {
-            Navigator.pop(context);
-            ps.toggleFavorite(song);
-          },
-          child: ValueListenableBuilder<Set<String>>(
-            valueListenable: ps.favoritesNotifier,
-            builder: (_, favs, __) => Text(favs.contains(song.path) ? 'Unlove' : 'Love'),
-          ),
-        ),
-        CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Add to Playlist')),
-        CupertinoActionSheetAction(isDestructiveAction: true, onPressed: () => Navigator.pop(context), child: const Text('Delete from Library')),
-      ],
-      cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-    ),
-  );
 }

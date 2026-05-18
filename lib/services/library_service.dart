@@ -153,15 +153,31 @@ class LibraryService {
         }
       }
       
-      // Default to documents directory if empty
+      final docDir = await getApplicationDocumentsDirectory();
       if (_includePaths.isEmpty) {
-        final docDir = await getApplicationDocumentsDirectory();
         _includePaths = [docDir.path];
       }
+
+      // ── EXTENSION SYSTEM INITIALIZATION ─────────────────────────────────────
+      final extDir = Directory('${docDir.path}/Extensions');
+      if (!await extDir.exists()) await extDir.create(recursive: true);
+      
+      final dataDir = Directory('${docDir.path}/AppData');
+      if (!await dataDir.exists()) await dataDir.create(recursive: true);
+      
+      final cacheDir = Directory('${docDir.path}/Cache');
+      if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
+
+      await PlatformBridge.initExtensionSystem(extDir.path, dataDir.path);
+      await PlatformBridge.initExtensionStore(cacheDir.path);
+      
+      // Use registry.json from project root (mocking for mobile if needed, 
+      // but here we set the URL to a local placeholder or known repo)
+      await PlatformBridge.setStoreRegistryUrl('https://github.com/eduardojrdeveloper-git/LuminaPro');
       
       _initialized = true;
     } catch (e) {
-      debugPrint('LibraryService: MetadataGod initialization failed: $e');
+      debugPrint('LibraryService: Initialization failed: $e');
     }
   }
 

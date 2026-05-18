@@ -225,7 +225,7 @@ class _LyricsViewState extends State<LyricsView> with AutomaticKeepAliveClientMi
               index: activeIndex,
               duration: const Duration(milliseconds: 800),
               curve: Curves.easeOutCubic,
-              alignment: 0.5, // perfectly centers the item vertically
+              alignment: 0.35, // Position active line higher to show more future lines
             );
           }
         });
