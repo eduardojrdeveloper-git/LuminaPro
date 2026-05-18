@@ -173,7 +173,7 @@ class LibraryService {
       
       // Use registry.json from project root (mocking for mobile if needed, 
       // but here we set the URL to a local placeholder or known repo)
-      await PlatformBridge.setStoreRegistryUrl('https://github.com/eduardojrdeveloper-git/LuminaPro');
+      await PlatformBridge.setStoreRegistryUrl('https://raw.githubusercontent.com/eduardojrdeveloper-git/LuminaPro/main/registry.json');
       
       _initialized = true;
     } catch (e) {
