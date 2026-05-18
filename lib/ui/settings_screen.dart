@@ -399,7 +399,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     _SettingRow(
                       isDark: isDark,
-                      icon: CupertinoIcons.puzzlepiece,
+                      icon: CupertinoIcons.square_stack_3d_up_fill,
                       iconColor: const Color(0xFF007AFF),
                       title: 'Install Extension',
                       subtitle: 'Add .spotiflac-ext file from storage',
