@@ -57,7 +57,7 @@ class SpotiflacService {
       final extensions = await PlatformBridge.getInstalledExtensions();
       if (extensions.isNotEmpty) {
         LogService.log('Searching via Extensions for: $query');
-        final extResults = await PlatformBridge.searchTracksWithExtensions(query, 25);
+        final extResults = await PlatformBridge.searchTracksWithExtensions(query, limit: 25);
         if (extResults.isNotEmpty) {
           return extResults.map((e) => SpotiflacTrack(
             id: e['id']?.toString() ?? '',

@@ -16,10 +16,12 @@ final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.system);
 final ValueNotifier<bool> rotateArtworkNotifier = ValueNotifier(true);
 final ValueNotifier<bool> showQualityInLibraryNotifier = ValueNotifier(true);
 final ValueNotifier<bool> showQualityInPlayerNotifier = ValueNotifier(true);
-final ValueNotifier<bool> extractCloudCoversNotifier = ValueNotifier(false);
+final ValueNotifier<bool> extractCloudCoversNotifier = ValueNotifier(true);
 final ValueNotifier<bool> keepScreenOnNotifier = ValueNotifier(false);
 final ValueNotifier<bool> persistentLyricsModeNotifier = ValueNotifier(false);
 final ValueNotifier<bool> showLyricsInPlayerNotifier = ValueNotifier(false);
+final ValueNotifier<bool> isExtractingCoversNotifier = ValueNotifier(false);
+final ValueNotifier<String> extractingCoverFileNotifier = ValueNotifier('');
 
 // ── Apple Music Color System ──────────────────────────────────────────────────
 class LuminaColors {

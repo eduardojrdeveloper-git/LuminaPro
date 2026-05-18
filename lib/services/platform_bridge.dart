@@ -7,21 +7,48 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'log_service.dart';
 
+// Dummy logger class
+class _Logger {
+  void i(String msg) => LogService.log('INFO: $msg');
+  void d(String msg) => LogService.log('DEBUG: $msg');
+}
+
+final _log = _Logger();
+
 // Dummy payload class for integration
 class DownloadRequestPayload {
   final String trackName;
   final String artistName;
   final String service;
-  
-  const DownloadRequestPayload({this.trackName = '', this.artistName = '', this.service = 'spotify'});
-  
-  Map<String, dynamic> toJson() => {'track_name': trackName, 'artist_name': artistName, 'service': service};
-  
+  final bool? useExtensions;
+  final bool? useFallback;
+
+  const DownloadRequestPayload({
+    this.trackName = '',
+    this.artistName = '',
+    this.service = 'spotify',
+    this.useExtensions,
+    this.useFallback,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'track_name': trackName,
+    'artist_name': artistName,
+    'service': service,
+    'use_extensions': useExtensions,
+    'use_fallback': useFallback,
+  };
+
   DownloadRequestPayload withStrategy({bool? useExtensions, bool? useFallback}) {
-    return this;
+    return DownloadRequestPayload(
+      trackName: trackName,
+      artistName: artistName,
+      service: service,
+      useExtensions: useExtensions ?? this.useExtensions,
+      useFallback: useFallback ?? this.useFallback,
+    );
   }
 }
-
 Object? _decodeJsonInBackground(String json) => jsonDecode(json);
 
 class _BridgeCacheEntry {
