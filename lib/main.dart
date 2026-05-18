@@ -174,10 +174,7 @@ class MainNavigationState extends State<MainNavigation> with WidgetsBindingObser
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.detached) {
-      // App is closing — clear all temp stream cache files
-      GoogleDriveService().clearTempCache();
-    }
+    // Keep temp caches to allow resumes or fast replays later
   }
 
   @override
@@ -189,41 +186,20 @@ class MainNavigationState extends State<MainNavigation> with WidgetsBindingObser
       body: Stack(
         children: [
           AnimatedSwitcher(
-            duration: const Duration(milliseconds: 350),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeOutCubic,
-            layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) {
-              return Stack(
-                alignment: Alignment.topCenter,
-                children: <Widget>[
-                  ...previousChildren,
-                  if (currentChild != null) currentChild,
-                ],
-              );
-            },
+            duration: const Duration(milliseconds: 300),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeOut,
             transitionBuilder: (Widget child, Animation<double> animation) {
-              final childIndex = (child.key as ValueKey<int>).value;
-              final isMovingRight = _currentIndex >= _previousIndex;
-              final isIncoming = childIndex == _currentIndex;
-              
-              final offset = isIncoming 
-                  ? Offset(isMovingRight ? 0.15 : -0.15, 0.0) 
-                  : Offset(isMovingRight ? -0.15 : 0.15, 0.0);
-
-              return FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween<Offset>(begin: offset, end: Offset.zero).animate(animation),
-                  child: child,
-                ),
-              );
+              return FadeTransition(opacity: animation, child: child);
             },
             child: _screens[_currentIndex],
           ),
-          Positioned(
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOutQuart,
             left: 0,
             right: 0,
-            bottom: 0,
+            bottom: _currentIndex == 2 ? -200 : 0, // Slide entire bar off-screen
             child: _buildBottomOverlay(isDark),
           ),
         ],
@@ -235,24 +211,13 @@ class MainNavigationState extends State<MainNavigation> with WidgetsBindingObser
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // ── Mini Player with Slide Animation ───────────────────────────────
+        // ── Mini Player ───────────────────────────────
         ValueListenableBuilder<AudioFile?>(
           valueListenable: _ps.currentSong,
           builder: (context, song, _) {
-            final showMini = song != null && _currentIndex != 2;
-            return AnimatedSlide(
-              offset: showMini ? Offset.zero : const Offset(0, 1.2),
-              duration: const Duration(milliseconds: 400),
-              curve: Curves.easeOutQuart,
-              child: AnimatedOpacity(
-                opacity: showMini ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 300),
-                child: IgnorePointer(
-                  ignoring: !showMini,
-                  child: _MiniPlayer(onTap: () => setIndex(2)),
-                ),
-              ),
-            );
+            final showMini = song != null;
+            if (!showMini) return const SizedBox.shrink();
+            return _MiniPlayer(onTap: () => setIndex(2));
           },
         ),
         

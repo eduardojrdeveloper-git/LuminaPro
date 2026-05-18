@@ -59,6 +59,28 @@ class AudioFile {
     return parts.join(' · ');
   }
 
+  String get formatInfoOnly {
+    final parts = <String>[];
+    if (sampleRate != null && sampleRate! > 0) {
+      final khz = sampleRate! / 1000.0;
+      parts.add('${khz % 1 == 0 ? khz.toInt() : khz.toStringAsFixed(1)}kHz');
+    }
+    if (bitDepth != null && bitDepth! > 0) parts.add('${bitDepth}-bit');
+    if (bitrate != null && bitrate! > 0) parts.add('${bitrate} kbps');
+    return parts.join(' · ');
+  }
+
+  Color get formatColor {
+    final fmt = format.toUpperCase();
+    if (fmt == 'FLAC') return const Color(0xFFFA233B);
+    if (fmt == 'MP3') return const Color(0xFFFF9500);
+    if (fmt == 'M4A' || fmt == 'AAC') return const Color(0xFF007AFF);
+    if (fmt == 'WAV') return const Color(0xFF34C759);
+    if (fmt == 'OGG') return const Color(0xFFAF52DE);
+    if (fmt == 'ALAC') return const Color(0xFF5856D6);
+    return const Color(0xFF8E8E93);
+  }
+
   Map<String, dynamic> toJson() => {
     'path': path,
     'title': title,

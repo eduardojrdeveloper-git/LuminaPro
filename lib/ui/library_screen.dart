@@ -846,9 +846,28 @@ class _SongRow extends StatelessWidget {
                                 ),
                                 if (show && song.formatBadge.isNotEmpty) ...[
                                   const SizedBox(width: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: song.formatColor.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(color: song.formatColor.withOpacity(0.5), width: 0.5),
+                                    ),
+                                    child: Text(
+                                      song.format.toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w700,
+                                        color: song.formatColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                                if (show && song.formatInfoOnly.isNotEmpty) ...[
+                                  const SizedBox(width: 4),
                                   Text(
-                                    song.formatBadge,
-                                    style: const TextStyle(fontSize: 10, color: LuminaColors.labelTertiary, fontWeight: FontWeight.w400),
+                                    song.formatInfoOnly,
+                                    style: const TextStyle(fontSize: 10, color: LuminaColors.labelTertiary, fontWeight: FontWeight.w500),
                                   ),
                                 ],
                               ],

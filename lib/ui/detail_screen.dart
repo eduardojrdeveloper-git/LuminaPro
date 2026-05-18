@@ -291,16 +291,51 @@ class _TrackRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (song.artist.isNotEmpty)
-                    Text(
-                      song.artist,
-                      style: TextStyle(
-                        color: LuminaColors.labelSecondary,
-                        fontSize: 13,
-                        decoration: TextDecoration.none,
-                      ),
-                      maxLines: 1,
-                    ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      if (song.format.isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: song.formatColor.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: song.formatColor.withOpacity(0.5), width: 0.5),
+                          ),
+                          child: Text(
+                            song.format.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: song.formatColor,
+                              decoration: TextDecoration.none,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      if (song.formatInfoOnly.isNotEmpty) ...[
+                        Text(
+                          song.formatInfoOnly,
+                          style: const TextStyle(fontSize: 10, color: LuminaColors.labelTertiary, fontWeight: FontWeight.w500, decoration: TextDecoration.none),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      if (song.artist.isNotEmpty)
+                        Expanded(
+                          child: Text(
+                            song.artist,
+                            style: const TextStyle(
+                              color: LuminaColors.labelSecondary,
+                              fontSize: 13,
+                              decoration: TextDecoration.none,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                  ),
                 ],
               ),
             ),

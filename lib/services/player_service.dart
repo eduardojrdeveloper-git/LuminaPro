@@ -304,7 +304,9 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
 
       final gdrive = GoogleDriveService();
       
-      // Stop current playback before downloading
+      // Stop current playback immediately before downloading
+      await _channel.invokeMethod('pause');
+      _emitPlaying(false);
       
       final ext = song.format.isNotEmpty ? song.format.toLowerCase() : 'flac';
       final fileName = '${song.title}.$ext';
