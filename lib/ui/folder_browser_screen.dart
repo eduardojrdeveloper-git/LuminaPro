@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/library_service.dart';
 import '../services/player_service.dart';
 import '../main.dart' show LuminaColors;
-import 'library_screen.dart' show showSongMenuGlobal; // I will need to expose _showSongMenu
+import 'song_menu.dart'; // showSongMenuGlobal is defined here
 
 class FolderBrowserScreen extends StatefulWidget {
   final List<AudioFile> songs;
