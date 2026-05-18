@@ -338,26 +338,19 @@ class _PlayerScreenState extends State<PlayerScreen>
                                             ValueListenableBuilder<bool>(
                                               valueListenable: showQualityInPlayerNotifier,
                                               builder: (ctx, show, _) {
-                                                if (!show || song.formatBadge.isEmpty) return const SizedBox.shrink();
-                                                String badgeText = '';
-                                                if (song.bitDepth != null) badgeText += '${song.bitDepth}-BIT';
-                                                if (song.bitrate != null) {
-                                                  if (badgeText.isNotEmpty) badgeText += ' · ';
-                                                  badgeText += '${song.bitrate} KBPS';
-                                                }
-                                                if (badgeText.isEmpty) badgeText = song.format.toUpperCase();
-
+                                                if (!show || song.format.isEmpty) return const SizedBox.shrink();
                                                 return Container(
                                                   margin: const EdgeInsets.only(left: 8),
                                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                   decoration: BoxDecoration(
-                                                    border: Border.all(color: LuminaColors.accent.withOpacity(0.5)),
+                                                    color: song.formatColor.withOpacity(0.2),
+                                                    border: Border.all(color: song.formatColor.withOpacity(0.5)),
                                                     borderRadius: BorderRadius.circular(4),
                                                   ),
                                                   child: Text(
-                                                    badgeText, 
-                                                    style: const TextStyle(
-                                                      color: LuminaColors.accent,
+                                                    song.format.toUpperCase(), 
+                                                    style: TextStyle(
+                                                      color: song.formatColor,
                                                       fontSize: 9,
                                                       fontWeight: FontWeight.w800,
                                                     ),
@@ -370,15 +363,15 @@ class _PlayerScreenState extends State<PlayerScreen>
                                         ValueListenableBuilder<bool>(
                                           valueListenable: showQualityInPlayerNotifier,
                                           builder: (ctx, show, _) {
-                                            if (!show || song.formatBadge.isEmpty) return const SizedBox.shrink();
+                                            if (!show || song.formatInfoOnly.isEmpty) return const SizedBox.shrink();
                                             return Padding(
                                               padding: const EdgeInsets.only(top: 4.0),
                                               child: Text(
-                                                song.formatBadge,
+                                                song.formatInfoOnly,
                                                 style: TextStyle(
                                                   color: (isDark ? Colors.white : Colors.black).withOpacity(0.5),
                                                   fontSize: 11,
-                                                  fontWeight: FontWeight.w400,
+                                                  fontWeight: FontWeight.w500,
                                                 ),
                                               ),
                                             );

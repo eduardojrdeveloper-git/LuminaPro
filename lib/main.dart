@@ -52,6 +52,8 @@ Future<void> main() async {
   await LibraryService.initialize();
   // Clear any leftover temp cache from a previous session/crash
   GoogleDriveService().clearTempCache();
+  // Attempt to restore GDrive session silently
+  await GoogleDriveService().signInSilently();
   runApp(const LuminaProApp());
 }
 
@@ -177,6 +179,21 @@ class MainNavigationState extends State<MainNavigation> with WidgetsBindingObser
     // Keep temp caches to allow resumes or fast replays later
   }
 
+  void _onHorizontalSwipe(DragEndDetails details) {
+    if (details.primaryVelocity == null) return;
+    if (details.primaryVelocity! < -300) {
+      // Swipe left -> go to next tab
+      if (_currentIndex < _screens.length - 1) {
+        setIndex(_currentIndex + 1);
+      }
+    } else if (details.primaryVelocity! > 300) {
+      // Swipe right -> go to previous tab
+      if (_currentIndex > 0) {
+        setIndex(_currentIndex - 1);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -185,21 +202,45 @@ class MainNavigationState extends State<MainNavigation> with WidgetsBindingObser
       extendBody: true,
       body: Stack(
         children: [
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            switchInCurve: Curves.easeOut,
-            switchOutCurve: Curves.easeOut,
-            transitionBuilder: (Widget child, Animation<double> animation) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-            child: _screens[_currentIndex],
+          GestureDetector(
+            onHorizontalDragEnd: _onHorizontalSwipe,
+            behavior: HitTestBehavior.opaque,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeOutCubic,
+              layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) {
+                return Stack(
+                  alignment: Alignment.topCenter,
+                  children: <Widget>[
+                    ...previousChildren,
+                    if (currentChild != null) currentChild,
+                  ],
+                );
+              },
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                final childIndex = (child.key as ValueKey<int>).value;
+                final isMovingRight = _currentIndex > _previousIndex;
+                final isIncoming = childIndex == _currentIndex;
+                
+                final offset = isIncoming 
+                    ? Offset(isMovingRight ? 1.0 : -1.0, 0.0) 
+                    : Offset(isMovingRight ? -1.0 : 1.0, 0.0);
+
+                return SlideTransition(
+                  position: Tween<Offset>(begin: offset, end: Offset.zero).animate(animation),
+                  child: child,
+                );
+              },
+              child: _screens[_currentIndex],
+            ),
           ),
           AnimatedPositioned(
             duration: const Duration(milliseconds: 400),
             curve: Curves.easeOutQuart,
             left: 0,
             right: 0,
-            bottom: _currentIndex == 2 ? -200 : 0, // Slide entire bar off-screen
+            bottom: 0,
             child: _buildBottomOverlay(isDark),
           ),
         ],

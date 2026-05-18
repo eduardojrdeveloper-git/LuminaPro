@@ -71,6 +71,25 @@ class GoogleDriveService {
     }
   }
 
+  Future<void> signInSilently() async {
+    try {
+      _currentUser = await _googleSignIn.signInSilently();
+      if (_currentUser != null) {
+        final headers = await _currentUser!.authHeaders;
+        final client = GoogleAuthClient(headers);
+        _driveApi = drive.DriveApi(client);
+        LogService.log('Google Drive signed in silently: ${_currentUser!.email}');
+        
+        await _loadPersistedState();
+        if (_proxyServer == null) {
+          await _startProxyServer();
+        }
+      }
+    } catch (error) {
+      LogService.log('Google Drive silent sign in failed: $error');
+    }
+  }
+
   Future<void> _loadPersistedState() async {
     try {
       final prefs = await SharedPreferences.getInstance();
