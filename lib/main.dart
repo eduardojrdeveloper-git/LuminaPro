@@ -132,20 +132,19 @@ class MainNavigation extends StatefulWidget {
 
 class MainNavigationState extends State<MainNavigation> with WidgetsBindingObserver {
   int _currentIndex = 0;
-  late PageController _pageController;
+  int _previousIndex = 0;
   final _ps = PlayerService();
 
-  final List<Widget> _screens = [
-    const LibraryScreen(),
-    const DiscoverScreen(),
-    const PlayerScreen(),
-    const SettingsScreen(),
+  late final List<Widget> _screens = [
+    const LibraryScreen(key: ValueKey(0)),
+    const DiscoverScreen(key: ValueKey(1)),
+    const PlayerScreen(key: ValueKey(2)),
+    const SettingsScreen(key: ValueKey(3)),
   ];
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: _currentIndex);
     WidgetsBinding.instance.addObserver(this);
     
     // Listen for screen on toggle
@@ -160,7 +159,6 @@ class MainNavigationState extends State<MainNavigation> with WidgetsBindingObser
 
   @override
   void dispose() {
-    _pageController.dispose();
     keepScreenOnNotifier.removeListener(_updateWakelock);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -168,12 +166,10 @@ class MainNavigationState extends State<MainNavigation> with WidgetsBindingObser
 
   void setIndex(int index) {
     if (index == _currentIndex) return;
-    _pageController.animateToPage(
-      index,
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeOutQuart,
-    );
-    setState(() => _currentIndex = index);
+    setState(() {
+      _previousIndex = _currentIndex;
+      _currentIndex = index;
+    });
   }
 
   @override
@@ -189,20 +185,53 @@ class MainNavigationState extends State<MainNavigation> with WidgetsBindingObser
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      extendBody: true, // Allow body to flow behind bottom bar
-      body: PageView(
-        controller: _pageController,
-        physics: const NeverScrollableScrollPhysics(),
-        children: _screens,
-        onPageChanged: (idx) {
-          if (idx != _currentIndex) setState(() => _currentIndex = idx);
-        },
+      extendBody: true,
+      body: Stack(
+        children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 350),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeOutCubic,
+            layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) {
+              return Stack(
+                alignment: Alignment.topCenter,
+                children: <Widget>[
+                  ...previousChildren,
+                  if (currentChild != null) currentChild,
+                ],
+              );
+            },
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              final childIndex = (child.key as ValueKey<int>).value;
+              final isMovingRight = _currentIndex >= _previousIndex;
+              final isIncoming = childIndex == _currentIndex;
+              
+              final offset = isIncoming 
+                  ? Offset(isMovingRight ? 0.15 : -0.15, 0.0) 
+                  : Offset(isMovingRight ? -0.15 : 0.15, 0.0);
+
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(begin: offset, end: Offset.zero).animate(animation),
+                  child: child,
+                ),
+              );
+            },
+            child: _screens[_currentIndex],
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _buildBottomOverlay(isDark),
+          ),
+        ],
       ),
-      bottomNavigationBar: _buildBottomBar(isDark),
     );
   }
 
-  Widget _buildBottomBar(bool isDark) {
+  Widget _buildBottomOverlay(bool isDark) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -213,12 +242,15 @@ class MainNavigationState extends State<MainNavigation> with WidgetsBindingObser
             final showMini = song != null && _currentIndex != 2;
             return AnimatedSlide(
               offset: showMini ? Offset.zero : const Offset(0, 1.2),
-              duration: const Duration(milliseconds: 500),
+              duration: const Duration(milliseconds: 400),
               curve: Curves.easeOutQuart,
               child: AnimatedOpacity(
                 opacity: showMini ? 1.0 : 0.0,
                 duration: const Duration(milliseconds: 300),
-                child: _MiniPlayer(onTap: () => setIndex(2)),
+                child: IgnorePointer(
+                  ignoring: !showMini,
+                  child: _MiniPlayer(onTap: () => setIndex(2)),
+                ),
               ),
             );
           },
