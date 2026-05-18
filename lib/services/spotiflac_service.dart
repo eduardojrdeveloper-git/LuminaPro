@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:metadata_god/metadata_god.dart';
 import 'library_service.dart';
 import 'log_service.dart';
+import 'platform_bridge.dart';
 
 class SpotiflacTrack {
   final String id;
@@ -51,6 +52,25 @@ class SpotiflacService {
 
   Future<List<SpotiflacTrack>> search(String query) async {
     try {
+      // ── EXTENSION SYSTEM CHECK ─────────────────────────────────────────────
+      // If we have extensions installed, use them for search instead of iTunes
+      final extensions = await PlatformBridge.getInstalledExtensions();
+      if (extensions.isNotEmpty) {
+        LogService.log('Searching via Extensions for: $query');
+        final extResults = await PlatformBridge.searchTracksWithExtensions(query, 25);
+        if (extResults.isNotEmpty) {
+          return extResults.map((e) => SpotiflacTrack(
+            id: e['id']?.toString() ?? '',
+            title: e['title']?.toString() ?? 'Unknown',
+            artist: e['artist']?.toString() ?? 'Unknown',
+            album: e['album']?.toString() ?? 'Unknown',
+            coverUrl: e['coverUrl']?.toString(),
+            isrc: e['isrc']?.toString(),
+            spotifyUrl: e['spotifyUrl']?.toString(),
+          )).toList();
+        }
+      }
+
       LogService.log('Searching Global Music (iTunes) for: $query');
       // Using iTunes API as a reliable public metadata provider for the prototype
       final url = Uri.parse('$_searchApi?term=${Uri.encodeComponent(query)}&entity=song&limit=25');

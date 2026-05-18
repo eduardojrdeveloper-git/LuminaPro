@@ -6,13 +6,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
-import '../main.dart' show LuminaColors, themeNotifier, rotateArtworkNotifier, showQualityInLibraryNotifier, showQualityInPlayerNotifier, extractCloudCoversNotifier, keepScreenOnNotifier, persistentLyricsModeNotifier;
+import '../main.dart' show LuminaColors, themeNotifier, rotateArtworkNotifier, showQualityInLibraryNotifier, showQualityInPlayerNotifier, extractCloudCoversNotifier, keepScreenOnNotifier, persistentLyricsModeNotifier, isExtractingCoversNotifier, extractingCoverFileNotifier;
 import '../services/player_service.dart';
 import '../services/library_service.dart';
 import '../services/log_service.dart';
 import '../services/google_drive_service.dart';
 import '../services/musicbrainz_service.dart';
 import '../services/audio_quality_service.dart';
+import '../services/platform_bridge.dart';
 import 'eq_advanced_screen.dart';
 import 'spek_screen.dart';
 import 'log_screen.dart';
@@ -26,6 +27,23 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _ps = PlayerService();
+
+  Future<void> _installExtension() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['spotiflac-ext'],
+    );
+    if (result != null && result.files.single.path != null) {
+      try {
+        final path = result.files.single.path!;
+        final info = await PlatformBridge.loadExtensionFromPath(path);
+        _showToast('Installed: ${info['name'] ?? 'Extension'}');
+        if (mounted) setState(() {});
+      } catch (e) {
+        _showToast('Failed to install: $e');
+      }
+    }
+  }
 
   Future<void> _importEqProfile() async {
     final result = await FilePicker.platform.pickFiles(
@@ -197,8 +215,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final missingCovers = allSongs.where((s) => s.driveFileId != null && s.coverArt == null).toList();
     if (missingCovers.isEmpty) return;
 
-    _showToast('Fetching ${missingCovers.length} missing cloud covers in background...');
-    for (final song in missingCovers) {
+    isExtractingCoversNotifier.value = true;
+    for (int i = 0; i < missingCovers.length; i++) {
+      final song = missingCovers[i];
+      extractingCoverFileNotifier.value = '[${i+1}/${missingCovers.length}] ${song.title}';
       try {
         final meta = await driveService.extractMetadataAndCover(song.driveFileId!);
         if (meta != null && meta['coverArt'] != null) {
@@ -209,6 +229,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         LogService.log('Failed to catch up cover for ${song.title}: $e');
       }
     }
+    isExtractingCoversNotifier.value = false;
+    extractingCoverFileNotifier.value = '';
   }
 
   @override
@@ -366,6 +388,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       subtitle: 'Generate spectrogram for current track',
                       onTap: () => _showSpekDialog(context),
                       showChevron: true,
+                    ),
+                  ],
+                ),
+
+                 // ── EXTENSIONS ─────────────────────────────────────────────
+                _SectionHeader('EXTENSIONS & ADD-ONS'),
+                _GroupedSection(
+                  isDark: isDark,
+                  children: [
+                    _SettingRow(
+                      isDark: isDark,
+                      icon: CupertinoIcons.puzzlepiece_fill,
+                      iconColor: const Color(0xFF007AFF),
+                      title: 'Install Extension',
+                      subtitle: 'Add .spotiflac-ext file from storage',
+                      onTap: _installExtension,
+                      showChevron: true,
+                    ),
+                    const _Divider(),
+                    FutureBuilder<List<Map<String, dynamic>>>(
+                      future: PlatformBridge.getInstalledExtensions(),
+                      builder: (context, snapshot) {
+                        final count = snapshot.data?.length ?? 0;
+                        return _SettingRow(
+                          isDark: isDark,
+                          icon: CupertinoIcons.square_list_fill,
+                          iconColor: const Color(0xFF5856D6),
+                          title: 'Manage Extensions',
+                          subtitle: '$count installed plugins',
+                          onTap: () {
+                            // TODO: Add extensions manager screen if needed
+                            _showToast('Extension system initialized and ready.');
+                          },
+                          showChevron: true,
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -606,9 +664,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: 'View App Logs',
                       showChevron: true,
                       onTap: () {
-                        Navigator.push(context, CupertinoPageRoute(builder: (_) => const LogScreen()));
-                      },
-                    ),
+                        Navigator.push(context, CupertinoPageRoute(fullscreenDialog: true, builder: (_) => const LogScreen()));
+                      },                    ),
                   ],
                 ),
 
@@ -1216,3 +1273,4 @@ class _CleanupSheetState extends State<_CleanupSheet> {
     }
   }
 }
+

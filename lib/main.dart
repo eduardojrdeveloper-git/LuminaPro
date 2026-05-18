@@ -279,68 +279,176 @@ class _MiniPlayerState extends State<_MiniPlayer> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return ValueListenableBuilder<AudioFile?>(
-      valueListenable: _ps.currentSong,
-      builder: (context, song, _) {
-        if (song == null) return const SizedBox.shrink();
-        return GestureDetector(
-          onTap: widget.onTap,
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(10, 0, 10, 6),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.35 : 0.1), blurRadius: 16, offset: const Offset(0, 4))],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: isDark ? LuminaColors.lead.withOpacity(0.7) : Colors.white.withOpacity(0.8),
-                    border: Border.all(color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.06), width: 0.5),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    child: Row(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: SizedBox(
-                            width: 40, height: 40,
-                            child: song.coverArt != null && song.coverArt!.isNotEmpty ? Image.memory(song.coverArt!, fit: BoxFit.cover) : Container(color: LuminaColors.bg3, child: const Icon(CupertinoIcons.music_note, color: LuminaColors.labelSecondary, size: 20)),
-                          ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // ── Indexing Status Overlay ──────────────────────────────────────────
+        _buildIndexingStatus(isDark),
+        
+        ValueListenableBuilder<AudioFile?>(
+          valueListenable: _ps.currentSong,
+          builder: (context, song, _) {
+            if (song == null) return const SizedBox.shrink();
+            return GestureDetector(
+              onTap: widget.onTap,
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(10, 0, 10, 6),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.35 : 0.1), blurRadius: 16, offset: const Offset(0, 4))],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? LuminaColors.lead.withOpacity(0.7) : Colors.white.withOpacity(0.8),
+                        border: Border.all(color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.06), width: 0.5),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: SizedBox(
+                                width: 40, height: 40,
+                                child: song.coverArt != null && song.coverArt!.isNotEmpty ? Image.memory(song.coverArt!, fit: BoxFit.cover) : Container(color: LuminaColors.bg3, child: const Icon(CupertinoIcons.music_note, color: LuminaColors.labelSecondary, size: 20)),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: isDark ? Colors.white : Colors.black)),
+                                  Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: LuminaColors.accent)),
+                                ],
+                              ),
+                            ),
+                            ValueListenableBuilder<bool>(
+                              valueListenable: _ps.playingNotifier,
+                              builder: (_, isPlaying, __) => Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _MiniButton(icon: isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill, isDark: isDark, onTap: _ps.playPause),
+                                  _MiniButton(icon: CupertinoIcons.forward_fill, isDark: isDark, onTap: _ps.skipToNext),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: isDark ? Colors.white : Colors.black)),
-                              Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: LuminaColors.accent)),
-                            ],
-                          ),
-                        ),
-                        ValueListenableBuilder<bool>(
-                          valueListenable: _ps.playingNotifier,
-                          builder: (_, isPlaying, __) => Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _MiniButton(icon: isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill, isDark: isDark, onTap: _ps.playPause),
-                              _MiniButton(icon: CupertinoIcons.forward_fill, isDark: isDark, onTap: _ps.skipToNext),
-                            ],
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildIndexingStatus(bool isDark) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ValueListenableBuilder<bool>(
+          valueListenable: LibraryService.isIndexingNotifier,
+          builder: (context, isIndexing, _) {
+            if (!isIndexing) return const SizedBox.shrink();
+            return _ProgressBadge(
+              label: 'Indexing Library',
+              isDark: isDark,
+              detailNotifier: LibraryService.indexCurrentFileNotifier,
+              progressNotifier: LibraryService.indexProgressNotifier,
+              icon: CupertinoIcons.refresh_thick,
+            );
+          },
+        ),
+        ValueListenableBuilder<bool>(
+          valueListenable: isExtractingCoversNotifier,
+          builder: (context, isExtracting, _) {
+            if (!isExtracting) return const SizedBox.shrink();
+            return _ProgressBadge(
+              label: 'Extracting Covers',
+              isDark: isDark,
+              detailNotifier: extractingCoverFileNotifier,
+              icon: CupertinoIcons.photo,
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _ProgressBadge extends StatelessWidget {
+  final String label;
+  final bool isDark;
+  final ValueNotifier<String> detailNotifier;
+  final ValueNotifier<double>? progressNotifier;
+  final IconData icon;
+
+  const _ProgressBadge({
+    required this.label,
+    required this.isDark,
+    required this.detailNotifier,
+    this.progressNotifier,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(10, 0, 10, 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? LuminaColors.bg1.withOpacity(0.8) : Colors.white.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: progressNotifier != null 
+              ? ValueListenableBuilder<double>(
+                  valueListenable: progressNotifier!,
+                  builder: (_, p, __) => CircularProgressIndicator(
+                    value: p > 0 ? p : null,
+                    strokeWidth: 2,
+                    color: LuminaColors.accent,
+                  ),
+                )
+              : const CupertinoActivityIndicator(radius: 8),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: LuminaColors.accent)),
+                ValueListenableBuilder<String>(
+                  valueListenable: detailNotifier,
+                  builder: (_, detail, __) => Text(
+                    detail,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 10, color: isDark ? Colors.white70 : Colors.black54),
+                  ),
+                ),
+              ],
             ),
           ),
-        );
-      },
+          Icon(icon, size: 14, color: LuminaColors.accent.withOpacity(0.5)),
+        ],
+      ),
     );
   }
 }
