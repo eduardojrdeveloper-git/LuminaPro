@@ -176,14 +176,9 @@ class MainNavigationState extends State<MainNavigation> with TickerProviderState
 
     return Scaffold(
       extendBody: true, // Allow body to flow behind bottom bar
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 250),
-        switchInCurve: Curves.easeInOutCubic,
-        switchOutCurve: Curves.easeInOutCubic,
-        transitionBuilder: (child, animation) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        child: _screens[_currentIndex],
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
       ),
       bottomNavigationBar: _buildBottomBar(isDark),
     );

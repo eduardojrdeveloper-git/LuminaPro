@@ -23,6 +23,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     
     setState(() => _isSearching = true);
     final results = await _service.search(q);
+    if (!mounted) return;
     setState(() {
       _results = results;
       _isSearching = false;
@@ -34,9 +35,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     
     final success = await _service.downloadAndSave(
       track,
-      onProgress: (p) => setState(() => _downloadProgress[track.id] = p),
+      onProgress: (p) {
+        if (mounted) setState(() => _downloadProgress[track.id] = p);
+      },
     );
 
+    if (!mounted) return;
     setState(() => _downloadProgress.remove(track.id));
 
     if (success) {

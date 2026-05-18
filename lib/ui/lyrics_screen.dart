@@ -24,7 +24,7 @@ class LyricsView extends StatefulWidget {
   State<LyricsView> createState() => _LyricsViewState();
 }
 
-class _LyricsViewState extends State<LyricsView> {
+class _LyricsViewState extends State<LyricsView> with AutomaticKeepAliveClientMixin {
   final PlayerService _ps = PlayerService();
   bool _isLoading = true;
   String? _error;
@@ -38,6 +38,9 @@ class _LyricsViewState extends State<LyricsView> {
   
   bool _isManualScrolling = false;
   Timer? _scrollTimeout;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void dispose() {
@@ -172,6 +175,7 @@ class _LyricsViewState extends State<LyricsView> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (_isLoading) return const Center(child: CupertinoActivityIndicator());
     if (_error != null) return Center(child: Text(_error!, style: const TextStyle(color: LuminaColors.labelSecondary)));
 
@@ -219,8 +223,8 @@ class _LyricsViewState extends State<LyricsView> {
           if (!_isManualScrolling && _itemScrollController.isAttached && activeIndex != -1) {
             _itemScrollController.scrollTo(
               index: activeIndex,
-              duration: const Duration(milliseconds: 750),
-              curve: Curves.easeInOutCubic,
+              duration: const Duration(milliseconds: 800),
+              curve: Curves.easeOutCubic,
               alignment: 0.5, // perfectly centers the item vertically
             );
           }
@@ -232,7 +236,7 @@ class _LyricsViewState extends State<LyricsView> {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [Colors.transparent, Colors.black, Colors.black, Colors.transparent],
-              stops: [0.0, 0.2, 0.8, 1.0],
+              stops: [0.0, 0.1, 0.9, 1.0],
             ).createShader(rect);
           },
           blendMode: BlendMode.dstIn,
@@ -240,15 +244,15 @@ class _LyricsViewState extends State<LyricsView> {
             onNotification: (notification) {
               _isManualScrolling = true;
               _scrollTimeout?.cancel();
-              _scrollTimeout = Timer(const Duration(seconds: 6), () {
+              _scrollTimeout = Timer(const Duration(seconds: 5), () {
                 if (mounted) {
                   setState(() => _isManualScrolling = false);
                   // Trigger an immediate scroll back to the active index
                   if (_itemScrollController.isAttached && activeIndex != -1) {
                     _itemScrollController.scrollTo(
                       index: activeIndex,
-                      duration: const Duration(milliseconds: 750),
-                      curve: Curves.easeInOutCubic,
+                      duration: const Duration(milliseconds: 800),
+                      curve: Curves.easeOutCubic,
                       alignment: 0.5,
                     );
                   }
@@ -259,58 +263,51 @@ class _LyricsViewState extends State<LyricsView> {
             child: ScrollablePositionedList.builder(
               itemScrollController: _itemScrollController,
               itemPositionsListener: _itemPositionsListener,
-              padding: EdgeInsets.symmetric(vertical: MediaQuery.of(context).size.height / 2.5),
+              padding: EdgeInsets.symmetric(vertical: MediaQuery.of(context).size.height / 2.2),
               itemCount: _syncedLyrics!.length,
               itemBuilder: (context, index) {
                 final line = _syncedLyrics![index];
                 final isActive = index == activeIndex;
                 final isNear = (index - (activeIndex)).abs() <= 2;
                 
-                double opacity = 0.2;
-                double blurSigma = 3.0; // Blur for distant lines
+                double opacity = 0.3;
+                double blurSigma = 2.0; 
                 
                 if (isActive) {
                   opacity = 1.0;
                   blurSigma = 0.0;
                 } else if (isNear) {
-                  opacity = 0.6;
-                  blurSigma = 1.5; // Slight blur for near lines
+                  opacity = 0.7;
+                  blurSigma = 1.0;
                 }
 
                 return Center(
                   child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 600),
-                    curve: Curves.easeInOutCubic,
+                    duration: const Duration(milliseconds: 500),
+                    curve: Curves.easeOutCubic,
                     opacity: opacity,
-                    child: AnimatedPadding(
-                      duration: const Duration(milliseconds: 600),
-                      curve: Curves.easeInOutCubic,
-                      padding: EdgeInsets.symmetric(vertical: isActive ? 24.0 : 12.0),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16.0),
                       child: ImageFiltered(
                         imageFilter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: AnimatedScale(
-                            scale: isActive ? 1.4 : 1.0,
-                            duration: const Duration(milliseconds: 600),
-                            curve: Curves.easeInOutCubic,
-                            child: AnimatedDefaultTextStyle(
-                              duration: const Duration(milliseconds: 600),
-                              curve: Curves.easeInOutCubic,
-                              style: TextStyle(
-                                fontSize: 26, // Constant font size to prevent reflow
-                                fontWeight: isActive ? FontWeight.w900 : FontWeight.w700,
-                                color: Colors.white,
-                                height: 1.2,
-                                shadows: isActive ? [
-                                  Shadow(color: LuminaColors.accent.withOpacity(0.8), blurRadius: 20),
-                                  Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, 4))
-                                ] : null,
-                              ),
-                              child: Text(
-                                line.text,
-                                textAlign: TextAlign.center,
-                              ),
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 500),
+                            curve: Curves.easeOutCubic,
+                            style: TextStyle(
+                              fontSize: isActive ? 36 : 28, 
+                              fontWeight: isActive ? FontWeight.w900 : FontWeight.w700,
+                              color: Colors.white,
+                              height: 1.2,
+                              shadows: isActive ? [
+                                Shadow(color: LuminaColors.accent.withOpacity(0.6), blurRadius: 15),
+                                Shadow(color: Colors.black.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 3))
+                              ] : null,
+                            ),
+                            child: Text(
+                              line.text,
+                              textAlign: TextAlign.center,
                             ),
                           ),
                         ),

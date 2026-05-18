@@ -82,7 +82,7 @@ class MusicBrainzService {
           'title': rec['title'],
           'artist': artistCredits.isNotEmpty ? artistCredits.first['name'] : 'Unknown Artist',
           'album': releases.isNotEmpty ? releases.first['title'] : 'Unknown Album',
-          'genre': (rec['tags'] as List?)?.first['name'] ?? 'Music',
+          'genre': (rec['tags'] as List?)?.isNotEmpty == true ? (rec['tags'] as List).first['name'] : 'Music',
         };
       }
     }

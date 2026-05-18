@@ -77,20 +77,20 @@ class AudioFile {
   };
 
   factory AudioFile.fromJson(Map<String, dynamic> json) => AudioFile(
-    path: json['path'] as String,
-    title: json['title'] as String,
-    artist: json['artist'] as String,
-    albumArtist: json['albumArtist'] as String,
-    album: json['album'] as String,
-    genre: json['genre'] as String,
-    duration: json['durationMs'] != null ? Duration(milliseconds: json['durationMs'] as int) : null,
-    sampleRate: json['sampleRate'] as int?,
-    bitDepth: json['bitDepth'] as int?,
-    bitrate: json['bitrate'] as int?,
-    format: json['format'] as String,
+    path: json['path']?.toString() ?? '',
+    title: json['title']?.toString() ?? 'Unknown',
+    artist: json['artist']?.toString() ?? 'Unknown Artist',
+    albumArtist: json['albumArtist']?.toString() ?? 'Unknown Artist',
+    album: json['album']?.toString() ?? 'Unknown Album',
+    genre: json['genre']?.toString() ?? 'Unknown',
+    duration: json['durationMs'] != null ? Duration(milliseconds: (json['durationMs'] as num).toInt()) : null,
+    sampleRate: json['sampleRate'] != null ? (json['sampleRate'] as num).toInt() : null,
+    bitDepth: json['bitDepth'] != null ? (json['bitDepth'] as num).toInt() : null,
+    bitrate: json['bitrate'] != null ? (json['bitrate'] as num).toInt() : null,
+    format: json['format']?.toString() ?? '',
     isLocal: json['isLocal'] as bool? ?? false,
-    driveFileId: json['driveFileId'] as String?,
-    driveStreamUrl: json['driveStreamUrl'] as String?,
+    driveFileId: json['driveFileId']?.toString(),
+    driveStreamUrl: json['driveStreamUrl']?.toString(),
   );
 
   AudioFile copyWith({

@@ -33,7 +33,7 @@ class SpotiflacTrack {
       title: json['name'] ?? 'Unknown',
       artist: (json['artists'] as List?)?.map((e) => e['name']).join(', ') ?? 'Unknown',
       album: json['album']?['name'] ?? 'Unknown',
-      coverUrl: (json['album']?['images'] as List?)?.first['url'],
+      coverUrl: (json['album']?['images'] as List?)?.isNotEmpty == true ? (json['album']['images'] as List).first['url']?.toString() : null,
       isrc: json['external_ids']?['isrc'],
       spotifyUrl: json['external_urls']?['spotify'],
     );

@@ -285,7 +285,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onTap: () {
                         showCupertinoModalPopup(
                           context: context,
-                          builder: (ctx) => _GoogleDriveSheet(onUpdate: () => setState(() {})),
+                          builder: (ctx) => _GoogleDriveSheet(onUpdate: () {
+                            if (mounted) setState(() {});
+                          }),
                         );
                       },
                       showChevron: true,
@@ -997,11 +999,13 @@ class _FolderManagerSheetState extends State<_FolderManagerSheet> {
         if (a is! Directory && b is Directory) return 1;
         return a.path.toLowerCase().compareTo(b.path.toLowerCase());
       });
+      if (!mounted) return;
       setState(() => _currentContents = entities);
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
