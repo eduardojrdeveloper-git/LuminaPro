@@ -9,6 +9,7 @@ import '../services/spotiflac_service.dart';
 import '../main.dart' show LuminaColors, MainNavigation, MainNavigationState, showQualityInLibraryNotifier;
 import 'detail_screen.dart';
 import 'artist_albums_screen.dart';
+import 'folder_browser_screen.dart';
 import 'song_menu.dart';
 
 enum SortMode { title, artist, album }
@@ -85,16 +86,46 @@ class LibraryScreenState extends State<LibraryScreen>
   late TabController _tabController;
   final TextEditingController _searchCtrl = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
-  List<String> _libraryNavStack = []; 
+  List<String> _libraryNavStack = []; // New state for Folder Browser
+
   final _spotiflac = SpotiflacService();
+
+  Future<void> _downloadAlbum(List<AudioFile> songs) async {
+    final toDownload = songs.where((s) => !s.isLocal && s.driveFileId != null).toList();
+    if (toDownload.isEmpty) {
+      _showToast('All songs in this album are already local.');
+      return;
+    }
+
+    _showToast('Starting download of ${toDownload.length} songs...');
+    
+    for (var song in toDownload) {
+      final track = SpotiflacTrack(
+        id: song.driveFileId!,
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+      );
+      
+      final success = await _spotiflac.downloadAndSave(track);
+      if (success && mounted) setState(() {});
+    }
+  }
+
+  void _showToast(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 2)));
+  }
 
   @override
   void initState() {
     super.initState();
+    // 6 tabs: Categories, Songs, Artists, Albums, Genres, Loved
     _tabController = TabController(length: 6, vsync: this);
     _tabController.addListener(() => setState(() {}));
     _refreshLibrary();
     _searchCtrl.addListener(_applyFilter);
+    
+    // Auto-refresh when cloud indexing finishes
     LibraryService.libraryUpdateNotifier.addListener(_refreshLibrary);
   }
 
@@ -204,34 +235,8 @@ class LibraryScreenState extends State<LibraryScreen>
 
   void switchTab(int index) {
     if (index >= 0 && index < _tabController.length) {
-      _tabController.index = index;
+      _tabController.index = index; // Listener already calls setState
     }
-  }
-
-  Future<void> _downloadAlbum(List<AudioFile> songs) async {
-    final toDownload = songs.where((s) => !s.isLocal && s.driveFileId != null).toList();
-    if (toDownload.isEmpty) {
-      _showToast('All songs in this album are already local.');
-      return;
-    }
-
-    _showToast('Starting download of ${toDownload.length} songs...');
-    
-    for (var song in toDownload) {
-      final track = SpotiflacTrack(
-        id: song.driveFileId!,
-        title: song.title,
-        artist: song.artist,
-        album: song.album,
-      );
-      
-      final success = await _spotiflac.downloadAndSave(track);
-      if (success && mounted) setState(() {});
-    }
-  }
-
-  void _showToast(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 2)));
   }
 
   @override
@@ -398,6 +403,126 @@ class LibraryScreenState extends State<LibraryScreen>
     );
   }
 
+  Widget _buildFolderBrowser(bool isDark) {
+    if (_libraryNavStack.isEmpty) {
+      // Level 0: Local vs GDrive
+      return ListView(
+        padding: const EdgeInsets.only(bottom: 130),
+        children: [
+          _FolderRow(
+            title: 'Local',
+            icon: CupertinoIcons.device_phone_portrait,
+            isDark: isDark,
+            onTap: () => setState(() => _libraryNavStack.add('Local')),
+          ),
+          Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 64, height: 1),
+          _FolderRow(
+            title: 'GDrive',
+            icon: CupertinoIcons.cloud,
+            isDark: isDark,
+            onTap: () => setState(() => _libraryNavStack.add('GDrive')),
+          ),
+        ],
+      );
+    }
+
+    final isLocal = _libraryNavStack[0] == 'Local';
+    var songs = _displayedSongs.where((s) => s.isLocal == isLocal).toList();
+
+    if (_libraryNavStack.length == 1) {
+      // Level 1: Group by Album Artist
+      final Map<String, List<AudioFile>> grouped = {};
+      for (var s in songs) {
+        var aa = (s.albumArtist.trim().isNotEmpty && s.albumArtist != 'Unknown Artist' && s.albumArtist != 'GDrive' && s.albumArtist != 'Cloud') ? s.albumArtist : 'No Metadata';
+        grouped.putIfAbsent(aa, () => []).add(s);
+      }
+      final keys = grouped.keys.toList()..sort();
+      return ListView.separated(
+        padding: const EdgeInsets.only(bottom: 130),
+        itemCount: keys.length,
+        separatorBuilder: (_, __) => Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 64, height: 1),
+        itemBuilder: (context, i) {
+          final aa = keys[i];
+          return _FolderRow(
+            title: aa,
+            subtitle: '${grouped[aa]!.length} songs',
+            icon: CupertinoIcons.person_2_fill,
+            isDark: isDark,
+            onTap: () => setState(() => _libraryNavStack.add(aa)),
+          );
+        },
+      );
+    }
+
+    // Filter by Album Artist
+    final targetAA = _libraryNavStack[1];
+    songs = songs.where((s) {
+      var aa = (s.albumArtist.trim().isNotEmpty && s.albumArtist != 'Unknown Artist' && s.albumArtist != 'GDrive' && s.albumArtist != 'Cloud') ? s.albumArtist : 'No Metadata';
+      return aa == targetAA;
+    }).toList();
+
+    if (_libraryNavStack.length == 2) {
+      // Level 2: Group by Album
+      final Map<String, List<AudioFile>> grouped = {};
+      for (var s in songs) {
+        var al = (s.album.trim().isNotEmpty && s.album != 'Unknown Album' && s.album != 'GDrive' && s.album != 'Cloud') ? s.album : 'No Metadata';
+        grouped.putIfAbsent(al, () => []).add(s);
+      }
+      final keys = grouped.keys.toList()..sort();
+      return ListView.separated(
+        padding: const EdgeInsets.only(bottom: 130),
+        itemCount: keys.length,
+        separatorBuilder: (_, __) => Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 64, height: 1),
+        itemBuilder: (context, i) {
+          final al = keys[i];
+          return _FolderRow(
+            title: al,
+            subtitle: '${grouped[al]!.length} songs',
+            icon: CupertinoIcons.music_albums,
+            isDark: isDark,
+            onTap: () => setState(() => _libraryNavStack.add(al)),
+          );
+        },
+      );
+    }
+
+    // Filter by Album
+    final targetAl = _libraryNavStack[2];
+    songs = songs.where((s) {
+      var al = (s.album.trim().isNotEmpty && s.album != 'Unknown Album' && s.album != 'GDrive' && s.album != 'Cloud') ? s.album : 'No Metadata';
+      return al == targetAl;
+    }).toList();
+
+    // Level 3: Songs List
+    final ps = PlayerService();
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 130),
+      itemCount: songs.length,
+      itemBuilder: (context, index) {
+        final song = songs[index];
+        return ValueListenableBuilder<AudioFile?>(
+          valueListenable: ps.currentSong,
+          builder: (ctx, currentSong, _) {
+            final isPlaying = currentSong?.path == song.path;
+            return Column(
+              children: [
+                _SongRow(
+                  song: song,
+                  isPlaying: isPlaying,
+                  isDark: isDark,
+                  onTap: () => ps.playQueue(songs, initialIndex: index),
+                  onMore: () => showSongMenuGlobal(context, song, index, songs),
+                ),
+                if (index < songs.length - 1)
+                  Divider(color: isDark ? LuminaColors.bg3 : LuminaColors.lightBg3, indent: 76, height: 1),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildCategories(bool isDark) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 130),
@@ -488,9 +613,7 @@ class LibraryScreenState extends State<LibraryScreen>
                   song: song,
                   isPlaying: isPlaying,
                   isDark: isDark,
-                  onTap: () {
-                    ps.playQueue(songs, initialIndex: index);
-                  },
+                  onTap: () => ps.playQueue(songs, initialIndex: index),
                   onMore: () => showSongMenuGlobal(context, song, index, songs),
                 ),
                 if (index < songs.length - 1)
@@ -535,9 +658,7 @@ class LibraryScreenState extends State<LibraryScreen>
                       song: song,
                       isPlaying: isPlaying,
                       isDark: isDark,
-                      onTap: () {
-                        ps.playQueue(songs, initialIndex: index - 1);
-                      },
+                      onTap: () => ps.playQueue(songs, initialIndex: index - 1),
                       onMore: () => showSongMenuGlobal(context, song, index - 1, songs),
                     ),
                     if (index < songs.length)
@@ -857,6 +978,7 @@ class _SongRow extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis),
                         ),
+                        // Buffering indicator for cloud songs
                         if (!song.isLocal)
                           ValueListenableBuilder<bool>(
                             valueListenable: PlayerService().bufferingNotifier,

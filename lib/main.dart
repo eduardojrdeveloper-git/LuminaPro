@@ -130,7 +130,7 @@ class MainNavigation extends StatefulWidget {
   State<MainNavigation> createState() => MainNavigationState();
 }
 
-class MainNavigationState extends State<MainNavigation> with TickerProviderStateMixin, WidgetsBindingObserver {
+class MainNavigationState extends State<MainNavigation> with WidgetsBindingObserver {
   int _currentIndex = 0;
   late PageController _pageController;
   final _ps = PlayerService();
