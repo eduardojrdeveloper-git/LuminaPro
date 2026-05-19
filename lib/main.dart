@@ -208,13 +208,25 @@ class MainNavigationState extends State<MainNavigation> with WidgetsBindingObser
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // ── Mini Player ───────────────────────────────
+        // ── Mini Player & Indexing Status ───────────────────────────────
         ValueListenableBuilder<AudioFile?>(
           valueListenable: _ps.currentSong,
           builder: (context, song, _) {
-            final showMini = song != null;
-            if (!showMini) return const SizedBox.shrink();
-            return _MiniPlayer(onTap: () => setIndex(2));
+            final isPlayingScreen = _currentIndex == 2;
+            return AnimatedSize(
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeOutQuart,
+              child: AnimatedOpacity(
+                opacity: isPlayingScreen ? 0.0 : 1.0,
+                duration: const Duration(milliseconds: 200),
+                child: IgnorePointer(
+                  ignoring: isPlayingScreen,
+                  child: isPlayingScreen 
+                      ? const SizedBox(width: double.infinity, height: 0)
+                      : _MiniPlayer(onTap: () => setIndex(2)),
+                ),
+              ),
+            );
           },
         ),
         

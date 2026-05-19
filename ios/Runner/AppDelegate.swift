@@ -209,40 +209,43 @@ import Accelerate
         let commandCenter = MPRemoteCommandCenter.shared()
         
         commandCenter.playCommand.addTarget { [weak self] event in
-            self?.resumeAudio()
-            self?.methodChannel?.invokeMethod("playPause", arguments: nil)
+            DispatchQueue.main.async {
+                self?.methodChannel?.invokeMethod("remotePlay", arguments: nil)
+            }
             return .success
         }
         commandCenter.pauseCommand.addTarget { [weak self] event in
-            self?.pauseAudio()
-            self?.methodChannel?.invokeMethod("playPause", arguments: nil)
+            DispatchQueue.main.async {
+                self?.methodChannel?.invokeMethod("remotePause", arguments: nil)
+            }
             return .success
         }
         commandCenter.togglePlayPauseCommand.addTarget { [weak self] event in
-            if self?.playerNode.isPlaying == true {
-                self?.pauseAudio()
-            } else {
-                self?.resumeAudio()
+            DispatchQueue.main.async {
+                self?.methodChannel?.invokeMethod("remoteToggle", arguments: nil)
             }
-            self?.methodChannel?.invokeMethod("playPause", arguments: nil)
             return .success
         }
         commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
             if let event = event as? MPChangePlaybackPositionCommandEvent {
                 let posMs = Int(event.positionTime * 1000)
-                self?.seekAudio(toMs: posMs)
-                // Notify Flutter of the lock-screen-initiated seek
-                self?.methodChannel?.invokeMethod("seek", arguments: ["position": posMs])
+                DispatchQueue.main.async {
+                    self?.methodChannel?.invokeMethod("remoteSeek", arguments: ["position": posMs])
+                }
                 return .success
             }
             return .commandFailed
         }
         commandCenter.nextTrackCommand.addTarget { [weak self] event in
-            self?.methodChannel?.invokeMethod("nextTrack", arguments: nil)
+            DispatchQueue.main.async {
+                self?.methodChannel?.invokeMethod("nextTrack", arguments: nil)
+            }
             return .success
         }
         commandCenter.previousTrackCommand.addTarget { [weak self] event in
-            self?.methodChannel?.invokeMethod("previousTrack", arguments: nil)
+            DispatchQueue.main.async {
+                self?.methodChannel?.invokeMethod("previousTrack", arguments: nil)
+            }
             return .success
         }
     }

@@ -168,6 +168,20 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
           case 'nextTrack': skipToNext(); break;
           case 'previousTrack': skipToPrevious(); break;
           case 'playPause': playPause(); break;
+          case 'remotePlay': 
+            if (!playingNotifier.value) playPause(); 
+            break;
+          case 'remotePause': 
+            if (playingNotifier.value) playPause(); 
+            break;
+          case 'remoteToggle': playPause(); break;
+          case 'remoteSeek':
+            final args = call.arguments;
+            if (args is Map && args['position'] != null) {
+              final posMs = (args['position'] as num).toInt();
+              seek(Duration(milliseconds: posMs));
+            }
+            break;
           case 'audioPathUpdate':
             if (call.arguments is Map) {
               final args = Map<String, dynamic>.from(call.arguments);
