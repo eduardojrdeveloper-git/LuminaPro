@@ -13,62 +13,6 @@ import 'song_menu.dart';
 
 enum SortMode { title, artist, album }
 
-class SegmentedBorderPainter extends CustomPainter {
-  final int totalSegments;
-  final int filledSegments;
-  final Color activeColor;
-  final Color inactiveColor;
-  final double strokeWidth;
-
-  SegmentedBorderPainter({
-    required this.totalSegments,
-    required this.filledSegments,
-    required this.activeColor,
-    required this.inactiveColor,
-    this.strokeWidth = 3.0,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (totalSegments <= 0) return;
-    
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round;
-
-    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
-    final RRect rrect = RRect.fromRectAndRadius(rect, const Radius.circular(10));
-    final Path path = Path()..addRRect(rrect);
-    final ui.PathMetrics pathMetrics = path.computeMetrics();
-    final ui.PathMetric metric = pathMetrics.first;
-
-    final double totalLength = metric.length;
-    final double segmentLength = totalLength / totalSegments;
-    const double gap = 2.0;
-
-    for (int i = 0; i < totalSegments; i++) {
-      paint.color = i < filledSegments ? activeColor : inactiveColor;
-      final double start = i * segmentLength;
-      final double end = (i + 1) * segmentLength - gap;
-      
-      if (end > start) {
-        canvas.drawPath(
-          metric.extractPath(start, end),
-          paint,
-        );
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant SegmentedBorderPainter oldDelegate) {
-    return oldDelegate.totalSegments != totalSegments || 
-           oldDelegate.filledSegments != filledSegments ||
-           oldDelegate.activeColor != activeColor;
-  }
-}
-
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
   
@@ -610,7 +554,6 @@ class LibraryScreenState extends State<LibraryScreen>
         final localCount = albumSongs.where((s) => s.isLocal).length;
         final totalCount = albumSongs.length;
         final isFullyLocal = localCount == totalCount;
-        final isGdriveOnly = localCount == 0;
 
         return GestureDetector(
           onTap: () { Navigator.push(context, CupertinoPageRoute(builder: (_) => DetailScreen(title: albumName, songs: albumSongs, coverArt: cover))); },
@@ -633,21 +576,27 @@ class LibraryScreenState extends State<LibraryScreen>
                           : Container(color: isDark ? LuminaColors.bg2 : LuminaColors.lightBg2, child: const Center(child: Icon(CupertinoIcons.music_albums, color: LuminaColors.labelSecondary, size: 40)))
                       )
                     ),
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: SegmentedBorderPainter(
-                          totalSegments: totalCount,
-                          filledSegments: localCount,
-                          activeColor: LuminaColors.accent,
-                          inactiveColor: isFullyLocal ? Colors.transparent : (isGdriveOnly ? Colors.blue.withOpacity(0.5) : Colors.white.withOpacity(0.3)),
-                          strokeWidth: 3,
-                        ),
-                      ),
-                    ),
                     if (!isFullyLocal)
                       Positioned(
                         top: 8, right: 8,
-                        child: Icon(CupertinoIcons.cloud_download, color: Colors.white.withOpacity(0.8), size: 16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.6),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(CupertinoIcons.cloud_download, color: Colors.white.withOpacity(0.9), size: 12),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$localCount/$totalCount',
+                                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                   ],
                 ),

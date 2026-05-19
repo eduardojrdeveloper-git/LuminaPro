@@ -229,6 +229,14 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
 
   Future<void> playPause() async {
     try {
+      if (bufferingNotifier.value) {
+        // If we are currently downloading/buffering from cloud, do not send resume/pause
+        // commands that could conflict with the post-download play call.
+        // Just log the interaction or perhaps queue it if needed.
+        LogService.log('PlayerService: Ignored playPause because track is buffering.');
+        return;
+      }
+      
       if (playingNotifier.value) {
         await _channel.invokeMethod('pause');
         _emitPlaying(false);
