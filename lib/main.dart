@@ -137,6 +137,13 @@ class MainNavigationState extends State<MainNavigation> with WidgetsBindingObser
   int _previousIndex = 0;
   final _ps = PlayerService();
 
+  final List<GlobalKey<NavigatorState>> _navKeys = [
+    GlobalKey<NavigatorState>(),
+    GlobalKey<NavigatorState>(),
+    GlobalKey<NavigatorState>(),
+    GlobalKey<NavigatorState>(),
+  ];
+
   late final List<Widget> _screens = [
     const LibraryScreen(key: ValueKey(0)),
     const DiscoverScreen(key: ValueKey(1)),
@@ -190,7 +197,17 @@ class MainNavigationState extends State<MainNavigation> with WidgetsBindingObser
         children: [
           IndexedStack(
             index: _currentIndex,
-            children: _screens,
+            children: _screens.asMap().entries.map((entry) {
+              return Navigator(
+                key: _navKeys[entry.key],
+                onGenerateRoute: (settings) {
+                  return CupertinoPageRoute(
+                    builder: (context) => entry.value,
+                    settings: settings,
+                  );
+                },
+              );
+            }).toList(),
           ),
           
           // ── Mini Player & Indexing Status ───────────────────────────────
@@ -223,10 +240,12 @@ class MainNavigationState extends State<MainNavigation> with WidgetsBindingObser
           ),
 
           // ── Bottom Nav Bar ──────────────────────────────────────────────
-          Positioned(
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeOutQuart,
             left: 0,
             right: 0,
-            bottom: 0,
+            bottom: _currentIndex == 2 ? -(54.0 + safeBottom) : 0,
             child: _buildNavBar(isDark),
           ),
         ],

@@ -182,6 +182,20 @@ Filter: ON PK Fc 4868 Hz Gain 1.6 dB Q 1.826
               seek(Duration(milliseconds: posMs));
             }
             break;
+          case 'syncState':
+            final args = call.arguments;
+            if (args is Map && args['playing'] != null) {
+              final bool isPlaying = args['playing'] as bool;
+              _emitPlaying(isPlaying);
+            }
+            break;
+          case 'syncPosition':
+            final args = call.arguments;
+            if (args is Map && args['position'] != null) {
+              final posMs = (args['position'] as num).toInt();
+              _emitPosition(Duration(milliseconds: posMs));
+            }
+            break;
           case 'audioPathUpdate':
             if (call.arguments is Map) {
               final args = Map<String, dynamic>.from(call.arguments);

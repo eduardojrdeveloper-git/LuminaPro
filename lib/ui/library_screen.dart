@@ -519,7 +519,7 @@ class LibraryScreenState extends State<LibraryScreen>
             ),
           ),
           title: Text(groupName, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: isDark ? Colors.white : Colors.black87, letterSpacing: -0.2)),
-          subtitle: Text('${groupSongs.length} songs', style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 13)),
+          subtitle: Text('${groupSongs.length} ${groupSongs.length == 1 ? 'song' : 'songs'}', style: const TextStyle(color: LuminaColors.labelSecondary, fontSize: 13)),
           trailing: const Icon(CupertinoIcons.chevron_right, color: LuminaColors.labelTertiary, size: 14),
           onTap: () { 
             if (isArtist) {
