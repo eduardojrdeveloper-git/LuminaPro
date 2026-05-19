@@ -209,43 +209,40 @@ import Accelerate
         let commandCenter = MPRemoteCommandCenter.shared()
         
         commandCenter.playCommand.addTarget { [weak self] event in
-            DispatchQueue.main.async {
-                self?.methodChannel?.invokeMethod("remotePlay", arguments: nil)
-            }
+            self?.resumeAudio()
+            self?.methodChannel?.invokeMethod("syncState", arguments: ["playing": true])
             return .success
         }
         commandCenter.pauseCommand.addTarget { [weak self] event in
-            DispatchQueue.main.async {
-                self?.methodChannel?.invokeMethod("remotePause", arguments: nil)
-            }
+            self?.pauseAudio()
+            self?.methodChannel?.invokeMethod("syncState", arguments: ["playing": false])
             return .success
         }
         commandCenter.togglePlayPauseCommand.addTarget { [weak self] event in
-            DispatchQueue.main.async {
-                self?.methodChannel?.invokeMethod("remoteToggle", arguments: nil)
+            let isPlaying = self?.playerNode.isPlaying == true
+            if isPlaying {
+                self?.pauseAudio()
+            } else {
+                self?.resumeAudio()
             }
+            self?.methodChannel?.invokeMethod("syncState", arguments: ["playing": !isPlaying])
             return .success
         }
         commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
             if let event = event as? MPChangePlaybackPositionCommandEvent {
                 let posMs = Int(event.positionTime * 1000)
-                DispatchQueue.main.async {
-                    self?.methodChannel?.invokeMethod("remoteSeek", arguments: ["position": posMs])
-                }
+                self?.seekAudio(toMs: posMs)
+                self?.methodChannel?.invokeMethod("syncPosition", arguments: ["position": posMs])
                 return .success
             }
             return .commandFailed
         }
         commandCenter.nextTrackCommand.addTarget { [weak self] event in
-            DispatchQueue.main.async {
-                self?.methodChannel?.invokeMethod("nextTrack", arguments: nil)
-            }
+            self?.methodChannel?.invokeMethod("nextTrack", arguments: nil)
             return .success
         }
         commandCenter.previousTrackCommand.addTarget { [weak self] event in
-            DispatchQueue.main.async {
-                self?.methodChannel?.invokeMethod("previousTrack", arguments: nil)
-            }
+            self?.methodChannel?.invokeMethod("previousTrack", arguments: nil)
             return .success
         }
     }
