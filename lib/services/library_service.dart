@@ -198,6 +198,23 @@ class LibraryService {
       // Use registry.json from project root (mocking for mobile if needed, 
       // but here we set the URL to a local placeholder or known repo)
       await PlatformBridge.setStoreRegistryUrl('https://raw.githubusercontent.com/eduardojrdeveloper-git/LuminaPro/main/registry.json');
+
+      final installed = await PlatformBridge.getInstalledExtensions();
+      if (installed.isEmpty) {
+        debugPrint('LibraryService: Auto-installing extensions from registry...');
+        final storeExts = await PlatformBridge.getStoreExtensions(forceRefresh: true);
+        for (var ext in storeExts) {
+          try {
+            final extId = ext['id'];
+            if (extId != null) {
+              await PlatformBridge.downloadStoreExtension(extId, extDir.path);
+            }
+          } catch (e) {
+            debugPrint('LibraryService: Failed to auto-install extension: $e');
+          }
+        }
+        await PlatformBridge.loadExtensionsFromDir(extDir.path);
+      }
       
       _initialized = true;
     } catch (e) {

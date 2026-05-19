@@ -198,6 +198,15 @@ class GoogleDriveService {
 
   Future<Map<String, dynamic>?> extractMetadataAndCover(String fileId) async {
     if (!isSignedIn) return null;
+
+    // Check if we already know this file has no cover to prevent infinite retries
+    final prefs = await SharedPreferences.getInstance();
+    final noCoverIds = prefs.getStringList('gdrive_no_cover_ids') ?? [];
+    if (noCoverIds.contains(fileId)) {
+      LogService.log('Skipping cover extraction for $fileId (already known to have no cover)');
+      return null;
+    }
+
     try {
       final headers = await getAuthHeaders();
       headers['Range'] = 'bytes=0-1048576'; // 1MB for cover art search
@@ -206,18 +215,18 @@ class GoogleDriveService {
       final client = http.Client();
       final request = http.Request('GET', url);
       request.headers.addAll(headers);
-      
+
       final response = await client.send(request);
-      
+
       if (response.statusCode != 200 && response.statusCode != 206) {
         client.close();
         throw Exception('Failed to fetch cover: ${response.statusCode}');
       }
-      
+
       final tempDir = await getTemporaryDirectory();
       final tempPath = p.join(tempDir.path, 'extract_$fileId.tmp');
       final tempFile = File(tempPath);
-      
+
       final sink = tempFile.openWrite();
       await response.stream.pipe(sink);
       await sink.close();
@@ -225,6 +234,12 @@ class GoogleDriveService {
 
       final metadata = await MetadataGod.readMetadata(file: tempPath);
       await tempFile.delete();
+
+      if (metadata.picture?.data == null) {
+        // Remember that this file has no cover
+        noCoverIds.add(fileId);
+        await prefs.setStringList('gdrive_no_cover_ids', noCoverIds);
+      }
 
       return {
         'title': metadata.title,
@@ -238,7 +253,6 @@ class GoogleDriveService {
       return null;
     }
   }
-
 
   Future<Map<String, String>> getAuthHeaders() async {
     if (_currentUser == null) return {};

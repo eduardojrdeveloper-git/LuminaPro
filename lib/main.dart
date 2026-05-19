@@ -182,6 +182,7 @@ class MainNavigationState extends State<MainNavigation> with WidgetsBindingObser
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final safeBottom = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
       extendBody: true,
@@ -191,78 +192,80 @@ class MainNavigationState extends State<MainNavigation> with WidgetsBindingObser
             index: _currentIndex,
             children: _screens,
           ),
+          
+          // ── Mini Player & Indexing Status ───────────────────────────────
           AnimatedPositioned(
-            duration: const Duration(milliseconds: 400),
+            duration: const Duration(milliseconds: 500),
             curve: Curves.easeOutQuart,
             left: 0,
             right: 0,
+            bottom: _currentIndex == 2 ? -200.0 : (54.0 + safeBottom), // Slide down when in PlayerScreen
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 300),
+              opacity: _currentIndex == 2 ? 0.0 : 1.0,
+              child: IgnorePointer(
+                ignoring: _currentIndex == 2,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildIndexingStatus(isDark),
+                    ValueListenableBuilder<AudioFile?>(
+                      valueListenable: _ps.currentSong,
+                      builder: (context, song, _) {
+                        if (song == null) return const SizedBox.shrink();
+                        return _MiniPlayer(onTap: () => setIndex(2));
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // ── Bottom Nav Bar ──────────────────────────────────────────────
+          Positioned(
+            left: 0,
+            right: 0,
             bottom: 0,
-            child: _buildBottomOverlay(isDark),
+            child: _buildNavBar(isDark),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildBottomOverlay(bool isDark) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // ── Mini Player & Indexing Status ───────────────────────────────
-        ValueListenableBuilder<AudioFile?>(
-          valueListenable: _ps.currentSong,
-          builder: (context, song, _) {
-            final isPlayingScreen = _currentIndex == 2;
-            return AnimatedSize(
-              duration: const Duration(milliseconds: 400),
-              curve: Curves.easeOutQuart,
-              child: AnimatedOpacity(
-                opacity: isPlayingScreen ? 0.0 : 1.0,
-                duration: const Duration(milliseconds: 200),
-                child: IgnorePointer(
-                  ignoring: isPlayingScreen,
-                  child: isPlayingScreen 
-                      ? const SizedBox(width: double.infinity, height: 0)
-                      : _MiniPlayer(onTap: () => setIndex(2)),
-                ),
+  Widget _buildNavBar(bool isDark) {
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark
+                ? LuminaColors.bg0.withOpacity(0.6)
+                : Colors.white.withOpacity(0.7),
+            border: Border(
+              top: BorderSide(
+                color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.08),
+                width: 0.5,
               ),
-            );
-          },
-        ),
-        
-        ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
-            child: Container(
-              decoration: BoxDecoration(
-                color: isDark
-                    ? LuminaColors.bg0.withOpacity(0.6)
-                    : Colors.white.withOpacity(0.7),
-                border: Border(
-                  top: BorderSide(
-                    color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.08),
-                    width: 0.5,
-                  ),
-                ),
-              ),
-              child: SafeArea(
-                top: false,
-                child: SizedBox(
-                  height: 54,
-                  child: Row(
-                    children: [
-                      _TabItem(index: 0, current: _currentIndex, icon: CupertinoIcons.music_albums, activeIcon: CupertinoIcons.music_albums_fill, label: 'Library', onTap: () => setIndex(0), isDark: isDark),
-                      _TabItem(index: 1, current: _currentIndex, icon: CupertinoIcons.globe, activeIcon: CupertinoIcons.globe, label: 'Discover', onTap: () => setIndex(1), isDark: isDark),
-                      _TabItem(index: 2, current: _currentIndex, icon: CupertinoIcons.play_circle, activeIcon: CupertinoIcons.play_circle_fill, label: 'Playing', onTap: () => setIndex(2), isDark: isDark),
-                      _TabItem(index: 3, current: _currentIndex, icon: CupertinoIcons.settings, activeIcon: CupertinoIcons.settings_solid, label: 'Settings', onTap: () => setIndex(3), isDark: isDark),
-                    ],
-                  ),
-                ),
+            ),
+          ),
+          child: SafeArea(
+            top: false,
+            child: SizedBox(
+              height: 54,
+              child: Row(
+                children: [
+                  _TabItem(index: 0, current: _currentIndex, icon: CupertinoIcons.music_albums, activeIcon: CupertinoIcons.music_albums_fill, label: 'Library', onTap: () => setIndex(0), isDark: isDark),
+                  _TabItem(index: 1, current: _currentIndex, icon: CupertinoIcons.globe, activeIcon: CupertinoIcons.globe, label: 'Discover', onTap: () => setIndex(1), isDark: isDark),
+                  _TabItem(index: 2, current: _currentIndex, icon: CupertinoIcons.play_circle, activeIcon: CupertinoIcons.play_circle_fill, label: 'Playing', onTap: () => setIndex(2), isDark: isDark),
+                  _TabItem(index: 3, current: _currentIndex, icon: CupertinoIcons.settings, activeIcon: CupertinoIcons.settings_solid, label: 'Settings', onTap: () => setIndex(3), isDark: isDark),
+                ],
               ),
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 }
