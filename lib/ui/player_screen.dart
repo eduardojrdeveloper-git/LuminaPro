@@ -453,7 +453,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                               ),
                             ],
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 80), // Increased spacing for Taskbar
                         ],
                       ),
                     ),

@@ -176,6 +176,18 @@ class LibraryService {
           debugPrint('LibraryService: Failed to decode drive_songs: $e');
         }
       }
+
+      // Load persisted local songs
+      final localSongsJson = prefs.getString('local_songs');
+      if (localSongsJson != null) {
+        try {
+          final List<dynamic> decoded = jsonDecode(localSongsJson);
+          _localSongsCache = decoded.map((e) => AudioFile.fromJson(e as Map<String, dynamic>)).toList();
+          if (_localSongsCache.isNotEmpty) _hasInitialScanCompleted = true;
+        } catch (e) {
+          debugPrint('LibraryService: Failed to decode local_songs: $e');
+        }
+      }
       
       final docDir = await getApplicationDocumentsDirectory();
       if (_includePaths.isEmpty) {
@@ -229,6 +241,16 @@ class LibraryService {
       await prefs.setString('drive_songs', encoded);
     } catch (e) {
       debugPrint('LibraryService: _saveDriveSongs error: $e');
+    }
+  }
+
+  static Future<void> _saveLocalSongs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(_localSongsCache.map((e) => e.toJson()).toList());
+      await prefs.setString('local_songs', encoded);
+    } catch (e) {
+      debugPrint('LibraryService: _saveLocalSongs error: $e');
     }
   }
 
@@ -558,8 +580,12 @@ class LibraryService {
         
         processed++;
         
-        // Notify UI every 5 songs to avoid constant rebuilds, or if it's the last one
+        // Update progress notifier
+        indexProgressNotifier.value = processed / _localSongsCache.length;
+
+        // Save progressively and notify UI every 5 songs
         if (processed % 5 == 0 || i == _localSongsCache.length - 1) {
+          _saveLocalSongs();
           libraryUpdateNotifier.value++;
         }
       } catch (e) {
@@ -567,13 +593,15 @@ class LibraryService {
       }
       
       // Yield to the event loop so the UI doesn't freeze
-      await Future.delayed(const Duration(milliseconds: 10));
+      await Future.delayed(const Duration(milliseconds: 5));
     }
     
+    // Final save
+    await _saveLocalSongs();
+    
     isIndexingNotifier.value = false;
+    indexProgressNotifier.value = 0;
+    indexCurrentFileNotifier.value = '';
     _isBackgroundIndexing = false;
-    if (processed > 0 && processed % 5 != 0) {
-      libraryUpdateNotifier.value++;
-    }
   }
 }

@@ -240,12 +240,10 @@ class MainNavigationState extends State<MainNavigation> with WidgetsBindingObser
           ),
 
           // ── Bottom Nav Bar ──────────────────────────────────────────────
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.easeOutQuart,
+          Positioned(
             left: 0,
             right: 0,
-            bottom: _currentIndex == 2 ? -(54.0 + safeBottom) : 0,
+            bottom: 0,
             child: _buildNavBar(isDark),
           ),
         ],
